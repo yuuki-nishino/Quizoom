@@ -1,16 +1,16 @@
 {
-  "feature_name": "wedding-quiz-app",
+  "feature_name": "live-quiz-app",
   "created_at": "2026-08-06T00:31:29Z",
-  "updated_at": "2026-08-06T00:31:29Z",
+  "updated_at": "2026-08-08T09:17:16Z",
   "language": "ja",
-  "phase": "initialized",
+  "phase": "design-generated",
   "approvals": {
     "requirements": {
-      "generated": false,
-      "approved": false
+      "generated": true,
+      "approved": true
     },
     "design": {
-      "generated": false,
+      "generated": true,
       "approved": false
     },
     "tasks": {
