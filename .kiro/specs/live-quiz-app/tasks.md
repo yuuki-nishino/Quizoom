@@ -53,8 +53,8 @@
   - _Requirements: 5.2, 5.4, 5.5, 5.7, 5.8, 5.9, 5.11, 5.12, 5.13, 12.1_
   - _Boundary: PhaseMachine_
 
-- [ ] 3. コア: クイズカタログ永続化
-- [ ] 3.1 CatalogRepository: イベントCRUDと所有権・開催中禁止制御
+- [x] 3. コア: クイズカタログ永続化
+- [x] 3.1 CatalogRepository: イベントCRUDと所有権・開催中禁止制御
   - `listEvents`／`findEvent`／`createEvent`／`updateEvent`／`duplicateEvent`／`deleteEvent` を D1 に対する操作として実装する
   - 所有者以外のアクセスに `FORBIDDEN`、存在しないイベントに `NOT_FOUND` を返す
   - イベント複製時に設問と外観設定のみを引き継ぎ、参加者・回答データを引き継がない
@@ -63,7 +63,7 @@
   - 観測可能な完了条件: 所有者以外による更新・削除が `FORBIDDEN` になり、`updateStatus` の期待値不一致が `STATUS_CONFLICT` になることを統合テストで確認できる
   - _Requirements: 1.3, 1.4, 1.5, 1.6, 1.7, 1.8_
 
-- [ ] 3.2 CatalogRepository: 設問・選択肢CRUDとバリデーション・並び替え
+- [x] 3.2 CatalogRepository: 設問・選択肢CRUDとバリデーション・並び替え
   - `upsertQuestion`（問題文・選択肢・正解・制限時間・画像参照・解説文）と `deleteQuestion`、`reorderQuestions` を実装する
   - 選択肢2〜4件、正解ちょうど1件、制限時間5〜300秒の境界検証を行い、違反時に不足項目を示す `VALIDATION` エラーを返す
   - `status` が `live` の設問変更操作を `EVENT_LIVE` で拒否する
@@ -72,7 +72,7 @@
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10_
   - _Depends: 3.1_
 
-- [ ] 3.3 CatalogRepository: 外観設定の保存とプリセットテーマ
+- [x] 3.3 CatalogRepository: 外観設定の保存とプリセットテーマ
   - `putTheme` を実装し、基調色・アクセント色・背景色・文字色・ロゴ／背景画像参照を保存する
   - あらかじめ用意した複数の配色プリセットから選択できる仕組みを提供する
   - 観測可能な完了条件: テーマの保存・取得が往復し、プリセット一覧から1件を適用するとカスタム4色が上書きされることを確認できる

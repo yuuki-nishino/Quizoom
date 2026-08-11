@@ -1,0 +1,483 @@
+import { err, ok } from "../../shared/domain-types";
+import type {
+  AssetId,
+  EventId,
+  EventStatus,
+  OptionId,
+  QuestionId,
+  Result,
+  ThemeSettings,
+} from "../../shared/domain-types";
+import type { Env } from "../env";
+
+export type CatalogError =
+  | { readonly code: "NOT_FOUND" }
+  | { readonly code: "FORBIDDEN" }
+  | { readonly code: "EVENT_LIVE" }
+  | { readonly code: "VALIDATION"; readonly fields: readonly string[] }
+  | { readonly code: "STATUS_CONFLICT"; readonly actual: EventStatus };
+
+export interface EventSummary {
+  readonly id: EventId;
+  readonly title: string;
+  readonly status: EventStatus;
+  readonly questionCount: number;
+}
+
+export interface QuestionOption {
+  readonly id: OptionId;
+  readonly label: string;
+  readonly isCorrect: boolean;
+  readonly orderIndex: number;
+}
+
+export interface Question {
+  readonly id: QuestionId;
+  readonly orderIndex: number;
+  readonly body: string;
+  readonly imageAssetId: AssetId | null;
+  readonly timeLimitSec: number;
+  readonly explanation: string;
+  readonly options: readonly QuestionOption[];
+}
+
+export interface EventDetail {
+  readonly id: EventId;
+  readonly title: string;
+  readonly subtitle: string;
+  readonly status: EventStatus;
+  readonly capacity: number | null;
+  readonly createdAt: number;
+  readonly questions: readonly Question[];
+  readonly theme: ThemeSettings;
+}
+
+export interface CreateEventInput {
+  readonly title: string;
+  readonly subtitle?: string;
+  readonly capacity?: number | null;
+}
+
+export interface UpdateEventInput {
+  readonly title?: string;
+  readonly subtitle?: string;
+  readonly capacity?: number | null;
+}
+
+export interface QuestionOptionInput {
+  readonly label: string;
+  readonly isCorrect: boolean;
+}
+
+export interface QuestionInput {
+  readonly id?: QuestionId;
+  readonly body: string;
+  readonly imageAssetId?: AssetId | null;
+  readonly timeLimitSec: number;
+  readonly explanation?: string;
+  readonly options: readonly QuestionOptionInput[];
+}
+
+export const DEFAULT_THEME: ThemeSettings = {
+  primaryColor: "#4338ca",
+  accentColor: "#f59e0b",
+  backgroundColor: "#ffffff",
+  textColor: "#111827",
+  logoAssetId: null,
+  backgroundAssetId: null,
+};
+
+export const THEME_PRESETS: readonly ThemeSettings[] = [
+  {
+    primaryColor: "#be123c",
+    accentColor: "#fbbf24",
+    backgroundColor: "#fff1f2",
+    textColor: "#1f2937",
+    logoAssetId: null,
+    backgroundAssetId: null,
+  },
+  {
+    primaryColor: "#065f46",
+    accentColor: "#d97706",
+    backgroundColor: "#ecfdf5",
+    textColor: "#111827",
+    logoAssetId: null,
+    backgroundAssetId: null,
+  },
+  {
+    primaryColor: "#1e3a8a",
+    accentColor: "#38bdf8",
+    backgroundColor: "#eff6ff",
+    textColor: "#0f172a",
+    logoAssetId: null,
+    backgroundAssetId: null,
+  },
+];
+
+function newId(): string {
+  return crypto.randomUUID();
+}
+
+interface EventRow {
+  readonly id: string;
+  readonly owner_id: string;
+  readonly title: string;
+  readonly subtitle: string;
+  readonly status: EventStatus;
+  readonly capacity: number | null;
+  readonly created_at: number;
+}
+
+interface QuestionRow {
+  readonly id: string;
+  readonly order_index: number;
+  readonly body: string;
+  readonly image_asset_id: string | null;
+  readonly time_limit_sec: number;
+  readonly explanation: string;
+}
+
+interface OptionRow {
+  readonly id: string;
+  readonly question_id: string;
+  readonly label: string;
+  readonly is_correct: number;
+  readonly order_index: number;
+}
+
+interface ThemeRow {
+  readonly primary_color: string;
+  readonly accent_color: string;
+  readonly background_color: string;
+  readonly text_color: string;
+  readonly logo_asset_id: string | null;
+  readonly background_asset_id: string | null;
+}
+
+function toTheme(row: ThemeRow | null): ThemeSettings {
+  if (!row) return DEFAULT_THEME;
+  return {
+    primaryColor: row.primary_color,
+    accentColor: row.accent_color,
+    backgroundColor: row.background_color,
+    textColor: row.text_color,
+    logoAssetId: (row.logo_asset_id as AssetId) ?? null,
+    backgroundAssetId: (row.background_asset_id as AssetId) ?? null,
+  };
+}
+
+async function loadQuestions(env: Env, eventId: EventId): Promise<readonly Question[]> {
+  const { results: questionRows } = await env.DB.prepare(
+    "SELECT id, order_index, body, image_asset_id, time_limit_sec, explanation FROM question WHERE event_id = ? ORDER BY order_index",
+  )
+    .bind(eventId)
+    .all<QuestionRow>();
+
+  const { results: optionRows } = await env.DB.prepare(
+    "SELECT o.id, o.question_id, o.label, o.is_correct, o.order_index FROM option o JOIN question q ON q.id = o.question_id WHERE q.event_id = ? ORDER BY o.order_index",
+  )
+    .bind(eventId)
+    .all<OptionRow>();
+
+  return questionRows.map((q) => ({
+    id: q.id as QuestionId,
+    orderIndex: q.order_index,
+    body: q.body,
+    imageAssetId: (q.image_asset_id as AssetId) ?? null,
+    timeLimitSec: q.time_limit_sec,
+    explanation: q.explanation,
+    options: optionRows
+      .filter((o) => o.question_id === q.id)
+      .map((o) => ({
+        id: o.id as OptionId,
+        label: o.label,
+        isCorrect: o.is_correct === 1,
+        orderIndex: o.order_index,
+      })),
+  }));
+}
+
+async function toEventDetail(env: Env, row: EventRow): Promise<EventDetail> {
+  const [questions, themeRow] = await Promise.all([
+    loadQuestions(env, row.id as EventId),
+    env.DB.prepare("SELECT * FROM theme WHERE event_id = ?").bind(row.id).first<ThemeRow>(),
+  ]);
+  return {
+    id: row.id as EventId,
+    title: row.title,
+    subtitle: row.subtitle,
+    status: row.status,
+    capacity: row.capacity,
+    createdAt: row.created_at,
+    questions,
+    theme: toTheme(themeRow),
+  };
+}
+
+async function findEventRow(env: Env, eventId: EventId): Promise<EventRow | null> {
+  return env.DB.prepare("SELECT * FROM event WHERE id = ?").bind(eventId).first<EventRow>();
+}
+
+async function requireOwnedEvent(env: Env, eventId: EventId, ownerId: string): Promise<Result<EventRow, CatalogError>> {
+  const row = await findEventRow(env, eventId);
+  if (!row) return err({ code: "NOT_FOUND" });
+  if (row.owner_id !== ownerId) return err({ code: "FORBIDDEN" });
+  return ok(row);
+}
+
+export async function listEvents(env: Env, ownerId: string): Promise<readonly EventSummary[]> {
+  const { results } = await env.DB.prepare(
+    "SELECT e.id, e.title, e.status, COUNT(q.id) as question_count FROM event e LEFT JOIN question q ON q.event_id = e.id WHERE e.owner_id = ? GROUP BY e.id ORDER BY e.created_at DESC",
+  )
+    .bind(ownerId)
+    .all<{ id: string; title: string; status: EventStatus; question_count: number }>();
+
+  return results.map((r) => ({
+    id: r.id as EventId,
+    title: r.title,
+    status: r.status,
+    questionCount: r.question_count,
+  }));
+}
+
+export async function findEvent(env: Env, eventId: EventId, ownerId: string): Promise<Result<EventDetail, CatalogError>> {
+  const owned = await requireOwnedEvent(env, eventId, ownerId);
+  if (!owned.ok) return owned;
+  return ok(await toEventDetail(env, owned.value));
+}
+
+export async function createEvent(env: Env, ownerId: string, input: CreateEventInput): Promise<EventDetail> {
+  const id = newId();
+  const createdAt = Date.now();
+  await env.DB.prepare(
+    "INSERT INTO event (id, owner_id, title, subtitle, status, capacity, created_at) VALUES (?, ?, ?, ?, 'draft', ?, ?)",
+  )
+    .bind(id, ownerId, input.title, input.subtitle ?? "", input.capacity ?? null, createdAt)
+    .run();
+
+  return {
+    id: id as EventId,
+    title: input.title,
+    subtitle: input.subtitle ?? "",
+    status: "draft",
+    capacity: input.capacity ?? null,
+    createdAt,
+    questions: [],
+    theme: DEFAULT_THEME,
+  };
+}
+
+export async function updateEvent(
+  env: Env,
+  eventId: EventId,
+  ownerId: string,
+  input: UpdateEventInput,
+): Promise<Result<EventDetail, CatalogError>> {
+  const owned = await requireOwnedEvent(env, eventId, ownerId);
+  if (!owned.ok) return owned;
+
+  await env.DB.prepare("UPDATE event SET title = ?, subtitle = ?, capacity = ? WHERE id = ?")
+    .bind(
+      input.title ?? owned.value.title,
+      input.subtitle ?? owned.value.subtitle,
+      input.capacity !== undefined ? input.capacity : owned.value.capacity,
+      eventId,
+    )
+    .run();
+
+  const updated = await findEventRow(env, eventId);
+  return ok(await toEventDetail(env, updated!));
+}
+
+export async function duplicateEvent(env: Env, eventId: EventId, ownerId: string): Promise<Result<EventDetail, CatalogError>> {
+  const owned = await requireOwnedEvent(env, eventId, ownerId);
+  if (!owned.ok) return owned;
+
+  const [questions, themeRow] = await Promise.all([
+    loadQuestions(env, eventId),
+    env.DB.prepare("SELECT * FROM theme WHERE event_id = ?").bind(eventId).first<ThemeRow>(),
+  ]);
+
+  const newEventId = newId();
+  const createdAt = Date.now();
+  const statements = [
+    env.DB.prepare(
+      "INSERT INTO event (id, owner_id, title, subtitle, status, capacity, created_at) VALUES (?, ?, ?, ?, 'draft', ?, ?)",
+    ).bind(newEventId, ownerId, owned.value.title, owned.value.subtitle, owned.value.capacity, createdAt),
+  ];
+
+  for (const question of questions) {
+    const newQuestionId = newId();
+    statements.push(
+      env.DB.prepare(
+        "INSERT INTO question (id, event_id, order_index, body, image_asset_id, time_limit_sec, explanation) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      ).bind(newQuestionId, newEventId, question.orderIndex, question.body, question.imageAssetId, question.timeLimitSec, question.explanation),
+    );
+    for (const option of question.options) {
+      statements.push(
+        env.DB.prepare(
+          "INSERT INTO option (id, question_id, label, is_correct, order_index) VALUES (?, ?, ?, ?, ?)",
+        ).bind(newId(), newQuestionId, option.label, option.isCorrect ? 1 : 0, option.orderIndex),
+      );
+    }
+  }
+
+  if (themeRow) {
+    statements.push(
+      env.DB.prepare(
+        "INSERT INTO theme (event_id, primary_color, accent_color, background_color, text_color, logo_asset_id, background_asset_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      ).bind(
+        newEventId,
+        themeRow.primary_color,
+        themeRow.accent_color,
+        themeRow.background_color,
+        themeRow.text_color,
+        themeRow.logo_asset_id,
+        themeRow.background_asset_id,
+      ),
+    );
+  }
+
+  await env.DB.batch(statements);
+
+  const created = await findEventRow(env, newEventId as EventId);
+  return ok(await toEventDetail(env, created!));
+}
+
+export async function deleteEvent(env: Env, eventId: EventId, ownerId: string): Promise<Result<void, CatalogError>> {
+  const owned = await requireOwnedEvent(env, eventId, ownerId);
+  if (!owned.ok) return owned;
+
+  await env.DB.prepare("DELETE FROM event WHERE id = ?").bind(eventId).run();
+  return ok(undefined);
+}
+
+export async function updateStatus(
+  env: Env,
+  eventId: EventId,
+  expected: EventStatus,
+  next: EventStatus,
+): Promise<Result<void, CatalogError>> {
+  const row = await findEventRow(env, eventId);
+  if (!row) return err({ code: "NOT_FOUND" });
+  if (row.status === next) return ok(undefined);
+  if (row.status !== expected) return err({ code: "STATUS_CONFLICT", actual: row.status });
+
+  await env.DB.prepare("UPDATE event SET status = ? WHERE id = ? AND status = ?").bind(next, eventId, expected).run();
+  return ok(undefined);
+}
+
+export async function countQuestions(env: Env, eventId: EventId): Promise<number> {
+  const row = await env.DB.prepare("SELECT COUNT(*) as n FROM question WHERE event_id = ?").bind(eventId).first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+function validateQuestionInput(input: QuestionInput): readonly string[] {
+  const fields: string[] = [];
+  if (input.options.length < 2 || input.options.length > 4) fields.push("options");
+  if (input.options.filter((o) => o.isCorrect).length !== 1) fields.push("correctOption");
+  if (input.timeLimitSec < 5 || input.timeLimitSec > 300) fields.push("timeLimitSec");
+  return fields;
+}
+
+export async function upsertQuestion(
+  env: Env,
+  eventId: EventId,
+  ownerId: string,
+  input: QuestionInput,
+): Promise<Result<Question, CatalogError>> {
+  const owned = await requireOwnedEvent(env, eventId, ownerId);
+  if (!owned.ok) return owned;
+  if (owned.value.status === "live") return err({ code: "EVENT_LIVE" });
+
+  const fields = validateQuestionInput(input);
+  if (fields.length > 0) return err({ code: "VALIDATION", fields });
+
+  const questionId = input.id ?? (newId() as QuestionId);
+  const orderIndex =
+    input.id !== undefined
+      ? (await env.DB.prepare("SELECT order_index FROM question WHERE id = ?").bind(input.id).first<{ order_index: number }>())
+          ?.order_index ?? 0
+      : await countQuestions(env, eventId);
+
+  const statements = [
+    env.DB.prepare(
+      "INSERT INTO question (id, event_id, order_index, body, image_asset_id, time_limit_sec, explanation) VALUES (?, ?, ?, ?, ?, ?, ?) " +
+        "ON CONFLICT(id) DO UPDATE SET body = excluded.body, image_asset_id = excluded.image_asset_id, time_limit_sec = excluded.time_limit_sec, explanation = excluded.explanation",
+    ).bind(questionId, eventId, orderIndex, input.body, input.imageAssetId ?? null, input.timeLimitSec, input.explanation ?? ""),
+    env.DB.prepare("DELETE FROM option WHERE question_id = ?").bind(questionId),
+  ];
+  input.options.forEach((option, index) => {
+    statements.push(
+      env.DB.prepare("INSERT INTO option (id, question_id, label, is_correct, order_index) VALUES (?, ?, ?, ?, ?)").bind(
+        newId(),
+        questionId,
+        option.label,
+        option.isCorrect ? 1 : 0,
+        index,
+      ),
+    );
+  });
+
+  await env.DB.batch(statements);
+
+  const [question] = await loadQuestions(env, eventId).then((qs) => qs.filter((q) => q.id === questionId));
+  return ok(question!);
+}
+
+export async function deleteQuestion(
+  env: Env,
+  eventId: EventId,
+  ownerId: string,
+  questionId: QuestionId,
+): Promise<Result<void, CatalogError>> {
+  const owned = await requireOwnedEvent(env, eventId, ownerId);
+  if (!owned.ok) return owned;
+  if (owned.value.status === "live") return err({ code: "EVENT_LIVE" });
+
+  await env.DB.prepare("DELETE FROM question WHERE id = ? AND event_id = ?").bind(questionId, eventId).run();
+  return ok(undefined);
+}
+
+export async function reorderQuestions(
+  env: Env,
+  eventId: EventId,
+  ownerId: string,
+  order: readonly QuestionId[],
+): Promise<Result<readonly Question[], CatalogError>> {
+  const owned = await requireOwnedEvent(env, eventId, ownerId);
+  if (!owned.ok) return owned;
+  if (owned.value.status === "live") return err({ code: "EVENT_LIVE" });
+
+  // (event_id, order_index) の UNIQUE 制約はバッチ内でも即時検証されるため、
+  // 一旦負の値へ退避してから最終値を設定し、入れ替え時の一時的な衝突を避ける。
+  await env.DB.batch([
+    ...order.map((questionId, index) =>
+      env.DB.prepare("UPDATE question SET order_index = ? WHERE id = ? AND event_id = ?").bind(-(index + 1), questionId, eventId),
+    ),
+    ...order.map((questionId, index) =>
+      env.DB.prepare("UPDATE question SET order_index = ? WHERE id = ? AND event_id = ?").bind(index, questionId, eventId),
+    ),
+  ]);
+
+  return ok(await loadQuestions(env, eventId));
+}
+
+export async function putTheme(
+  env: Env,
+  eventId: EventId,
+  ownerId: string,
+  theme: ThemeSettings,
+): Promise<Result<ThemeSettings, CatalogError>> {
+  const owned = await requireOwnedEvent(env, eventId, ownerId);
+  if (!owned.ok) return owned;
+
+  await env.DB.prepare(
+    "INSERT INTO theme (event_id, primary_color, accent_color, background_color, text_color, logo_asset_id, background_asset_id) VALUES (?, ?, ?, ?, ?, ?, ?) " +
+      "ON CONFLICT(event_id) DO UPDATE SET primary_color = excluded.primary_color, accent_color = excluded.accent_color, background_color = excluded.background_color, text_color = excluded.text_color, logo_asset_id = excluded.logo_asset_id, background_asset_id = excluded.background_asset_id",
+  )
+    .bind(eventId, theme.primaryColor, theme.accentColor, theme.backgroundColor, theme.textColor, theme.logoAssetId, theme.backgroundAssetId)
+    .run();
+
+  return ok(theme);
+}
