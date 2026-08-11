@@ -1,7 +1,7 @@
 # 実装計画
 
-- [ ] 1. 基盤: プロジェクト構成と認証基盤
-- [ ] 1.1 プロジェクト初期化とツールチェーン構築
+- [x] 1. 基盤: プロジェクト構成と認証基盤
+- [x] 1.1 プロジェクト初期化とツールチェーン構築
   - Vite 7 + React 19 + TypeScript 5（strict）でクライアントを、Hono 4 on Cloudflare Workers で API を構成する
   - `wrangler.toml`（or `wrangler.jsonc`）に D1・R2・Durable Object（SQLite バックエンド）のバインディングを定義する
   - Cloudflare Workers Static Assets によるクライアントバンドル配信を設定する
@@ -9,14 +9,14 @@
   - 観測可能な完了条件: `npm run dev` でローカル Worker が起動し、Hono の疎通確認エンドポイントが応答する。`npm test` が空のテストスイートを実行できる
   - _Requirements: 12.1_
 
-- [ ] 1.2 共有ドメイン型とWebSocketプロトコル契約の定義
+- [x] 1.2 共有ドメイン型とWebSocketプロトコル契約の定義
   - `shared/domain-types.ts` に `Result<T, E>`、`EventStatus`、`EventId`／`QuestionId`／`ParticipantId` 等の識別子型、`JoinRejection` を定義する
   - `shared/protocol.ts` に `ClientCommand` / `ServerEvent` の判別可能ユニオンを Zod スキーマとして定義し、`z.infer` で型を導出する
   - 主催者専用コマンド集合 `HostCommand`（`submitAnswer` と `resync` を除く）を型として分離する
   - 観測可能な完了条件: サーバー・クライアント双方から同一の `ServerEvent` 型をインポートでき、不正なペイロードが Zod の parse でエラーになることをユニットテストで確認できる
   - _Requirements: 9.1_
 
-- [ ] 1.3 D1スキーマとマイグレーション定義
+- [x] 1.3 D1スキーマとマイグレーション定義
   - `event`（status, join_code, stage_token, capacity 等）、`question`、`option`、`theme`、`result`、`result_entry`、`result_answer` のテーブルをマイグレーションとして作成する
   - `option.is_correct` がちょうど1件であることを担保する制約、`(event_id, order_index)` の UNIQUE、`join_code`／`stage_token`／`share_code` の UNIQUE 制約を定義する
   - `event` 削除時に `question`／`option`／`theme`／`result` を連鎖削除する外部キー制約を設定する
@@ -24,7 +24,7 @@
   - 観測可能な完了条件: マイグレーション適用後、制約違反を伴う INSERT（正解2件、選択肢1件など）がエラーになることを確認できる
   - _Requirements: 1.8, 2.2, 2.4, 2.6, 10.4, 10.7_
 
-- [ ] 1.4 主催者認証基盤（Better Auth + Google OAuth）
+- [x] 1.4 主催者認証基盤（Better Auth + Google OAuth）
   - Workers のリクエストスコープ制約に対応し、`Env` を引数に取る `AuthFactory`（ファクトリ関数）として Better Auth を構成する
   - Google OAuth 2.0（`email`／`profile` スコープのみ）を認可プロバイダとして接続する
   - `HostGuard.requireHost` / `requireEventOwner` を実装し、未認証・非所有者からのアクセスを拒否するミドルウェアとして提供する
