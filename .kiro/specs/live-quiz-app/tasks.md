@@ -79,7 +79,7 @@
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
   - _Depends: 3.1_
 
-- [ ] 4. (P) 参加者トークンの発行・検証
+- [x] 4. (P) 参加者トークンの発行・検証
   - `ParticipantTokenService.issue`／`verify` を実装し、`eventId`・`participantId`・発行時刻のみを含む署名付きトークンを発行する
   - 署名鍵を Worker シークレットとして保持し、他イベント宛トークンの流用を `EVENT_MISMATCH` で拒否する
   - 観測可能な完了条件: 発行したトークンが同一イベントでのみ検証成功し、別イベントの `expectedEventId` を渡すと `EVENT_MISMATCH` になることをユニットテストで確認できる
