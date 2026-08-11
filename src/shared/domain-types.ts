@@ -63,9 +63,9 @@ export type LivePhase =
       readonly openedAt: number;
       readonly deadlineAt: number;
     }
-  | { readonly kind: "questionClosed"; readonly questionId: QuestionId }
+  | { readonly kind: "questionClosed"; readonly questionId: QuestionId; readonly openedAt: number }
   | { readonly kind: "revealed"; readonly questionId: QuestionId }
-  | { readonly kind: "interimRanking" }
+  | { readonly kind: "interimRanking"; readonly nextQuestionId: QuestionId | null }
   | { readonly kind: "paused"; readonly resumeTo: LivePhase; readonly remainingMs: number }
   | { readonly kind: "finalRanking" };
 

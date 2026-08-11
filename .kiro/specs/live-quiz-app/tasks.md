@@ -31,8 +31,8 @@
   - 観測可能な完了条件: 未認証リクエストに対して保護エンドポイントが 401 を返し、Google ログイン完了後に主催者セッションが確立されることを確認できる
   - _Requirements: 1.1, 1.2_
 
-- [ ] 2. コア: ドメイン純粋ロジック
-- [ ] 2.1 (P) ScoringModule: 正誤判定・集計・順位決定の実装
+- [x] 2. コア: ドメイン純粋ロジック
+- [x] 2.1 (P) ScoringModule: 正誤判定・集計・順位決定の実装
   - `judge`（正誤判定）、`aggregate`（正解数・合計回答時間の集計）、`rank`（順位付け）を Cloudflare 固有 API に依存しない純粋関数として実装する
   - 順位は「正解数降順 → 合計回答時間昇順 → 参加登録順 `joinedSeq` 昇順」の全順序で決定し、同率が発生しないことを保証する
   - 不正解・未回答の設問を合計回答時間に加算しない集計ロジックを実装する
@@ -42,7 +42,7 @@
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9_
   - _Boundary: ScoringModule_
 
-- [ ] 2.2 (P) PhaseMachine: フェーズ遷移規則とアラーム意図の実装
+- [x] 2.2 (P) PhaseMachine: フェーズ遷移規則とアラーム意図の実装
   - `LivePhase` の全遷移（`lobby`→`ready`→`questionOpen`→`questionClosed`→`revealed`→`interimRanking`→`finalRanking`、および `paused`）を純粋関数 `next` として実装する
   - 不正な遷移（例: `lobby` からの `closeQuestion`）を `INVALID_PHASE` として拒否する
   - 最終設問の `revealed` からの `nextQuestion` は `NO_NEXT_QUESTION` を返し、`finalize` のみを受理する
