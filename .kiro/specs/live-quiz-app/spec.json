@@ -1,9 +1,9 @@
 {
   "feature_name": "live-quiz-app",
   "created_at": "2026-08-06T00:31:29Z",
-  "updated_at": "2026-08-11T08:03:33Z",
+  "updated_at": "2026-08-11T08:40:00Z",
   "language": "ja",
-  "phase": "design-generated",
+  "phase": "tasks-generated",
   "approvals": {
     "requirements": {
       "generated": true,
@@ -14,8 +14,8 @@
       "approved": true
     },
     "tasks": {
-      "generated": false,
-      "approved": false
+      "generated": true,
+      "approved": true
     }
   },
   "ready_for_implementation": false

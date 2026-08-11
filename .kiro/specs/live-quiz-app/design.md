@@ -297,9 +297,9 @@ flowchart TD
 | Requirement | Summary | Components | Interfaces | Flows |
 |-------------|---------|------------|------------|-------|
 | 1.1, 1.2 | 主催者認証とログイン強制 | AuthFactory, HostGuard | HTTP `/api/auth/*` | — |
-| 1.3–1.8 | イベント CRUD・複製・削除・開催中の編集禁止 | CatalogRoutes, CatalogRepository | `EventCatalogService` | — |
-| 2.1–2.10 | 設問の作成・検証・並び替え | CatalogRoutes, CatalogRepository | `QuestionCatalogService` | — |
-| 3.1–3.6 | 外観カスタマイズとコントラスト警告 | CatalogRoutes, ThemeProvider | `ThemeSettings` | — |
+| 1.3–1.8 | イベント CRUD・複製・削除・開催中の編集禁止 | CatalogRoutes, CatalogRepository, HostConsole | `EventCatalogService` | — |
+| 2.1–2.10 | 設問の作成・検証・並び替え | CatalogRoutes, CatalogRepository, HostConsole | `QuestionCatalogService` | — |
+| 3.1–3.6 | 外観カスタマイズとコントラスト警告 | CatalogRoutes, ThemeProvider, HostConsole | `ThemeSettings` | — |
 | 3.7 | 開催中の外観反映 | QuizSessionDO, ThemeProvider | `themeUpdated` イベント | — |
 | 4.1, 4.2 | 参加用 URL と QR コード発行 | CatalogRoutes, HostConsole | `EventCatalogService` | — |
 | 4.3–4.8 | 参加登録・重複名・定員・復元 | JoinRoutes, ParticipantToken, QuizSessionDO | HTTP `/api/join/:joinCode` | — |
@@ -308,9 +308,9 @@ flowchart TD
 | 6.1–6.8 | 投影画面の表示 | PresentationScreen, QuizSessionDO | `ServerEvent` | 進行フロー |
 | 7.1–7.9 | 回答画面の表示と送信 | AnswerScreen, QuizSessionDO | `submitAnswer` | 進行フロー |
 | 8.1–8.10 | 採点とランキング | ScoringModule, QuizSessionDO, ResultArchive | `RankingEntry` | 進行フロー |
-| 8.11–8.14 | 結果の共有と画像化 | ResultArchive, CatalogRoutes, ShareView | `PublicResult` | — |
+| 8.11–8.14 | 結果の共有と画像化 | ResultArchive, CatalogRoutes, HostConsole, ShareView | `PublicResult` | — |
 | 9.1–9.8 | リアルタイム同期と復帰 | LiveChannel, QuizSessionDO, ServerClock | `stateSnapshot` | 接続復帰フロー |
-| 10.1–10.8 | データ保護と共有の既定無効 | ParticipantToken, MediaRoutes, HostGuard, ResultArchive | `PublicResult` | — |
+| 10.1–10.8 | データ保護と共有の既定無効 | ParticipantToken, MediaRoutes, HostGuard, ResultArchive, HostConsole | `PublicResult` | — |
 | 11.1–11.6 | 非機能（対応環境・応答性） | 全クライアント | — | — |
 | 12.1–12.4 | 運用コストと開催前確認 | 全サーバー構成, HealthCheck | HTTP `/api/events/:id/preflight` | — |
 
@@ -377,7 +377,8 @@ interface PublicResult {
 | ShareView | UI | 共有結果ページの描画と画像化 | 8.12, 8.14, 10.8 | — | State |
 | LiveChannel | UI | WebSocket 接続・再接続・状態復元 | 9.2–9.6 | protocol (P0) | State |
 | ServerClock | UI | サーバー基準の残り時間算出 | 9.8, 6.2, 7.2 | なし | Service |
-| HostConsole / PresentationScreen / AnswerScreen | UI | 3画面の描画 | 5, 6, 7 | LiveChannel (P0), ThemeProvider (P1) | State |
+| HostConsole | UI | 準備画面（イベント一覧・作成・編集、設問エディタ、外観エディタ、公開・QR/参加URL取得、結果閲覧・共有設定）と進行画面（出題操作・正解発表・結果発表）の描画 | 1.3–1.8, 2.1–2.10, 3.1–3.6, 4.1, 4.2, 5.1–5.13, 8.11, 8.13, 10.2, 10.3, 11.6, 12.3, 12.4 | CatalogRoutes (P0), LiveChannel (P0), ThemeProvider (P1) | State |
+| PresentationScreen / AnswerScreen | UI | 投影画面・回答画面の描画 | 6, 7 | LiveChannel (P0), ThemeProvider (P1) | State |
 
 ### Domain 層
 
@@ -1064,11 +1065,20 @@ interface ServerClock {
 
 #### HostConsole / PresentationScreen / AnswerScreen
 
-要件5・6・7 の表示要素を担う画面群。いずれも新たな境界を導入せず、`LiveChannel` の状態と `ThemeProvider` の外観設定を描画する。
+`client/host/` は準備画面と進行画面の両方を含む（要件1・2・3・4・5の表示要素）。`client/stage/` と `client/player/` は要件6・7の表示要素のみを担う。3画面いずれも新たな境界を導入せず、`LiveChannel` の状態と `ThemeProvider` の外観設定を描画する。
+
+**Responsibilities & Constraints（HostConsole の準備画面パート）**
+
+- イベント一覧・作成・編集・複製・削除の各操作を `CatalogRoutes` の HTTP API 経由で行う（要件1.3–1.8）。開催中イベントに対しては設問編集系のUI操作を無効化し、`CatalogRoutes` からの409応答時にも同等の表示で禁止を伝える（要件1.6, 1.7）
+- 設問エディタは、二択／四択の形式選択に応じて選択肢入力欄の数を切り替え、正解をちょうど1つだけ選択できるUIとする。画像添付は `MediaRoutes` へのアップロードと連動する（要件2.1–2.9）
+- 公開操作は設問が1件も無い場合にクライアント側でも送信前に抑止し、`CatalogRoutes` の422応答をエラー表示として提示する（要件2.10）
+- 外観エディタは基調色・アクセント色・背景色・文字色の指定とプリセットテーマ選択、ロゴ／背景画像アップロードを提供し、`ThemeProvider` を用いて投影用・回答用双方のプレビューを表示する（要件3.1–3.5）。コントラスト比警告は保存をブロックしない（要件3.6）
+- 公開完了後に参加用URL・QRコード（印刷用・投影用）とステージURLを表示する（要件4.1, 4.2）
+- 結果閲覧・共有設定画面は `CatalogRoutes` の `GET /api/events/:id/results`（設問別正誤を含む確定結果、要件10.2）と `POST/DELETE /api/events/:id/share`（共有の有効化・無効化、要件8.11, 8.13）を呼び出す。参加者データ削除操作もこの画面から提供する（要件10.3）
 
 **Implementation Notes**
 
-- 3画面は共通の `BaseScreenProps`（`snapshot`, `theme`, `connectionStatus`）を受け取り、役割固有のコールバックのみを追加で定義する
+- 3画面は共通の `BaseScreenProps`（`snapshot`, `theme`, `connectionStatus`）を受け取り、役割固有のコールバックのみを追加で定義する。準備画面パートは `LiveChannel` を使わず `CatalogRoutes` への通常の HTTP リクエストで完結する
 - `PresentationScreen` は投影を前提に、ビューポート幅に対する相対的な文字サイズで描画する（要件6.7）。レイアウトは16:9の全画面表示を基準とする（要件11.2）
 - `AnswerScreen` は縦画面での単一カラム配置とし、選択肢のタップ領域を十分に確保する（要件7.8）。**選択は単一選択**であり、複数選択の UI を持たない（要件2.4）
 - 途中参加者には、出題済み設問へ回答できず不利になる旨を参加直後に表示する（要件4.10）
