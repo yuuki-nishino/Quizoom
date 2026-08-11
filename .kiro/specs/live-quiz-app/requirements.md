@@ -69,12 +69,12 @@
 1. When 主催者が設問を追加した, the Quiz Management Service shall 問題文、選択肢、正解、制限時間を保持した設問をイベント末尾に追加する。
 2. The Quiz Management Service shall 1設問あたり2個以上4個以下の選択肢を登録できるようにする。
 3. When 主催者が設問形式として二択または四択を選択した, the Quiz Management Service shall 選択した形式に対応する選択肢入力欄を提示する。
-4. The Quiz Management Service shall 各設問に1つ以上の正解選択肢を指定できるようにする。
+4. The Quiz Management Service shall 各設問にちょうど1つの正解選択肢を指定できるようにする。
 5. When 主催者が設問に画像を添付した, the Quiz Management Service shall 当該画像を保存し、問題投影画面と回答画面の双方から参照できるようにする。
 6. The Quiz Management Service shall 各設問に5秒以上300秒以下の制限時間を設定できるようにする。
 7. When 主催者が設問の並び順を変更した, the Quiz Management Service shall 変更後の順序を保存し、以降の出題順に反映する。
 8. When 主催者が設問に解説文を入力した, the Quiz Management Service shall 当該解説文を正解発表時に表示する対象として保存する。
-9. If 主催者が正解未指定または選択肢が2個未満の設問を保存しようとした, then the Quiz Management Service shall 保存を拒否し、不足している項目を指摘する。
+9. If 主催者が正解を1つ指定していない設問、または選択肢が2個未満の設問を保存しようとした, then the Quiz Management Service shall 保存を拒否し、不足している項目を指摘する。
 10. If イベントに設問が1件も存在しない状態で公開が試みられた, then the Quiz Management Service shall 公開を拒否し、設問の登録が必要である旨を通知する。
 
 ### Requirement 3: 外観カスタマイズ
@@ -120,10 +120,13 @@
 4. When 主催者が締切操作を行った, the Host Console shall 制限時間の残存にかかわらず当該設問の回答受付を終了する。
 5. When 制限時間が経過した, the Host Console shall 当該設問の回答受付を自動的に終了する。
 6. When 回答受付が終了した, the Host Console shall 正解と選択肢別の回答分布を表示し、正解発表操作を提供する。
-7. When 主催者が次の設問へ進む操作を行った, the Host Console shall 次設問を出題待機状態にし、最終設問の後は結果発表待機状態にする。
-8. The Host Console shall 進行中に一時中断し、任意のタイミングで進行を再開できるようにする。
-9. If 主催者が最終設問の回答受付終了後に結果発表操作を行った, then the Host Console shall 最終ランキングを確定し、問題投影画面へ配信する。
-10. The Host Console shall 主催者が誤操作した場合に、直前の設問の回答受付を再開できるようにする。
+7. When 主催者が次の設問へ進む操作を行った, the Host Console shall 次設問を出題待機状態にする。
+8. While 最終設問の正解発表が完了している, the Host Console shall 次の設問へ進む操作を提供せず、結果発表操作のみを提供する。
+9. While 設問が出題中である, the Host Console shall 制限時間の計測を一時中断し、任意のタイミングで計測を再開できるようにする。
+10. If 主催者が最終設問の回答受付終了後に結果発表操作を行った, then the Host Console shall 最終ランキングを確定し、問題投影画面へ配信する。
+11. While 直前の設問が正解発表前である, the Host Console shall 主催者の誤操作からの回復手段として、当該設問の回答受付を再開できるようにする。
+12. If 正解発表済みの設問に対して回答受付の再開が試みられた, then the Host Console shall 当該操作を拒否する。
+13. When 回答受付が再開された, the Host Console shall 既に受け付けた回答を保持し、未回答の参加者からの回答のみを追加で受け付ける。
 
 ### Requirement 6: 問題投影画面
 
@@ -172,7 +175,10 @@
 8. If 参加登録より前に出題が終了した設問が存在する, then the Scoring Service shall 当該設問を未回答として扱い、正解数にも合計回答時間にも加算しない。
 9. When ランキングの表示が要求された, the Scoring Service shall 順位、ニックネーム、正解数、合計回答時間を含むランキングを返す。
 10. While 設問の回答受付が継続している, the Scoring Service shall 当該設問の正誤判定結果を参加者へ開示しない。
-11. When 主催者がランキングのエクスポートを指示した, the Scoring Service shall 全参加者の順位・正解数・合計回答時間・設問ごとの正誤を含むファイルを出力する。
+11. When 主催者が結果の共有を有効にした, the Quiz Management Service shall 推測困難な識別子を含む閲覧専用の共有URLを発行する。
+12. When 共有URLへアクセスされた, the Quiz Management Service shall 認証を要求することなく、最終ランキングを閲覧専用で表示する。
+13. When 主催者が結果の共有を無効にした, the Quiz Management Service shall 以降の当該共有URLへのアクセスを拒否する。
+14. The Quiz Management Service shall 共有ページに表示された最終ランキングを、参加者が画像として保存できるようにする。
 
 ### Requirement 9: リアルタイム同期と接続復帰
 
@@ -201,6 +207,8 @@
 4. The Quiz Management Service shall 参加用URLを推測困難な識別子で構成する。
 5. If 主催者以外が進行画面のURLへアクセスした, then the Host Console shall 進行操作を拒否する。
 6. The Quiz Management Service shall アップロードされた画像を、当該イベントの関係者のみが参照できるように保護する。
+7. The Quiz Management Service shall 結果の共有を既定で無効とし、主催者の明示的な操作によってのみ有効化する。
+8. While 結果の共有が有効である, the Quiz Management Service shall 共有ページにニックネーム以外の参加者情報を表示しない。
 
 ### Requirement 11: 非機能要件
 

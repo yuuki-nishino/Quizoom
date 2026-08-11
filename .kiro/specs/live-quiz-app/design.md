@@ -27,7 +27,7 @@
 ### This Spec Owns
 
 - **クイズカタログ**: 主催者アカウントに紐づくイベント、設問、選択肢、正解、外観設定の正本
-- **ライブセッション状態**: 開催中の進行フェーズ、参加者名簿、回答記録、出題時刻と締切時刻の正本
+- **ライブセッション状態**: 開催中の進行フェーズ、参加者名簿、回答記録、出題時刻と締切時刻の正本。**イベント状態（`event.status`）の `live` / `finished` 遷移の駆動元**でもあり、D1 へ書き戻す
 - **採点と順位の決定**: 正解判定、経過時間の計測、順位付けアルゴリズムの唯一の実装
 - **3画面へのリアルタイム配信契約**: 進行画面・投影画面・回答画面が購読するイベントの形式と配信順序保証
 
@@ -98,7 +98,16 @@ graph TB
 
 **Architecture Integration**:
 
-- **責務の分離軸**: 「準備」と「開催」を時間軸で分離する。準備は HTTP + D1 の素直な CRUD、開催は WebSocket + DO の状態機械。両者は**イベント開始時のスナップショット取り込み**という一方向の接続のみを持つ。これにより要件1.6（開催中の設問変更禁止）が設計上自然に強制される。
+- **責務の分離軸**: 「準備」と「開催」を時間軸で分離する。準備は HTTP + D1 の素直な CRUD、開催は WebSocket + DO の状態機械。両者の接続点は以下の4点に限定し、それ以外の経路を設けない。
+
+  | 接続点 | 方向 | 内容 |
+  |--------|------|------|
+  | `publish` | Worker → DO | DO を生成し、`capacity`・`status`・外観設定を投入 |
+  | `startSession` | DO → D1 | 設問スナップショットを取得して凍結し、`status` を `live` へ更新 |
+  | 外観更新 | Worker → DO | 開催中の `themeUpdated` 反映（要件3.7） |
+  | `finalize` | DO → D1 | 確定結果の書き戻しと `status` の `finished` 更新 |
+
+  設問スナップショットが `startSession` で凍結されることにより、要件1.6（開催中の設問変更禁止）が設計上自然に強制される。
 - **単一の権威**: ライブ中の全ての判断（誰が回答済みか、締切を過ぎたか、経過時間は何ミリ秒か）を DO の単一スレッド実行に集約する。DO は直列実行されるため、回答受付の冪等性（要件7.4）が追加のロック機構なしに保証される。
 - **表示と進行の分離**: 外観設定は配信ペイロードに含まれる純粋なデータであり、進行状態機械はこれを一切解釈しない。要件3.7（開催中の外観変更反映）は、進行を中断せずに `themeUpdated` イベントを同報するだけで満たされる。
 - **投影画面の情報制限**: 投影画面は「現在配信中のフェーズ」のみを受信し、未出題の設問データを保持しない。URL が漏洩しても事前に問題を閲覧できない（要件10.4 の意図を配信設計で補強）。
@@ -128,7 +137,7 @@ graph TB
 src/
 ├── shared/                      # クライアント・サーバー双方が参照する契約
 │   ├── protocol.ts              # ServerEvent / ClientCommand の Zod スキーマと型
-│   ├── domain-types.ts          # Event, Question, Participant 等のドメイン型
+│   ├── domain-types.ts          # Event, Question, Participant 等のドメイン型と Result<T, E>
 │   └── scoring.ts               # 順位決定の純粋関数（Cloudflare API 非依存）
 │
 ├── server/
@@ -151,14 +160,16 @@ src/
 │   └── participant-token.ts     # 非自明: HMAC 署名トークンの発行と検証
 │
 └── client/
-    ├── main.tsx                 # ルーティング。3画面への分岐
+    ├── main.tsx                 # ルーティング。3画面と共有ページへの分岐
     ├── shared/
     │   ├── use-live-channel.ts  # WebSocket 接続・再接続・状態復元フック
     │   ├── use-server-clock.ts  # 非自明: サーバー時刻オフセットを補正した残り時間
     │   └── theme.tsx            # 外観設定を CSS カスタムプロパティへ適用
     ├── host/                    # 進行画面。準備画面も含む
     ├── stage/                   # 投影画面
-    └── player/                  # 回答画面
+    ├── player/                  # 回答画面
+    └── share/                   # 結果共有ページ。認証不要・閲覧専用
+        └── ranking-image.ts     # 非自明: ランキングを Canvas 経由で画像化
 ```
 
 依存方向は `shared → server/* ` および `shared → client/*` の一方向。`client` と `server` は `shared` を介してのみ結合し、直接参照しない。`shared/scoring.ts` は純粋関数のみで構成し、サーバー・クライアント双方から同一実装を使う（クライアントは自分の暫定順位表示に利用）。
@@ -204,14 +215,15 @@ sequenceDiagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Lobby: startSession
-    Lobby --> QuestionOpen: openQuestion
+    [*] --> Lobby: publish
+    Lobby --> Ready: startSession
+    Ready --> QuestionOpen: openQuestion
     QuestionOpen --> QuestionClosed: closeQuestion or alarm
+    QuestionClosed --> QuestionOpen: reopenQuestion
     QuestionClosed --> Revealed: revealAnswer
-    Revealed --> QuestionOpen: nextQuestion
-    Revealed --> QuestionOpen: reopenQuestion
+    Revealed --> Ready: nextQuestion
     Revealed --> InterimRanking: showRanking
-    InterimRanking --> QuestionOpen: nextQuestion
+    InterimRanking --> Ready: nextQuestion
     Revealed --> FinalRanking: finalize
     InterimRanking --> FinalRanking: finalize
     FinalRanking --> [*]: archive to D1
@@ -220,7 +232,52 @@ stateDiagram-v2
     Paused --> QuestionOpen: resume
 ```
 
-`reopenQuestion`（要件5.10）は直前の設問のみを対象とし、`Revealed` からの復帰時に当該設問のスコアを破棄してから再受付する。`Paused` は残り時間の計測を停止し、`resume` 時に締切時刻を経過分だけ後ろへずらす。
+#### DO の生成契機と二段階のスナップショット
+
+**DO インスタンスは `POST /publish` の時点で生成し、`Lobby` フェーズで待機する。** 参加受付は `startSession` より前に行われる（要件5.1 が開始前の参加者一覧表示を求める）ため、DO は開始前から存在して参加登録を裁く必要がある。生成時に配置ロケーションのヒントを指定する（この時点が配置を決められる唯一の機会）。
+
+カタログの取り込みは**二段階に分ける**。取り込む対象と時期が異なるためである。
+
+| 契機 | 取り込む内容 | 格納先 | 理由 |
+|------|--------------|--------|------|
+| `publish`（DO 生成時） | `capacity`、`status`、外観設定 | `event_meta_json`（更新あり） | 開始前の参加受付で定員判定（要件4.6）と終了判定（要件4.8）に必要 |
+| `startSession` | 設問・選択肢・正解の全量 | `question_snapshot_json`（凍結） | 公開後・開始前は設問を編集できるため、凍結は開始時点でなければならない（要件1.6） |
+
+この分割により、「開催中は設問を変更できない」という要件1.6 が、バリデーションではなく**凍結されたスナップショットの存在そのもの**によって担保される。一方 `capacity` と外観設定は開始後も更新されうるため可変領域に置き、DO への反映経路（`themeUpdated` 等）を別途持つ。
+
+#### イベント状態（`event.status`）の所有と書き戻し
+
+`status` は D1 に置かれるが、その**遷移を駆動するのは DO 側の出来事**である。所有関係を以下に確定する。
+
+| 遷移 | 駆動元 | 書き込み主体 |
+|------|--------|--------------|
+| `draft → published` | `POST /publish` | CatalogRoutes |
+| `published → live` | `startSession` | **QuizSessionDO** |
+| `live → finished` | `finalize` | **QuizSessionDO** |
+
+`status` は `CatalogRoutes` が要件1.6（開催中の編集禁止）と要件3.7（開催中のみ DO へ外観を通知）を判定する唯一の根拠であるため、**書き戻されなければ両要件が例外を出さずに失効する**。DO はライブ状態の権威として自らの遷移時に `CatalogRepository` 経由で D1 を更新し、書き込みは冪等とする。書き戻しに失敗した場合も DO 側の状態を正とし、リトライする。
+
+`Ready` は出題待機状態を表す（要件5.7）。**最終設問の正解発表後は `nextQuestion` が `NO_NEXT_QUESTION` を返し、`finalize` のみが受理される**（要件5.8）。専用の待機フェーズは設けず、`Revealed` のまま結果発表操作を提示する。
+
+**`reopenQuestion` は `QuestionClosed`（正解発表前）からのみ許可する**（要件5.11, 5.12）。`Revealed` を経た設問は正解と解説が全画面へ配信済みであり、再開すると全参加者が正解を知った状態で回答できてしまうため、遷移自体を状態機械で禁止する。既に受け付けた回答は保持し、未回答者の回答のみを追加受付する（要件5.13）。再開後の `elapsedMs` は**元の `openedAt` を基準に継続計測**し、締切時刻のみを延長する。これにより既存回答との比較可能性が保たれる。
+
+**`Paused` は `QuestionOpen` からのみ遷移する**（要件5.9）。残り時間の計測を停止し、`resume` 時に締切時刻を停止していた時間分だけ後ろへずらす。設問と設問の間（`Ready` / `Revealed` / `InterimRanking`）は制限時間が動いておらず、主催者が次へ進めない限り進行が止まったままであるため、中断機能を持たせる意味がない。一時停止が必要になるのはカウントダウンが進行している局面に限られる。
+
+#### アラームのライフサイクル
+
+DO のアラームは hibernation を妨げるため、**出題中の設問の締切1件のみ**に限定する（要件12.1）。各遷移におけるアラーム操作を以下に確定する。この表に現れない遷移ではアラームを操作しない。
+
+| 遷移 | アラーム操作 | 設定時刻 |
+|------|--------------|----------|
+| `openQuestion` | `setAlarm` | `openedAt + timeLimitMs` |
+| `closeQuestion`（手動締切） | `clearAlarm` | — |
+| `alarm` 発火による自動締切 | 操作不要（発火により消費済み） | — |
+| `pause` | `clearAlarm` | — |
+| `resume` | `setAlarm` | `resumedAt + remainingMs` |
+| `reopenQuestion` | `setAlarm` | `reopenedAt + 再開時の延長時間` |
+| `finalize` | `clearAlarm`（防御的に実行） | — |
+
+`pause` 時にアラームを解除しないと、一時停止中に元の締切で自動締切が発火する。解除漏れは要件5.9 を破るだけでなく、hibernation を妨げてアイドル課金を生む。
 
 ### 接続復帰フロー
 
@@ -245,32 +302,79 @@ flowchart TD
 | 3.1–3.6 | 外観カスタマイズとコントラスト警告 | CatalogRoutes, ThemeProvider | `ThemeSettings` | — |
 | 3.7 | 開催中の外観反映 | QuizSessionDO, ThemeProvider | `themeUpdated` イベント | — |
 | 4.1, 4.2 | 参加用 URL と QR コード発行 | CatalogRoutes, HostConsole | `EventCatalogService` | — |
-| 4.3–4.8 | 参加登録・重複名・定員・復元 | JoinRoutes, ParticipantToken, QuizSessionDO | HTTP `/api/events/:code/join` | — |
+| 4.3–4.8 | 参加登録・重複名・定員・復元 | JoinRoutes, ParticipantToken, QuizSessionDO | HTTP `/api/join/:joinCode` | — |
 | 4.9, 4.10 | 途中参加と不利の通知 | QuizSessionDO, AnswerScreen | `stateSnapshot` | 接続復帰フロー |
-| 5.1–5.10 | 進行操作全般 | QuizSessionDO, HostConsole | `ClientCommand` | 進行フロー / 状態機械 |
+| 5.1–5.13 | 進行操作全般・再開の制限 | QuizSessionDO, PhaseMachine, HostConsole | `ClientCommand`, `Transition` | 進行フロー / 状態機械 |
 | 6.1–6.8 | 投影画面の表示 | PresentationScreen, QuizSessionDO | `ServerEvent` | 進行フロー |
 | 7.1–7.9 | 回答画面の表示と送信 | AnswerScreen, QuizSessionDO | `submitAnswer` | 進行フロー |
-| 8.1–8.11 | 採点とランキング | ScoringModule, QuizSessionDO, ResultArchive | `RankingEntry` | 進行フロー |
+| 8.1–8.10 | 採点とランキング | ScoringModule, QuizSessionDO, ResultArchive | `RankingEntry` | 進行フロー |
+| 8.11–8.14 | 結果の共有と画像化 | ResultArchive, CatalogRoutes, ShareView | `PublicResult` | — |
 | 9.1–9.8 | リアルタイム同期と復帰 | LiveChannel, QuizSessionDO, ServerClock | `stateSnapshot` | 接続復帰フロー |
-| 10.1–10.6 | データ保護 | ParticipantToken, MediaRoutes, HostGuard | — | — |
+| 10.1–10.8 | データ保護と共有の既定無効 | ParticipantToken, MediaRoutes, HostGuard, ResultArchive | `PublicResult` | — |
 | 11.1–11.6 | 非機能（対応環境・応答性） | 全クライアント | — | — |
 | 12.1–12.4 | 運用コストと開催前確認 | 全サーバー構成, HealthCheck | HTTP `/api/events/:id/preflight` | — |
 
 ## Components and Interfaces
 
+本節で共通に用いる型を先に定義する。エラーは例外送出ではなく判別可能ユニオンで表現し、呼び出し側にコンパイラが分岐を強制する。
+
+```typescript
+type Result<T, E> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly error: E };
+
+type EventStatus = "draft" | "published" | "live" | "finished";
+
+// 参加拒否の理由。理由ごとに参加者が取るべき行動が異なるため、
+// 単一のエラーへ丸めず HTTP コードまで区別して伝える（要件4.5, 4.6, 4.8）
+type JoinRejection =
+  | { readonly code: "NICKNAME_TAKEN" }
+  | { readonly code: "CAPACITY_REACHED"; readonly capacity: number }
+  | { readonly code: "EVENT_FINISHED" };
+
+// 共有ページへ公開してよい情報の全量。要件10.8 の担保はこの型の形状が根拠であり、
+// 設問明細・参加者ID を表現できないことが制約そのものとなる
+interface PublicResultEntry {
+  readonly rank: number;
+  readonly nickname: string;
+  readonly correctCount: number;
+  readonly totalElapsedMs: number;
+}
+
+// 共有ページ用の外観。ThemeSettings をそのまま使わず配色のみに絞る。
+// 画像は要件10.6 により関係者限定であり、匿名の閲覧者は取得できないため、
+// 参照そのものを型に載せない（載せると壊れた画像か認可の緩和かの二択になる）
+interface PublicTheme {
+  readonly primaryColor: string;
+  readonly accentColor: string;
+  readonly backgroundColor: string;
+  readonly textColor: string;
+}
+
+interface PublicResult {
+  readonly eventTitle: string;
+  readonly theme: PublicTheme;
+  readonly finalizedAt: number;
+  readonly entries: readonly PublicResultEntry[];
+}
+```
+
+進行コマンドは `ClientCommand` を全体集合とし、そのうち主催者のみが送出できる部分集合を `HostCommand` として定義する（`submitAnswer` と `resync` は含まれない）。`PhaseMachine` は `HostCommand` のみを受理し、参加者コマンドは状態機械を経由しない。
+
 | Component | Domain/Layer | Intent | Req Coverage | Key Dependencies (P0/P1) | Contracts |
 |-----------|--------------|--------|--------------|--------------------------|-----------|
-| QuizSessionDO | Session | ライブ進行の権威と同報ハブ | 3.7, 4.9, 5, 6, 7, 8, 9 | LiveStore (P0), ScoringModule (P0), D1 (P1) | Service, Event, State |
+| QuizSessionDO | Session | ライブ進行の権威と同報ハブ、`status` 遷移の駆動 | 1.6, 1.7, 3.7, 4.4–4.10, 5, 6, 7, 8.1–8.10, 9, 10.5 | LiveStore (P0), ScoringModule (P0), CatalogRepository (P0) | Service, Event, State |
 | ScoringModule | Domain | 正解判定と順位決定の純粋実装 | 8.1–8.9 | なし | Service |
-| PhaseMachine | Domain | フェーズ遷移の妥当性判定 | 5.2–5.10 | なし | Service |
+| PhaseMachine | Domain | フェーズ遷移の妥当性判定 | 5.2–5.13 | なし | Service |
 | LiveStore | Session | DO SQLite への永続化と状態復元 | 9.2–9.4 | DO Storage (P0) | State |
-| CatalogRepository | Repository | D1 に対するカタログ操作 | 1.3–1.8, 2, 3.1–3.6 | D1 (P0) | Service |
+| CatalogRepository | Repository | D1 に対するカタログ操作と `status` 更新 | 1.3–1.8, 2, 3.1–3.6 | D1 (P0) | Service |
 | CatalogRoutes | API | 準備フェーズの HTTP エンドポイント | 1, 2, 3.1–3.6, 4.1 | CatalogRepository (P0), HostGuard (P0) | API |
 | JoinRoutes | API | 参加登録とトークン発行 | 4.3–4.8 | QuizSessionDO (P0), ParticipantToken (P0) | API |
 | ParticipantToken | Session | 匿名参加者の署名付き識別 | 4.4, 4.7, 9.3, 10.1 | なし | Service |
 | AuthFactory / HostGuard | API | 主催者認証とアクセス制御 | 1.1, 1.2, 1.5, 10.5 | Better Auth (P0), D1 (P0) | Service |
 | MediaRoutes | API | 画像の保管と保護付き配信 | 2.5, 3.4, 10.6 | R2 (P0) | API |
-| ResultArchive | Repository | 確定結果の D1 への書き戻し | 8.11, 10.2, 10.3 | D1 (P0) | Service |
+| ResultArchive | Repository | 確定結果の D1 への書き戻しと共有制御 | 8.11–8.13, 10.2, 10.3, 10.7 | D1 (P0) | Service |
+| ShareView | UI | 共有結果ページの描画と画像化 | 8.12, 8.14, 10.8 | — | State |
 | LiveChannel | UI | WebSocket 接続・再接続・状態復元 | 9.2–9.6 | protocol (P0) | State |
 | ServerClock | UI | サーバー基準の残り時間算出 | 9.8, 6.2, 7.2 | なし | Service |
 | HostConsole / PresentationScreen / AnswerScreen | UI | 3画面の描画 | 5, 6, 7 | LiveChannel (P0), ThemeProvider (P1) | State |
@@ -289,6 +393,7 @@ flowchart TD
 - 順位決定の唯一の実装。他コンポーネントは順位付けロジックを持たない
 - **Cloudflare 固有 API を一切参照しない**。時刻は引数として受け取り、内部で `Date.now()` を呼ばない
 - 不変条件: 全設問の配点は等価（要件8.3）。合計回答時間には正解した設問のみを加算（要件8.5）
+- 不変条件: **1設問の正解はちょうど1つ**（要件2.4）。回答は単一選択であり、部分点の概念を持たない
 
 **Dependencies**
 
@@ -303,7 +408,7 @@ flowchart TD
 interface AnswerRecord {
   readonly participantId: ParticipantId;
   readonly questionId: QuestionId;
-  readonly selectedOptionIds: readonly OptionId[];
+  readonly selectedOptionId: OptionId;
   readonly elapsedMs: number;
 }
 
@@ -322,7 +427,7 @@ interface RankingEntry extends ParticipantScore {
 interface ScoringModule {
   judge(
     answer: AnswerRecord,
-    correctOptionIds: readonly OptionId[],
+    correctOptionId: OptionId,
   ): { readonly isCorrect: boolean };
 
   aggregate(
@@ -364,6 +469,7 @@ interface ScoringModule {
 ```typescript
 type LivePhase =
   | { readonly kind: "lobby" }
+  | { readonly kind: "ready"; readonly nextQuestionId: QuestionId }
   | { readonly kind: "questionOpen"; readonly questionId: QuestionId; readonly openedAt: number; readonly deadlineAt: number }
   | { readonly kind: "questionClosed"; readonly questionId: QuestionId }
   | { readonly kind: "revealed"; readonly questionId: QuestionId }
@@ -374,20 +480,36 @@ type LivePhase =
 type TransitionError =
   | { readonly code: "INVALID_PHASE"; readonly current: LivePhase["kind"]; readonly command: string }
   | { readonly code: "NO_NEXT_QUESTION" }
-  | { readonly code: "NOT_REOPENABLE" };
+  | { readonly code: "ALREADY_REVEALED" };
+
+type AlarmIntent =
+  | { readonly kind: "set"; readonly at: number }
+  | { readonly kind: "clear" }
+  | { readonly kind: "noop" };
+
+interface Transition {
+  readonly phase: LivePhase;
+  readonly alarm: AlarmIntent;
+}
 
 interface PhaseMachine {
   next(
     current: LivePhase,
     command: HostCommand,
     context: { readonly now: number; readonly questions: readonly QuestionSnapshot[] },
-  ): Result<LivePhase, TransitionError>;
+  ): Result<Transition, TransitionError>;
 }
 ```
 
-- Preconditions: `questions` はイベント開始時のスナップショットであり、進行中に変化しない
-- Postconditions: 成功時、返却されたフェーズのみが正当な次状態となる
-- Invariants: `paused` は `resumeTo` に元のフェーズを保持し、`resume` 時に `remainingMs` から締切時刻を再計算する（要件5.8）
+- Preconditions: `questions` は `startSession` 時に凍結されたスナップショットであり、進行中に変化しない。`lobby` フェーズでは未取得のため空配列となる
+- Postconditions: 成功時、返却されたフェーズのみが正当な次状態となる。**アラーム操作は必ず `Transition.alarm` として返され**、`QuizSessionDO` はこれをそのまま適用する
+- Invariants: `paused` は `resumeTo` に元のフェーズを保持し、`resume` 時に `remainingMs` から締切時刻を再計算する（要件5.9）
+- Invariants: `reopenQuestion` は `questionClosed` からのみ成功し、`revealed` に対しては `ALREADY_REVEALED` を返す（要件5.12）
+- Invariants: 最終設問の `revealed` からの `nextQuestion` は `NO_NEXT_QUESTION` を返し、`finalize` のみが成功する（要件5.8）
+
+**Implementation Notes**
+
+- Integration: アラーム操作を戻り値に含めることで、「アラームのライフサイクル」表の規則が純粋関数の単体テストで検証可能になる。DO 側に操作判断を持たせると、解除漏れがテストで検出できなくなる
 
 ### Session 層
 
@@ -401,6 +523,7 @@ interface PhaseMachine {
 **Responsibilities & Constraints**
 
 - **ライブ状態の唯一の権威**。出題時刻・締切判定・回答受付可否を単独で決定する
+- **`event.status` の `live` / `finished` への遷移を駆動する**。自らのフェーズ遷移に伴い D1 へ書き戻す（要件1.6, 1.7 の前提を成立させるため）
 - 経過時間の計測に用いる時計は本コンポーネント内の1つのみ。クライアント申告の時刻を採用しない（要件9.8）
 - トランザクション境界: 1つの WebSocket メッセージ処理が1トランザクション。DO の直列実行により、回答の重複チェックと記録がアトミックになる（要件7.4）
 - データ所有: 参加者名簿、回答記録、進行フェーズ。カタログは開始時のスナップショットとして**読み取り専用で保持**する
@@ -413,6 +536,7 @@ interface PhaseMachine {
 - Outbound: LiveStore — 状態の永続化と復元 (P0)
 - Outbound: ScoringModule / PhaseMachine — 判定ロジック (P0)
 - Outbound: ResultArchive — 確定結果の書き戻し (P1)
+- Outbound: CatalogRepository — `startSession` 時の設問スナップショット取得と `event.status` の書き戻し (P0)
 - External: Durable Object WebSocket Hibernation API — 接続維持とアイドル時のコスト回避 (P0)
 
 **Contracts**: Service [x] / Event [x] / State [x]
@@ -462,8 +586,74 @@ interface QuizSessionDO {
 **Implementation Notes**
 
 - Integration: hibernation 復帰時にコンストラクタが再実行されるため、**コンストラクタではストレージからの読み出しのみを行う**。アラーム設定や同報などの副作用を持たせてはならない
+- Integration: **DO インスタンス生成時に配置ロケーションのヒントを指定する**。DO は最初のリクエスト位置に基づいて配置され、以後移動しないため、指定を怠ると主催者の所在によっては会場から遠いリージョンへ固定される。会場と DO が離れると全参加者の回答が長距離を往復し、要件9.1 の余裕を大きく削る。**一度確定した配置はセッションを作り直さない限り変更できない**ため、生成時が唯一の機会となる
+- Integration: 外観の更新（要件3.7）は `CatalogRoutes` からの内部 `fetch()` で受け取り、`themeUpdated` として同報する。この経路は進行フェーズを変更せず、状態機械を経由しない
+- Integration: `startSession` では「設問スナップショットの取得と凍結」「`status` の `live` 更新」を行い、`finalize` では「結果の書き戻し」「`status` の `finished` 更新」を行う。いずれも冪等とし、**D1 への書き込み失敗時も DO のフェーズ遷移は成立させたうえでリトライする**。DO 側を正とすることで、書き戻しの遅延が進行を止めない
 - Validation: 受信メッセージは `protocol.ts` の Zod スキーマで検証し、不正なペイロードは `commandRejected` で拒否する
 - Risks: アラームは hibernation を妨げるため、締切以外の用途に拡張しないこと。定期ポーリング用アラームを追加するとアイドル課金が発生し要件12.1 を破る
+
+#### LiveStore
+
+| Field | Detail |
+|-------|--------|
+| Intent | ライブ状態を DO SQLite に永続化し、hibernation 復帰時に完全復元する |
+| Requirements | 1.6, 4.5, 7.4, 9.2, 9.3, 9.4 |
+
+**Responsibilities & Constraints**
+
+- `QuizSessionDO` のメモリ状態を一切の残余なく永続化する。**メモリ変数のみに存在する状態を作らせない**ことが本コンポーネントの存在理由
+- 凍結領域（`question_snapshot_json`）と可変領域（`event_meta_json`）の書き分けを型で強制する
+- DO SQLite の同期 API を前提とし、呼び出しは DO の直列実行内で完結する
+
+**Dependencies**
+
+- Inbound: QuizSessionDO — 全状態の読み書き (P0)
+- External: Durable Object SQLite Storage (P0)
+
+**Contracts**: State [x]
+
+##### State Management
+
+```typescript
+interface SessionState {
+  readonly phase: LivePhase;
+  readonly eventMeta: EventMeta;
+  readonly questions: readonly QuestionSnapshot[] | null;
+  readonly startedAt: number | null;
+}
+
+type AnswerOutcome =
+  | { readonly kind: "recorded"; readonly record: AnswerRecord }
+  | { readonly kind: "alreadyAnswered"; readonly existing: AnswerRecord };
+
+interface LiveStore {
+  load(): SessionState | null;
+  initialize(meta: EventMeta): void;
+  savePhase(phase: LivePhase): void;
+  saveEventMeta(meta: EventMeta): void;
+  freezeQuestionSnapshot(questions: readonly QuestionSnapshot[], startedAt: number): void;
+
+  addParticipant(nickname: string, now: number): Result<Participant, JoinRejection>;
+  listParticipants(): readonly Participant[];
+  findParticipant(participantId: ParticipantId): Participant | null;
+
+  recordAnswer(input: AnswerRecord): AnswerOutcome;
+  listAnswers(questionId: QuestionId): readonly AnswerRecord[];
+  listAllAnswers(): readonly AnswerRecord[];
+  discardAnswers(questionId: QuestionId): void;
+}
+```
+
+- Preconditions: `freezeQuestionSnapshot` は `questions` が `null` の状態でのみ呼び出せる
+- Postconditions: `freezeQuestionSnapshot` の成功後、`questions` は以後変化しない（要件1.6 の担保）
+- Postconditions: `recordAnswer` は既存回答がある場合に `alreadyAnswered` を返し、**既存値を上書きしない**（要件7.4）
+- Invariants: `load()` の戻り値のみから `QuizSessionDO` の全状態を再構築できる。これが成立しない限り hibernation 復帰は保証されない
+- Concurrency: DO の直列実行に依拠し、明示的なロックを持たない。`addParticipant` のニックネーム一意性は UNIQUE 制約と直列実行による二重の担保とする（要件4.5）
+
+**Implementation Notes**
+
+- Integration: `discardAnswers` は `reopenQuestion` から使用するが、**要件5.13 により再開時は既存回答を保持する**ため通常の進行では呼ばれない。締切前の設問に対する管理操作としてのみ用いる
+- Risks: 凍結領域を更新するコードパスを作らないこと。`freezeQuestionSnapshot` 以外に `question_snapshot_json` を書く経路を設けてはならない
 
 #### ParticipantToken
 
@@ -506,7 +696,171 @@ interface ParticipantTokenService {
 - Integration: クライアントは `localStorage` にイベントIDでスコープして保存する。保存不可の環境では参加登録画面へ誘導する（要件4.7 の代替経路）
 - Risks: 端末変更時は参加を引き継げない。**同一端末でもブラウザが異なる場合（SNS アプリ内ブラウザから既定ブラウザへ切り替えた場合を含む）は `localStorage` が共有されないため、新規参加者として扱われる。** 復帰コード等の救済手段は導入しないことを決定済み（検討経緯は `research.md` の参加者識別に関する決定を参照）。フィンガープリンティングによる識別は精度と要件10.1 の双方から採用しない
 
+### Repository 層
+
+#### CatalogRepository
+
+| Field | Detail |
+|-------|--------|
+| Intent | D1 に対するカタログ操作を一箇所に閉じ込め、`event.status` の遷移を仲介する |
+| Requirements | 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 2.1–2.10, 3.1–3.5 |
+
+**Responsibilities & Constraints**
+
+- **SQL は本コンポーネントの外に漏らさない**。呼び出し元は意味のある操作単位でのみアクセスする
+- `event.status` の書き込み口は `updateStatus` のみ。他のメソッドが `status` を変更してはならない
+- トランザクション境界: 設問と選択肢の更新は1トランザクションで整合させる
+
+**Dependencies**
+
+- Inbound: CatalogRoutes — 準備フェーズの CRUD (P0)
+- Inbound: QuizSessionDO — 設問スナップショット取得と `status` 書き戻し (P0)
+- External: Cloudflare D1 (P0)
+
+**Contracts**: Service [x]
+
+##### Service Interface
+
+```typescript
+type CatalogError =
+  | { readonly code: "NOT_FOUND" }
+  | { readonly code: "FORBIDDEN" }
+  | { readonly code: "EVENT_LIVE" }
+  | { readonly code: "VALIDATION"; readonly fields: readonly string[] }
+  | { readonly code: "STATUS_CONFLICT"; readonly actual: EventStatus };
+
+interface CatalogRepository {
+  listEvents(ownerId: UserId): Promise<readonly EventSummary[]>;
+  findEvent(eventId: EventId, ownerId: UserId): Promise<Result<EventDetail, CatalogError>>;
+  createEvent(ownerId: UserId, input: CreateEventInput): Promise<EventDetail>;
+  updateEvent(eventId: EventId, ownerId: UserId, input: UpdateEventInput): Promise<Result<EventDetail, CatalogError>>;
+  duplicateEvent(eventId: EventId, ownerId: UserId): Promise<Result<EventDetail, CatalogError>>;
+  deleteEvent(eventId: EventId, ownerId: UserId): Promise<Result<void, CatalogError>>;
+
+  upsertQuestion(eventId: EventId, ownerId: UserId, input: QuestionInput): Promise<Result<Question, CatalogError>>;
+  deleteQuestion(eventId: EventId, ownerId: UserId, questionId: QuestionId): Promise<Result<void, CatalogError>>;
+  reorderQuestions(eventId: EventId, ownerId: UserId, order: readonly QuestionId[]): Promise<Result<readonly Question[], CatalogError>>;
+  putTheme(eventId: EventId, ownerId: UserId, theme: ThemeSettings): Promise<Result<ThemeSettings, CatalogError>>;
+
+  publish(eventId: EventId, ownerId: UserId): Promise<Result<PublishResult, CatalogError>>;
+  loadQuestionSnapshot(eventId: EventId): Promise<readonly QuestionSnapshot[]>;
+  updateStatus(eventId: EventId, expected: EventStatus, next: EventStatus): Promise<Result<void, CatalogError>>;
+}
+```
+
+- Preconditions: `updateStatus` は**期待する現在値 `expected` を必須引数とする**条件付き更新。実際の値が異なる場合は `STATUS_CONFLICT` を返す
+- Postconditions: `updateStatus` は既に `next` である場合も成功として扱う（冪等）。これにより DO からのリトライが安全になる
+- Invariants: 設問を変更する全メソッドは `status` が `live` の場合に `EVENT_LIVE` を返す（要件1.7）。この判定を呼び出し元に委ねない
+- Invariants: 所有者 `ownerId` を伴わないメソッドは `loadQuestionSnapshot` と `updateStatus` のみ。この2つは DO からの内部呼び出し専用であり、外部 HTTP に露出させない
+
+**Implementation Notes**
+
+- Integration: `publish` は参加用コード・投影トークンの採番と `status` の `published` 更新を1トランザクションで行う
+- Risks: `expected` を省略可能にすると順序が逆転した書き戻しで `live → published` の巻き戻りが起こりうる。必須引数として型で防ぐ
+
+#### ResultArchive
+
+| Field | Detail |
+|-------|--------|
+| Intent | 確定結果を D1 へ書き戻し、共有の有効化・無効化と公開参照を担う |
+| Requirements | 8.11, 8.12, 8.13, 10.2, 10.3, 10.7, 10.8 |
+
+**Responsibilities & Constraints**
+
+- 確定結果の書き込みは冪等。`result.event_id` の UNIQUE 制約により再実行で重複しない
+- **公開参照 `findPublicByShareCode` の戻り値型を `PublicResult` に固定**し、設問明細や参加者IDが型として表現できないようにする（要件10.8）
+- 共有は既定で無効（`share_code` が NULL）。有効化は明示操作のみ（要件10.7）
+
+**Dependencies**
+
+- Inbound: QuizSessionDO — `finalize` 時の書き戻し (P0)
+- Inbound: CatalogRoutes — 共有制御と主催者向け参照 (P0)
+- External: Cloudflare D1 (P0)
+
+**Contracts**: Service [x]
+
+##### Service Interface
+
+```typescript
+type ArchiveError =
+  | { readonly code: "NOT_FOUND" }
+  | { readonly code: "FORBIDDEN" }
+  | { readonly code: "NOT_FINALIZED" }
+  | { readonly code: "SHARING_DISABLED" };
+
+interface ResultArchive {
+  save(eventId: EventId, ranking: readonly RankingEntry[], answers: readonly AnswerRecord[]): Promise<Result<ResultId, ArchiveError>>;
+  findForOwner(eventId: EventId, ownerId: UserId): Promise<Result<ArchivedResult, ArchiveError>>;
+  deleteParticipantData(eventId: EventId, ownerId: UserId): Promise<Result<void, ArchiveError>>;
+
+  enableSharing(eventId: EventId, ownerId: UserId): Promise<Result<{ readonly shareCode: string }, ArchiveError>>;
+  disableSharing(eventId: EventId, ownerId: UserId): Promise<Result<void, ArchiveError>>;
+  findPublicByShareCode(shareCode: string): Promise<Result<PublicResult, ArchiveError>>;
+}
+```
+
+- Preconditions: `enableSharing` は結果確定済み（`result` 行が存在する）場合のみ成功し、未確定時は `NOT_FINALIZED` を返す
+- Postconditions: `save` の再実行は既存の `ResultId` を返し、行を重複させない（冪等）
+- Postconditions: `disableSharing` 後の `findPublicByShareCode` は `SHARING_DISABLED` を返す（HTTP 410 に対応、要件8.13）
+- Invariants: `PublicResult` が含む参加者情報はニックネーム・順位・正解数・合計回答時間のみ。これに加えてイベントタイトルと配色（`PublicTheme`）を含む。`result_answer` の内容は `findForOwner` からのみ到達可能（要件10.8）
+- Invariants: `PublicResult` に画像参照を含めない。共有ページの閲覧者は匿名であり、要件10.6 により画像を取得できないため（`PublicTheme` が `ThemeSettings` と別型である理由）
+
+**Implementation Notes**
+
+- Integration: `deleteParticipantData`（要件10.3）は共有も同時に無効化する。参加者データを消しながら共有ページが生き残る状態を作らない
+- Risks: 共有コードは `join_code` と独立に採番する。同一値を流用すると参加URLから結果ページが推測できてしまう
+
 ### API 層
+
+#### AuthFactory / HostGuard
+
+| Field | Detail |
+|-------|--------|
+| Intent | 主催者の認証を提供し、イベント所有権に基づくアクセス制御を強制する |
+| Requirements | 1.1, 1.2, 1.5, 10.5 |
+
+**Responsibilities & Constraints**
+
+- 認証は Google OAuth 単独。**パスワードを保持せず、メール送信基盤も持たない**（要件1.1）
+- 主催者以外の役割（参加者・投影）は本コンポーネントの対象外。役割ごとにトークン体系を分離する
+
+**Dependencies**
+
+- Inbound: CatalogRoutes / MediaRoutes — セッション検証 (P0)
+- External: Better Auth + Google OAuth 2.0 (P0)
+- External: Cloudflare D1 — セッションとアカウントの保存 (P0)
+
+**Contracts**: Service [x]
+
+##### Service Interface
+
+```typescript
+type AuthError =
+  | { readonly code: "UNAUTHENTICATED" }
+  | { readonly code: "FORBIDDEN" };
+
+interface HostSession {
+  readonly userId: UserId;
+}
+
+interface AuthFactory {
+  create(env: Env): AuthInstance;
+}
+
+interface HostGuard {
+  requireHost(request: Request): Promise<Result<HostSession, AuthError>>;
+  requireEventOwner(request: Request, eventId: EventId): Promise<Result<HostSession, AuthError>>;
+}
+```
+
+- Invariants: `requireHost` が失敗した経路では、いかなるカタログ操作も実行されない（要件1.2）
+
+**Implementation Notes**
+
+- Integration: **Workers ではリクエストごとに D1 バインディングを受け取るため、`betterAuth` のシングルトンをモジュールスコープでエクスポートできない。** 必ず `Env` を引数に取るファクトリ関数として構成し、リクエストスコープでインスタンスを生成する。この制約は Node の一般的な構成と異なり、知らずに実装すると動作しない（調査経緯は `research.md > 主催者認証の実装方式`）
+- Integration: OAuth のリダイレクト URI は環境ごとに Google 側へ登録が必要（手順は `manual-setup.md` A-3）
+- Validation: 投影画面の URL は本ガードを通らないが、進行操作は `QuizSessionDO` 側で役割トークンにより拒否される（要件10.5）
+- Risks: プロバイダを追加する場合も本インターフェースは変更不要。`AuthInstance` の生成設定のみが変わる
 
 #### CatalogRoutes
 
@@ -537,17 +891,60 @@ interface ParticipantTokenService {
 | DELETE | `/api/events/:id/questions/:qid` | — | 204 | 401, 403, 409 |
 | PUT | `/api/events/:id/questions/order` | `{ questionIds: QuestionId[] }` | `Question[]` | 400, 401, 403, 409 |
 | PUT | `/api/events/:id/theme` | `ThemeSettings` | `ThemeSettings` | 400, 401, 403 |
-| POST | `/api/events/:id/publish` | — | `{ joinCode: string; joinUrl: string }` | 401, 403, 422 |
+| POST | `/api/events/:id/publish` | — | `PublishResult` | 401, 403, 422 |
+| GET | `/api/events/:id/stage-token` | — | `{ stageToken: string; stageUrl: string }` | 401, 403, 409 |
 | GET | `/api/events/:id/preflight` | — | `PreflightReport` | 401, 403 |
 | GET | `/api/events/:id/results` | — | `ArchivedResult` | 401, 403, 404 |
+| POST | `/api/events/:id/share` | — | `{ shareCode: string; shareUrl: string }` | 401, 403, 404 |
+| DELETE | `/api/events/:id/share` | — | 204 | 401, 403 |
+| GET | `/api/share/:shareCode` | — | `PublicResult` | 404, 410 |
 | DELETE | `/api/events/:id/participants` | — | 204 | 401, 403 |
 
-409 は開催中の禁止操作（要件1.6）、422 は公開時の検証失敗（要件2.10）に対応する。
+409 は開催中の禁止操作（要件1.6）および未公開イベントへの投影トークン要求、422 は公開時の検証失敗（要件2.10）、410 は共有が無効化済み（要件8.13）に対応する。
+
+`PublishResult` は参加用と投影用の両方の入口を1回のレスポンスで返す。
+
+```typescript
+interface PublishResult {
+  readonly joinCode: string;
+  readonly joinUrl: string;
+  readonly stageToken: string;
+  readonly stageUrl: string;
+}
+```
+
+`GET /api/share/:shareCode` は**本 API 群で唯一認証を要求しない**エンドポイントであり、参加者情報としてはニックネーム・順位・正解数・合計回答時間のみを含める（要件10.8）。設問ごとの正誤・参加者ID・画像参照は返さない。
+
+`PreflightReport` は開催前チェック（要件12.3, 12.4）の確認項目を確定させる。**項目を固定することが本機能の目的**であり、実装者の裁量で増減させない。
+
+```typescript
+type PreflightStatus = "ok" | "warn" | "fail";
+
+type PreflightCheck =
+  | { readonly id: "authValid"; readonly status: PreflightStatus; readonly detail: string }
+  | { readonly id: "sessionReachable"; readonly status: PreflightStatus; readonly detail: string }
+  | { readonly id: "roundTripMs"; readonly status: PreflightStatus; readonly measuredMs: number }
+  | { readonly id: "stageUrlReachable"; readonly status: PreflightStatus; readonly detail: string }
+  | { readonly id: "questionsReady"; readonly status: PreflightStatus; readonly questionCount: number };
+
+interface PreflightReport {
+  readonly overall: PreflightStatus;
+  readonly checkedAt: number;
+  readonly checks: readonly PreflightCheck[];
+}
+```
+
+各項目の意図: `authValid` は主催者の認証期限切れ（当日の再ログイン要求）を事前に検知する。`roundTripMs` は DO の配置ロケーションが会場から遠い場合を検知する唯一の手段であり、**配置は作り直さない限り変更できないため開催前に判明する必要がある**。`overall` は最も重い個別ステータスを反映する。
 
 **Implementation Notes**
 
-- Integration: `POST /publish` は参加用コードを採番し、推測困難な識別子で構成する（要件10.4）
-- Validation: `PATCH /questions/:qid` は正解未指定・選択肢2個未満を 400 で拒否する（要件2.9）
+- Integration: `POST /publish` は参加用コードと投影トークンを採番し、いずれも推測困難な識別子で構成する（要件10.4）。投影トークンは表示専用の役割を表し、`QuizSessionDO` は当該トークンでの接続に対し進行コマンドを一切受理しない（要件10.5）
+- Integration: `POST /publish` は**同時に DO インスタンスを生成し**、`capacity` / `status` / 外観設定を流し込んで `Lobby` フェーズで待機させる。設問スナップショットの取り込みは `startSession` まで行わない（要件1.6）
+- Integration: `POST /share` は結果確定後のみ成功する。共有コードは `event.join_code` とは独立に採番し、参加用URLから結果ページを推測できないようにする
+- Integration: `PUT /theme` は**イベントが開催中の場合に限り** DO へ反映を通知する。未開催時に通知すると不要な DO インスタンスが起動するため、`event.status` を確認してから呼び出す（要件3.7）
+- Validation: `PATCH /questions/:qid` は正解がちょうど1つでない場合、および選択肢2個未満を 400 で拒否する（要件2.9）
+- Validation: `capacity`（参加者上限、要件4.6）は `CreateEventRequest` / `UpdateEventRequest` の任意フィールドとし、未指定時は既定値を適用する
+- Validation: 制限時間は5秒以上300秒以下（要件2.6）、選択肢は2個以上4個以下（要件2.2）を Zod スキーマで境界検証する
 - Risks: コントラスト比の警告（要件3.6）はクライアント側で算出し、保存自体はブロックしない
 
 #### JoinRoutes
@@ -570,7 +967,14 @@ interface ParticipantTokenService {
 
 **Implementation Notes**
 
-- Integration: 登録の可否判定は DO へ委譲する。参加者名簿の一意性は DO の直列実行により保証され、同時登録による重複を防ぐ
+- Integration: 登録の可否判定は DO へ委譲する。参加者名簿の一意性は DO の直列実行により保証され、同時登録による重複を防ぐ。**DO は `publish` 時点で生成済みであり、定員（要件4.6）と終了判定（要件4.8）に必要な情報を保持している**ため、`JoinRoutes` が D1 を参照する必要はない
+- Integration: DO が返す `JoinRejection` を HTTP コードへ変換する。**3つの理由を同一コードへ丸めない**。参加者が取るべき行動が理由ごとに異なり（改名すれば入れるのか、諦めるべきか）、当日その場で判断できる必要があるため
+
+  | `JoinRejection.code` | HTTP | 参加者への提示 | 要件 |
+  |----------------------|------|----------------|------|
+  | `NICKNAME_TAKEN` | 409 | 別のニックネームを促す | 4.5 |
+  | `CAPACITY_REACHED` | 423 | 定員に達している旨を表示 | 4.6 |
+  | `EVENT_FINISHED` | 410 | イベントが終了している旨を表示 | 4.8 |
 - Validation: ニックネームは長さと文字種を検証し、投影画面での表示崩れを防ぐ
 
 #### MediaRoutes
@@ -636,6 +1040,28 @@ interface ServerClock {
 
 - Invariants: 表示専用。順位計算には一切使用しない（採点は常に DO 側の計測値を用いる）
 
+#### ShareView
+
+| Field | Detail |
+|-------|--------|
+| Intent | 共有URLから最終ランキングを閲覧専用で表示し、画像として保存できるようにする |
+| Requirements | 8.12, 8.14, 10.8 |
+
+**Responsibilities & Constraints**
+
+- 認証を要求しない唯一の画面。WebSocket を使わず `GET /api/share/:shareCode` の1回のフェッチのみで描画する
+- 表示するのはニックネーム・順位・正解数・合計回答時間のみ。**設問ごとの正誤や設問文を表示しない**（要件10.8）
+- 画像化はクライアント側の Canvas 描画で完結し、サーバー処理を伴わない（要件12.1 を損なわない）
+
+**Contracts**: State [x]
+
+**Implementation Notes**
+
+- Integration: 画像は Canvas から生成し、Web Share API が利用可能な環境では共有シートを、非対応環境ではダウンロードを提供する
+- Integration: `PublicTheme` の配色を適用し、当日の見た目と連続性のあるランキング画像にする。**ロゴ・背景画像は使用しない**（要件10.6 により匿名の閲覧者は取得できないため）。視覚的な連続性は配色で担保する
+- Validation: 共有が無効化されている場合は 410 を受け取り、共有が終了している旨を表示する（要件8.13）
+- Risks: 参加者数が多い場合、画像に全員を収めると可読性が落ちる。画像化の対象は上位者に限定し、ページ本体では全員を表示する
+
 #### HostConsole / PresentationScreen / AnswerScreen
 
 要件5・6・7 の表示要素を担う画面群。いずれも新たな境界を導入せず、`LiveChannel` の状態と `ThemeProvider` の外観設定を描画する。
@@ -643,8 +1069,8 @@ interface ServerClock {
 **Implementation Notes**
 
 - 3画面は共通の `BaseScreenProps`（`snapshot`, `theme`, `connectionStatus`）を受け取り、役割固有のコールバックのみを追加で定義する
-- `PresentationScreen` は投影を前提に、ビューポート幅に対する相対的な文字サイズで描画する（要件6.7）
-- `AnswerScreen` は縦画面での単一カラム配置とし、選択肢のタップ領域を十分に確保する（要件7.8）
+- `PresentationScreen` は投影を前提に、ビューポート幅に対する相対的な文字サイズで描画する（要件6.7）。レイアウトは16:9の全画面表示を基準とする（要件11.2）
+- `AnswerScreen` は縦画面での単一カラム配置とし、選択肢のタップ領域を十分に確保する（要件7.8）。**選択は単一選択**であり、複数選択の UI を持たない（要件2.4）
 - 途中参加者には、出題済み設問へ回答できず不利になる旨を参加直後に表示する（要件4.10）
 
 ## Data Models
@@ -677,13 +1103,13 @@ erDiagram
 | Entity | 主要属性 | 制約 |
 |--------|----------|------|
 | `user` | id, google_subject, created_at | Better Auth が管理 |
-| `event` | id, owner_id, title, subtitle, status, join_code, capacity, created_at | `join_code` は UNIQUE かつ推測困難。`status` は draft/published/live/finished |
+| `event` | id, owner_id, title, subtitle, status, join_code, stage_token, capacity, created_at | `join_code` / `stage_token` は UNIQUE かつ推測困難。`status` は draft/published/live/finished |
 | `question` | id, event_id, order_index, body, image_asset_id, time_limit_sec, explanation | `(event_id, order_index)` に UNIQUE |
-| `option` | id, question_id, label, is_correct, order_index | 1設問あたり2〜4件、`is_correct` が1件以上 |
+| `option` | id, question_id, label, is_correct, order_index | 1設問あたり2〜4件、`is_correct` が**ちょうど1件**（要件2.4） |
 | `theme` | event_id, primary_color, accent_color, background_color, text_color, logo_asset_id, background_asset_id | `event_id` が主キー |
-| `result` | id, event_id, finalized_at | `event_id` に UNIQUE（1イベント1結果） |
+| `result` | id, event_id, finalized_at, share_code | `event_id` に UNIQUE（1イベント1結果）。`share_code` は NULL 可（NULL＝共有無効、要件10.7）で UNIQUE。`join_code` とは独立に採番 |
 | `result_entry` | id, result_id, nickname, rank, correct_count, total_elapsed_ms, joined_seq | `(result_id, rank)` に UNIQUE |
-| `result_answer` | result_entry_id, question_id, is_correct, elapsed_ms | 要件8.11 のエクスポート用 |
+| `result_answer` | result_entry_id, question_id, is_correct, elapsed_ms | 主催者向けの結果参照用（要件10.2）。**共有ページには一切公開しない**（要件10.8） |
 
 **参照整合性**: `event` 削除時は `question` / `option` / `theme` / `result` を連鎖削除（要件1.8）。`result` のみ独立して削除可能（要件10.3）。
 
@@ -693,11 +1119,13 @@ erDiagram
 
 | Entity | 主要属性 | 用途 |
 |--------|----------|------|
-| `session_state` | phase_json, catalog_snapshot_json, started_at | 単一行。hibernation 復帰時の状態復元 |
+| `session_state` | phase_json, event_meta_json, question_snapshot_json, started_at | 単一行。hibernation 復帰時の状態復元。`event_meta_json`（capacity・status・外観）は `publish` 時に投入され開催中も更新されうる。`question_snapshot_json` は `startSession` 時に凍結され以後不変（NULL＝未開始） |
 | `participant` | id, nickname, joined_seq, joined_at | `nickname` に UNIQUE（要件4.5）、`joined_seq` は単調増加（要件8.6） |
-| `answer` | participant_id, question_id, option_ids_json, elapsed_ms, is_correct | `(participant_id, question_id)` に UNIQUE（要件7.4 の冪等性を DB レベルでも保証） |
+| `answer` | participant_id, question_id, option_id, elapsed_ms, is_correct | `(participant_id, question_id)` に UNIQUE（要件7.4 の冪等性を DB レベルでも保証） |
 
-**時間的側面**: `catalog_snapshot_json` はイベント開始時に固定され、開催中は変化しない。これが要件1.6 の実現手段となる。
+**時間的側面**: `question_snapshot_json` は `startSession` 時に固定され、開催中は変化しない。これが要件1.6 の実現手段となる。可変領域（`event_meta_json`）と凍結領域を列レベルで分離することで、どちらが不変かがスキーマ上で判別できる。
+
+**`event.status` の所有**: D1 の `event.status` は CatalogRoutes と QuizSessionDO の双方が書き込む唯一のカラムである。書き込み契機は「イベント状態の所有と書き戻し」表に限定し、それ以外の箇所からは更新しない。
 
 ### Data Contracts & Integration
 
@@ -747,8 +1175,11 @@ type ServerEvent =
 
 - `ScoringModule.rank` — 正解数同数・合計時間同数の入力で必ず一意な順位が決まること（要件8.3, 8.6）
 - `ScoringModule.aggregate` — 不正解・未回答の設問が合計回答時間に加算されないこと（要件8.5）
-- `PhaseMachine.next` — 各フェーズで許可されないコマンドが `INVALID_PHASE` を返すこと（要件5.2〜5.10）
-- `PhaseMachine.next` — `pause` → `resume` で締切時刻が停止時間分だけ後ろへずれること（要件5.8）
+- `PhaseMachine.next` — 各フェーズで許可されないコマンドが `INVALID_PHASE` を返すこと（要件5.2〜5.13）
+- `PhaseMachine.next` — `pause` → `resume` で締切時刻が停止時間分だけ後ろへずれること。`questionOpen` 以外からの `pause` が拒否されること（要件5.9）
+- `PhaseMachine.next` — `revealed` からの `reopenQuestion` が `ALREADY_REVEALED` で拒否されること（要件5.12）
+- `PhaseMachine.next` — 最終設問の `revealed` からの `nextQuestion` が `NO_NEXT_QUESTION` を返すこと（要件5.8）
+- `PhaseMachine.next` — 「アラームのライフサイクル」表の全遷移について、返却される `AlarmIntent` が表と一致すること。特に `pause` が `clear` を返すこと（要件5.9, 12.1）
 - `ParticipantTokenService.verify` — 他イベントのトークンが `EVENT_MISMATCH` で拒否されること（要件10.4）
 
 ### Integration Tests
@@ -757,7 +1188,17 @@ type ServerEvent =
 - 同一参加者・同一設問への二重送信で、2件目が `ALREADY_ANSWERED` となり最初の回答が保持されること（要件7.4）
 - 締切到達アラームによる自動締切と、主催者の手動締切の双方で同一の締切処理が実行されること（要件5.4, 5.5）
 - 開催中イベントへの設問変更が 409 で拒否されること（要件1.6）
+- `reopenQuestion` の後、既存回答が保持されたまま未回答者のみ追加受付されること。既存回答の `elapsedMs` が再計測されないこと（要件5.13）
+- 一時停止中に元の締切時刻を経過しても自動締切が発火しないこと（要件5.9）
+- `publish` 時点で DO が生成され、`startSession` 前の参加登録で定員判定と終了判定が機能すること（要件4.6, 4.8）
+- `startSession` 前に設問を編集した場合は反映され、`startSession` 後の編集が 409 で拒否されること（要件1.6）
+- **`startSession` 後に D1 の `event.status` が `live` になり、`finalize` 後に `finished` になること**。これが失われると要件1.6・3.7 が黙って失効するため、回帰テストとして必須（要件1.6, 1.7, 3.7）
+- `status` が `live` のときのみ `PUT /theme` が DO へ通知され、未開催時は DO が起動しないこと（要件3.7）
+- `status` 書き戻しの再実行で状態が壊れないこと（冪等性）
 - `finalize` の再実行で結果が重複登録されないこと（冪等性）
+- 投影トークンでの WebSocket 接続が進行コマンドを一切受理しないこと（要件10.5）
+- 共有を無効化した後、同一の共有URLが 410 となること（要件8.13）
+- 共有APIのレスポンスに設問明細・参加者IDが含まれないこと（要件10.8）
 - DO の hibernation 復帰後にライブ状態が完全に再構築されること（要件9.2〜9.4）
 
 ### E2E Tests
@@ -781,6 +1222,7 @@ type ServerEvent =
 - **参加用コードの推測耐性**: 短い連番を避け、十分なエントロピーを持つ識別子とする（要件10.4）
 - **個人情報の不取得**: 参加者から取得するのはニックネームのみ。トークンにも個人情報を含めない（要件10.1）
 - **画像の保護**: R2 バケットを公開せず、Worker 経由でセッション検証を挟んで配信する（要件10.6）
+- **共有ページの露出範囲**: 結果共有は**既定で無効**であり、主催者の明示操作でのみ有効化される（要件10.7）。有効時も公開するのはニックネームと成績、イベントタイトル、配色のみで、設問文・正誤明細・参加者ID・画像は返さない（要件10.8）。**公開用に `PublicTheme` を別型として定義し、画像参照を型に載せないことで、要件10.6 の緩和を伴う実装を選べないようにしている**。無効化により即座にアクセスを遮断できる（要件8.13）。共有コードは参加用コードと独立に採番し、参加URLから結果ページを推測できないようにする
 
 ## Performance & Scalability
 
@@ -788,6 +1230,7 @@ type ServerEvent =
 - **スケーリング方針**: イベント単位で DO が独立するため、**イベント数方向には自然に水平分割**される。1イベント内の接続数がスケールの上限となるが、想定規模（100〜数百）は単一 DO で十分に扱える
 - **同報コストの最適化**: 送信 WebSocket メッセージは無課金であり、`progressUpdated` のような高頻度イベントも同報コスト上の懸念がない。ただし受信側の描画負荷を抑えるため、進捗更新は一定間隔でまとめて配信する
 - **アイドル時のコスト**: WebSocket Hibernation により、参加者が接続したまま待機している間の duration 課金が発生しない。これが要件12.1 を満たす中核機構であり、**アラームの常用はこの前提を壊す**ため禁止する
+- **配置ロケーション**: DO は生成時に配置が確定し移動しないため、想定利用地域をヒントとして指定する。`preflight`（要件12.4）の確認項目に往復遅延の実測を含め、配置ミスを開催前に検知できるようにする
 
 ## Supporting References
 
