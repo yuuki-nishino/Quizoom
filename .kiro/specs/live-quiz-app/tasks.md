@@ -86,8 +86,8 @@
   - _Requirements: 4.4, 4.7, 9.3, 10.1, 10.4_
   - _Boundary: ParticipantToken_
 
-- [ ] 5. コア: ライブセッション永続化（LiveStore）
-- [ ] 5.1 DO SQLiteスキーマとLiveStore実装
+- [x] 5. コア: ライブセッション永続化（LiveStore）
+- [x] 5.1 DO SQLiteスキーマとLiveStore実装
   - `session_state`（phase_json, event_meta_json, question_snapshot_json, started_at の単一行）、`participant`（nickname UNIQUE, joined_seq 単調増加）、`answer`（`(participant_id, question_id)` UNIQUE）のスキーマを DO SQLite に定義する
   - `load`／`initialize`／`savePhase`／`saveEventMeta`／`freezeQuestionSnapshot` を実装し、凍結領域（`question_snapshot_json`）と可変領域（`event_meta_json`）を型で書き分ける
   - `addParticipant`（ニックネーム一意性違反時に `JoinRejection` を返す）、`recordAnswer`（既存回答がある場合に上書きせず `alreadyAnswered` を返す）を実装する

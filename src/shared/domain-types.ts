@@ -106,3 +106,21 @@ export interface ParticipantScore {
 export interface RankingEntry extends ParticipantScore {
   readonly rank: number;
 }
+
+/** DO SQLite の可変領域（event_meta_json）に対応。publish 時に投入され、開催中も更新されうる */
+export interface EventMeta {
+  readonly capacity: number;
+  readonly status: EventStatus;
+  readonly theme: ThemeSettings;
+}
+
+export interface SessionState {
+  readonly phase: LivePhase;
+  readonly eventMeta: EventMeta;
+  readonly questions: readonly QuestionSnapshot[] | null;
+  readonly startedAt: number | null;
+}
+
+export type AnswerOutcome =
+  | { readonly kind: "recorded"; readonly record: AnswerRecord }
+  | { readonly kind: "alreadyAnswered"; readonly existing: AnswerRecord };
