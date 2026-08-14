@@ -227,15 +227,15 @@
   - _Boundary: MediaRoutes_
   - _Depends: 1.4_
 
-- [ ] 9. コア: 結果アーカイブと共有
-- [ ] 9.1 ResultArchive: 確定結果の書き戻しと主催者向け参照
+- [x] 9. コア: 結果アーカイブと共有
+- [x] 9.1 ResultArchive: 確定結果の書き戻しと主催者向け参照
   - `save`（`event_id` UNIQUE制約による冪等な書き戻し）、`findForOwner`、`deleteParticipantData` を実装する
   - `deleteParticipantData` は参加者情報と回答履歴を削除すると同時に共有を無効化する
   - 観測可能な完了条件: `save` を再実行しても結果行が重複せず、`deleteParticipantData` 実行後に `findForOwner` が結果を返さなくなることを確認できる
   - _Requirements: 8.10, 10.2, 10.3_
   - _Depends: 7.6_
 
-- [ ] 9.2 ResultArchive: 共有の有効化・無効化と公開参照
+- [x] 9.2 ResultArchive: 共有の有効化・無効化と公開参照
   - `enableSharing`（結果確定済みの場合のみ成功し、`join_code` と独立した `share_code` を採番）、`disableSharing`、`findPublicByShareCode` を実装する
   - `findPublicByShareCode` の戻り値型を `PublicResult` に固定し、ニックネーム・順位・正解数・合計回答時間・イベントタイトル・配色のみを含める
   - 共有を既定で無効（`share_code` が NULL）とする
@@ -243,7 +243,7 @@
   - _Requirements: 8.11, 8.13, 10.7, 10.8_
   - _Depends: 9.1_
 
-- [ ] 9.3 CatalogRoutes: 結果参照・共有APIエンドポイント
+- [x] 9.3 CatalogRoutes: 結果参照・共有APIエンドポイント
   - `GET /api/events/:id/results` を実装し、主催者向けに確定結果（順位・ニックネーム・正解数・合計回答時間に加え設問別正誤）を返す
   - `POST/DELETE /api/events/:id/share` と、認証不要の `GET /api/share/:shareCode` を実装する
   - `GET /api/share/:shareCode` が設問ごとの正誤・参加者ID・画像参照を一切返さないことを型とレスポンス双方で保証する

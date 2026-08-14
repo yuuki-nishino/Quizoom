@@ -37,6 +37,21 @@ export interface PublicTheme {
   readonly textColor: string;
 }
 
+/** 共有ページへ公開してよい参加者情報の全量。設問別正誤・参加者IDを表現できないことが要件10.8の担保そのもの */
+export interface PublicResultEntry {
+  readonly rank: number;
+  readonly nickname: string;
+  readonly correctCount: number;
+  readonly totalElapsedMs: number;
+}
+
+export interface PublicResult {
+  readonly eventTitle: string;
+  readonly theme: PublicTheme;
+  readonly finalizedAt: number;
+  readonly entries: readonly PublicResultEntry[];
+}
+
 export interface OptionSnapshot {
   readonly id: OptionId;
   readonly label: string;
