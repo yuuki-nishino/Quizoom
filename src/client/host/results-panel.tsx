@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { EventId } from "../../shared/domain-types";
 import type { ArchivedResult, HostApiClient } from "./api-client";
-import { formatElapsedMs } from "./format";
+import { formatElapsedMs } from "../shared/format";
 import { ConfirmDialog } from "./confirm-dialog";
 
 export interface ResultsPanelProps {

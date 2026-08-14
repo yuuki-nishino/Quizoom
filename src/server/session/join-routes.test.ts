@@ -12,7 +12,10 @@ async function hostCookie(userId = "owner-1"): Promise<string> {
   return createHostCookie(env, userId);
 }
 
-async function createAndPublish(cookie: string, opts: { capacity?: number } = {}): Promise<{ id: string; joinCode: string }> {
+async function createAndPublish(
+  cookie: string,
+  opts: { capacity?: number } = {},
+): Promise<{ id: string; joinCode: string; stageToken: string }> {
   const createRes = await SELF.fetch("https://example.com/api/events", {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: cookie },
@@ -37,9 +40,9 @@ async function createAndPublish(cookie: string, opts: { capacity?: number } = {}
     method: "POST",
     headers: { Cookie: cookie },
   });
-  const published = await publishRes.json<{ joinCode: string }>();
+  const published = await publishRes.json<{ joinCode: string; stageToken: string }>();
 
-  return { id: created.id, joinCode: published.joinCode };
+  return { id: created.id, joinCode: published.joinCode, stageToken: published.stageToken };
 }
 
 describe("GET /api/join/:joinCode", () => {
@@ -166,5 +169,40 @@ describe("POST /api/join/:joinCode", () => {
       body: JSON.stringify({ nickname: "alice\nbob" }),
     });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /api/stage/:eventId", () => {
+  it("returns the event title, theme, and join code for a valid stage token (no auth required)", async () => {
+    const cookie = await hostCookie();
+    const { id, joinCode, stageToken } = await createAndPublish(cookie);
+
+    const res = await SELF.fetch(`https://example.com/api/stage/${id}?token=${stageToken}`);
+    expect(res.status).toBe(200);
+    const body = await res.json<{ eventTitle: string; joinCode: string; theme: { primaryColor: string } }>();
+    expect(body.eventTitle).toBe("My Event");
+    expect(body.joinCode).toBe(joinCode);
+    expect(typeof body.theme.primaryColor).toBe("string");
+  });
+
+  it("returns 401 when the token is missing", async () => {
+    const cookie = await hostCookie();
+    const { id } = await createAndPublish(cookie);
+
+    const res = await SELF.fetch(`https://example.com/api/stage/${id}`);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for an incorrect stage token", async () => {
+    const cookie = await hostCookie();
+    const { id } = await createAndPublish(cookie);
+
+    const res = await SELF.fetch(`https://example.com/api/stage/${id}?token=wrong-token`);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 for an unknown event id", async () => {
+    const res = await SELF.fetch("https://example.com/api/stage/unknown-id?token=whatever");
+    expect(res.status).toBe(404);
   });
 });

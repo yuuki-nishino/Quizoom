@@ -538,6 +538,27 @@ export async function findThemeSettings(env: Env, eventId: EventId): Promise<The
   return toTheme(themeRow);
 }
 
+export interface StageTokenLookup {
+  readonly title: string;
+  readonly joinCode: string | null;
+}
+
+type StageTokenError = { readonly code: "NOT_FOUND" } | { readonly code: "FORBIDDEN" };
+
+/** StageRoutes（投影画面）専用。stage_token の一致を認可の根拠とする所有者不問の参照 */
+export async function findEventByStageToken(
+  env: Env,
+  eventId: EventId,
+  stageToken: string,
+): Promise<Result<StageTokenLookup, StageTokenError>> {
+  const row = await env.DB.prepare("SELECT title, join_code, stage_token FROM event WHERE id = ?")
+    .bind(eventId)
+    .first<{ title: string; join_code: string | null; stage_token: string | null }>();
+  if (!row) return err({ code: "NOT_FOUND" });
+  if (!row.stage_token || row.stage_token !== stageToken) return err({ code: "FORBIDDEN" });
+  return ok({ title: row.title, joinCode: row.join_code });
+}
+
 export interface PublishResult {
   readonly joinCode: string;
   readonly stageToken: string;

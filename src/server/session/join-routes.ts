@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../env";
-import { findEventByJoinCode, findThemeSettings } from "../catalog/repository";
+import { findEventByJoinCode, findEventByStageToken, findThemeSettings } from "../catalog/repository";
 import { getSessionStub } from "./quiz-session-do";
 import { createParticipantTokenService } from "./participant-token";
 import type { EventId, JoinRejection, ParticipantId } from "../../shared/domain-types";
@@ -83,4 +83,17 @@ joinRoutes.post("/api/join/:joinCode", async (c) => {
   });
 
   return c.json({ token, participantId });
+});
+
+// 投影画面の待機状態表示専用。認証不要・stage_token の一致のみを根拠とする（要件6.1）
+joinRoutes.get("/api/stage/:eventId", async (c) => {
+  const eventId = c.req.param("eventId") as EventId;
+  const token = c.req.query("token");
+  if (!token) return c.json({ error: "UNAUTHORIZED" }, 401);
+
+  const result = await findEventByStageToken(c.env, eventId, token);
+  if (!result.ok) return c.json({ error: result.error.code }, result.error.code === "NOT_FOUND" ? 404 : 403);
+
+  const theme = await findThemeSettings(c.env, eventId);
+  return c.json({ eventTitle: result.value.title, joinCode: result.value.joinCode, theme });
 });

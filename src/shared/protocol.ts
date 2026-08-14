@@ -115,6 +115,8 @@ export interface QuestionClosedPayload {
 
 export interface RankingUpdatedPayload {
   readonly entries: readonly RankingEntry[];
+  /** finalize による確定ランキングか、showRanking による中間ランキングかをクライアントが区別するためのフラグ */
+  readonly isFinal: boolean;
 }
 
 export interface PersonalRankPayload {

@@ -1,14 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { eventStatusLabel, formatElapsedMs, formatRemainingSeconds } from "./format";
-
-describe("eventStatusLabel", () => {
-  it("labels every EventStatus in Japanese", () => {
-    expect(eventStatusLabel("draft")).toBe("下書き");
-    expect(eventStatusLabel("published")).toBe("公開中");
-    expect(eventStatusLabel("live")).toBe("開催中");
-    expect(eventStatusLabel("finished")).toBe("終了");
-  });
-});
+import { formatElapsedMs, formatRemainingSeconds } from "./format";
 
 describe("formatElapsedMs", () => {
   it("formats milliseconds as seconds with one decimal place", () => {

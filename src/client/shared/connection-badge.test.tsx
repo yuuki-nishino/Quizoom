@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ConnectionBadge } from "./connection-badge";
-import type { ConnectionStatus } from "../shared/use-live-channel";
+import type { ConnectionStatus } from "./use-live-channel";
 
 describe("ConnectionBadge", () => {
   it.each<[ConnectionStatus, string]>([

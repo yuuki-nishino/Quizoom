@@ -263,7 +263,7 @@ export class QuizSessionDO extends DurableObject<Env> {
         this.#afterRevealAnswer(transition.value.phase, questions);
         break;
       case "showRanking":
-        this.#broadcastRanking(questions);
+        this.#broadcastRanking(questions, false);
         break;
       case "finalize":
         await this.#afterFinalize(eventId, questions);
@@ -401,12 +401,12 @@ export class QuizSessionDO extends DurableObject<Env> {
     }
   }
 
-  #broadcastRanking(questions: readonly QuestionSnapshot[]): void {
+  #broadcastRanking(questions: readonly QuestionSnapshot[], isFinal: boolean): void {
     const participants = this.#store.listParticipants();
     const answers = this.#store.listAllAnswers();
     const ranked = rank(aggregate(participants, answers, questions));
 
-    const payload: RankingUpdatedPayload = { entries: ranked };
+    const payload: RankingUpdatedPayload = { entries: ranked, isFinal };
     this.#broadcast({ type: "rankingUpdated", payload }, (role) => role.role === "host" || role.role === "stage");
 
     const rankByParticipant = new Map(ranked.map((r) => [r.participantId, r]));
@@ -439,7 +439,7 @@ export class QuizSessionDO extends DurableObject<Env> {
     await saveResult(this.env, eventId, ranked, judgedAnswers);
     await this.#updateStatusWithRetry(eventId, "live", "finished");
 
-    this.#broadcastRanking(questions);
+    this.#broadcastRanking(questions, true);
   }
 
   async #updateStatusWithRetry(eventId: EventId, expected: EventStatus, nextStatus: EventStatus, attempts = 3): Promise<void> {

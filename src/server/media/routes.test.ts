@@ -196,4 +196,46 @@ describe("GET /api/events/:id/media/:assetId", () => {
     const res = await SELF.fetch(`https://example.com/api/events/${created.id}/media/${assetId}?token=${token}`);
     expect(res.status).toBe(403);
   });
+
+  async function publishEvent(cookie: string, eventId: string): Promise<string> {
+    await SELF.fetch(`https://example.com/api/events/${eventId}/questions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({
+        body: "2+2?",
+        timeLimitSec: 30,
+        options: [
+          { label: "3", isCorrect: false },
+          { label: "4", isCorrect: true },
+        ],
+      }),
+    });
+    const publishRes = await SELF.fetch(`https://example.com/api/events/${eventId}/publish`, {
+      method: "POST",
+      headers: { Cookie: cookie },
+    });
+    const { stageToken } = await publishRes.json<{ stageToken: string }>();
+    return stageToken;
+  }
+
+  it("serves the image to a valid stage token for that event", async () => {
+    const cookie = await hostCookie();
+    const created = await createEventAs(cookie);
+    const assetId = await uploadAsset(cookie, created.id);
+    const stageToken = await publishEvent(cookie, created.id);
+
+    const res = await SELF.fetch(`https://example.com/api/events/${created.id}/media/${assetId}?token=${stageToken}`);
+    expect(res.status).toBe(200);
+    await res.arrayBuffer();
+  });
+
+  it("rejects an incorrect stage token with 403", async () => {
+    const cookie = await hostCookie();
+    const created = await createEventAs(cookie);
+    const assetId = await uploadAsset(cookie, created.id);
+    await publishEvent(cookie, created.id);
+
+    const res = await SELF.fetch(`https://example.com/api/events/${created.id}/media/${assetId}?token=wrong-stage-token`);
+    expect(res.status).toBe(403);
+  });
 });

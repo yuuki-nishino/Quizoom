@@ -102,7 +102,7 @@ describe("hostConsoleReducer", () => {
 
   it("stores ranking entries from rankingUpdated", () => {
     const entries = [{ participantId: "p1" as never, nickname: "alice", correctCount: 1, totalElapsedMs: 100, joinedSeq: 0, rank: 1 }];
-    const event: ServerEvent = { type: "rankingUpdated", payload: { entries } };
+    const event: ServerEvent = { type: "rankingUpdated", payload: { entries, isFinal: false } };
     expect(hostConsoleReducer(initialHostConsoleState, event).ranking).toEqual(entries);
   });
 

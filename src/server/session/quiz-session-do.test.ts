@@ -624,6 +624,24 @@ describe("QuizSessionDO showRanking / finalize", () => {
     const event = await ranking;
     expect(event.type).toBe("rankingUpdated");
     expect(event.payload.entries[0]).toMatchObject({ nickname: "alice", rank: 1, correctCount: 1 });
+    expect(event.payload.isFinal).toBe(false);
+
+    stageWs.close();
+    aliceWs.close();
+  });
+
+  it("marks the ranking broadcast from finalize as isFinal, unlike showRanking", async () => {
+    const stub = newStub();
+    const { aliceWs } = await setupRevealed(stub);
+    const stageWs = await connectAndDrain(stub, { eventId: "event-1", role: "stage", token: "tok" });
+
+    const ranking = nextMessage(stageWs);
+    const { rejected } = await sendHostCommand(stub, "event-1", { type: "finalize" });
+    expect(rejected).toEqual([]);
+
+    const event = await ranking;
+    expect(event.type).toBe("rankingUpdated");
+    expect(event.payload.isFinal).toBe(true);
 
     stageWs.close();
     aliceWs.close();

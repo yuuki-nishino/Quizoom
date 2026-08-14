@@ -1,5 +1,8 @@
 import type { LivePhase, RankingEntry, ThemeSettings } from "../../shared/domain-types";
 import type { CommandRejectedPayload, QuestionClosedPayload, QuestionPublicView, ServerEvent } from "../../shared/protocol";
+import { currentDeadlineAt, pausedRemainingMs } from "../shared/live-phase";
+
+export { currentDeadlineAt, pausedRemainingMs };
 
 export interface HostConsoleState {
   readonly phase: LivePhase | null;
@@ -136,13 +139,4 @@ export function isLastQuestion(currentOrderIndex: number | null, totalQuestions:
 
 export function canShowNextQuestion(revealed: boolean, lastQuestion: boolean): boolean {
   return revealed && !lastQuestion;
-}
-
-export function currentDeadlineAt(phase: LivePhase | null): number | null {
-  return phase?.kind === "questionOpen" ? phase.deadlineAt : null;
-}
-
-/** 一時停止中の凍結された残り時間。表示はこの値を優先し、クロック計算を行わない */
-export function pausedRemainingMs(phase: LivePhase | null): number | null {
-  return phase?.kind === "paused" ? phase.remainingMs : null;
 }

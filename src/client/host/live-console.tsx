@@ -3,10 +3,10 @@ import type { EventId } from "../../shared/domain-types";
 import type { HostApiClient } from "./api-client";
 import { useHostConsole } from "./use-host-console";
 import { useServerClock, useRemainingMs } from "../shared/use-server-clock";
-import { ConnectionBadge } from "./connection-badge";
-import { RecoveryBanner } from "./recovery-banner";
+import { ConnectionBadge } from "../shared/connection-badge";
+import { RecoveryBanner } from "../shared/recovery-banner";
 import { ConfirmDialog } from "./confirm-dialog";
-import { formatElapsedMs, formatRemainingSeconds } from "./format";
+import { formatElapsedMs, formatRemainingSeconds } from "../shared/format";
 import {
   canStartSession,
   canOpenQuestion,

@@ -1,4 +1,4 @@
-import type { ConnectionStatus } from "../shared/use-live-channel";
+import type { ConnectionStatus } from "./use-live-channel";
 
 const LABELS: Record<ConnectionStatus, string> = {
   connecting: "接続中…",

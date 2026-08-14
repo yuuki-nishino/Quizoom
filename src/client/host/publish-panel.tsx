@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { EventId } from "../../shared/domain-types";
 import type { EventDetail, HostApiClient, PublishResult } from "./api-client";
-import { generateQrCodeSvg } from "./qr";
+import { generateQrCodeSvg } from "../shared/qr";
 
 export interface PublishPanelProps {
   readonly apiClient: HostApiClient;

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Env } from "../env";
 import { requireHost, checkEventOwnership } from "../auth/guard";
 import { createParticipantTokenService } from "../session/participant-token";
+import { findEventByStageToken } from "../catalog/repository";
 import type { EventId } from "../../shared/domain-types";
 
 export const mediaRoutes = new Hono<{ Bindings: Env }>();
@@ -56,6 +57,11 @@ mediaRoutes.get("/api/events/:id/media/:assetId", async (c) => {
   if (!authorized && token) {
     const verified = await createParticipantTokenService(c.env).verify(token, eventId);
     authorized = verified.ok;
+  }
+  // 投影画面は参加者トークンを持たないため、stage_token の一致も許可の根拠とする（要件6.2, 10.6）
+  if (!authorized && token) {
+    const stageAuth = await findEventByStageToken(c.env, eventId, token);
+    authorized = stageAuth.ok;
   }
 
   if (!authorized) {

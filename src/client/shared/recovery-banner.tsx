@@ -1,4 +1,4 @@
-import type { ConnectionStatus } from "../shared/use-live-channel";
+import type { ConnectionStatus } from "./use-live-channel";
 
 /**
  * 通信不良・想定外エラー時に復旧手段を提示するバナー。進行状態は LiveChannel の再接続と
