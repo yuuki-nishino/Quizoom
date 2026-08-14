@@ -15,6 +15,8 @@ import {
   countQuestions,
   putTheme,
   loadQuestionSnapshot,
+  publish,
+  findPublishInfo,
   THEME_PRESETS,
   DEFAULT_THEME,
 } from "./repository";
@@ -420,5 +422,59 @@ describe("loadQuestionSnapshot", () => {
     const created = await createEvent(env, OWNER, { title: "Empty" });
     const snapshot = await loadQuestionSnapshot(env, created.id);
     expect(snapshot).toEqual([]);
+  });
+});
+
+describe("publish", () => {
+  it("rejects publishing an event with no questions with NO_QUESTIONS", async () => {
+    const created = await createEvent(env, OWNER, { title: "Empty" });
+    const result = await publish(env, created.id, OWNER);
+    expect(result).toEqual({ ok: false, error: { code: "NO_QUESTIONS" } });
+  });
+
+  it("issues a join code and stage token, and updates status to published", async () => {
+    const created = await createEvent(env, OWNER, { title: "Mine" });
+    await upsertQuestion(env, created.id, OWNER, {
+      body: "2+2?",
+      timeLimitSec: 30,
+      options: [
+        { label: "3", isCorrect: false },
+        { label: "4", isCorrect: true },
+      ],
+    });
+
+    const result = await publish(env, created.id, OWNER);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.joinCode).toHaveLength(10);
+    expect(result.value.stageToken.length).toBeGreaterThan(0);
+
+    const info = await findPublishInfo(env, created.id, OWNER);
+    expect(info).toEqual({
+      ok: true,
+      value: { status: "published", joinCode: result.value.joinCode, stageToken: result.value.stageToken },
+    });
+  });
+
+  it("is idempotent: re-publishing an already-published event returns the same codes", async () => {
+    const created = await createEvent(env, OWNER, { title: "Mine" });
+    await upsertQuestion(env, created.id, OWNER, {
+      body: "2+2?",
+      timeLimitSec: 30,
+      options: [
+        { label: "3", isCorrect: false },
+        { label: "4", isCorrect: true },
+      ],
+    });
+
+    const first = await publish(env, created.id, OWNER);
+    const second = await publish(env, created.id, OWNER);
+    expect(first).toEqual(second);
+  });
+
+  it("rejects a non-owner with FORBIDDEN", async () => {
+    const created = await createEvent(env, OWNER, { title: "Mine" });
+    const result = await publish(env, created.id, OTHER_OWNER);
+    expect(result).toEqual({ ok: false, error: { code: "FORBIDDEN" } });
   });
 });

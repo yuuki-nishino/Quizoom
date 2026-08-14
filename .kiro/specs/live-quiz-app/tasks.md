@@ -182,8 +182,8 @@
   - _Requirements: 4.10, 9.2, 9.3, 9.4_
   - _Depends: 7.1_
 
-- [ ] 8. コア: API — カタログ・参加・メディアルート
-- [ ] 8.1 CatalogRoutes: イベント・設問・外観エンドポイント
+- [x] 8. コア: API — カタログ・参加・メディアルート
+- [x] 8.1 CatalogRoutes: イベント・設問・外観エンドポイント
   - `GET/POST /api/events`、`GET/PATCH/DELETE /api/events/:id`、`POST /api/events/:id/duplicate`、設問の CRUD・並び替え、`PUT /api/events/:id/theme` を実装する
   - 全エンドポイントで `HostGuard` によるセッション検証・所有権確認を行う
   - 開催中イベントへの設問変更を 409 で拒否し、外観変更のみ開催中も許可する
@@ -192,7 +192,7 @@
   - _Requirements: 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7_
   - _Depends: 3.1, 3.2, 3.3, 1.4_
 
-- [ ] 8.2 CatalogRoutes: publish（参加URL・QRコード・投影トークン発行）
+- [x] 8.2 CatalogRoutes: publish（参加URL・QRコード・投影トークン発行）
   - `POST /api/events/:id/publish` で参加用コード・投影トークンを推測困難な識別子として採番し、`event.status` を `published` へ更新する
   - 発行と同時に `QuizSessionDO` インスタンスを生成し、`capacity`／`status`／外観設定を投入する
   - 設問が1件も存在しない状態での公開試行を422で拒否する
@@ -202,14 +202,14 @@
   - _Requirements: 2.10, 4.1, 4.2, 10.4_
   - _Depends: 8.1, 6.2_
 
-- [ ] 8.3 CatalogRoutes: preflight事前確認エンドポイント
+- [x] 8.3 CatalogRoutes: preflight事前確認エンドポイント
   - `GET /api/events/:id/preflight` で `authValid`／`sessionReachable`／`roundTripMs`／`stageUrlReachable`／`questionsReady` の固定項目からなる `PreflightReport` を返す
   - `roundTripMs` は DO への往復遅延を実測し、`overall` は最も重い個別ステータスを反映する
   - 観測可能な完了条件: 未公開イベントでの `preflight` 呼び出しが各項目の状態を適切に返し、公開済みイベントでは DO 疎通が `ok` になることを確認できる
   - _Requirements: 12.3, 12.4_
   - _Depends: 8.2, 7.1_
 
-- [ ] 8.4 (P) JoinRoutes: 参加登録エンドポイントとエラーコード変換
+- [x] 8.4 (P) JoinRoutes: 参加登録エンドポイントとエラーコード変換
   - `GET /api/join/:joinCode`（タイトル・外観・受付可否）と `POST /api/join/:joinCode`（ニックネーム送信）を実装する
   - 判定を DO へ委譲し、`JoinRejection.code` を `NICKNAME_TAKEN`→409、`CAPACITY_REACHED`→423、`EVENT_FINISHED`→410 に変換する
   - ニックネームの長さ・文字種を検証し、投影画面での表示崩れを防ぐ
@@ -218,7 +218,7 @@
   - _Boundary: JoinRoutes_
   - _Depends: 6.2_
 
-- [ ] 8.5 (P) MediaRoutes: R2アップロードと保護付き配信
+- [x] 8.5 (P) MediaRoutes: R2アップロードと保護付き配信
   - `POST /api/events/:id/media`（multipart画像アップロード）と `GET /api/events/:id/media/:assetId`（配信）を実装する
   - JPEG/PNG/WebP 形式とサイズ上限を入力時点で検証し、超過時に413を返す
   - 配信時に主催者セッションまたは当該イベントの参加者トークンを検証し、`Cache-Control: private, max-age=3600` を付与する

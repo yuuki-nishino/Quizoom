@@ -71,6 +71,9 @@ export class QuizSessionDO extends DurableObject<Env> {
     if (request.method === "POST" && url.pathname === "/internal/theme") {
       return this.#handleThemeUpdate(request);
     }
+    if (request.method === "GET" && url.pathname === "/internal/ping") {
+      return new Response(null, { status: 204 });
+    }
     if (url.pathname === "/connect") {
       return this.#handleConnect(request, url);
     }

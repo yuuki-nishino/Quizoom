@@ -16,7 +16,11 @@ export type CatalogError =
   | { readonly code: "FORBIDDEN" }
   | { readonly code: "EVENT_LIVE" }
   | { readonly code: "VALIDATION"; readonly fields: readonly string[] }
-  | { readonly code: "STATUS_CONFLICT"; readonly actual: EventStatus };
+  | { readonly code: "STATUS_CONFLICT"; readonly actual: EventStatus }
+  | { readonly code: "NO_QUESTIONS" };
+
+/** publish 時に capacity が未指定のイベントへ適用する既定の参加者上限（要件4.6） */
+export const DEFAULT_CAPACITY = 500;
 
 export interface EventSummary {
   readonly id: EventId;
@@ -125,6 +129,8 @@ interface EventRow {
   readonly title: string;
   readonly subtitle: string;
   readonly status: EventStatus;
+  readonly join_code: string | null;
+  readonly stage_token: string | null;
   readonly capacity: number | null;
   readonly created_at: number;
 }
@@ -498,4 +504,70 @@ export async function putTheme(
     .run();
 
   return ok(theme);
+}
+
+export interface PublishInfo {
+  readonly status: EventStatus;
+  readonly joinCode: string | null;
+  readonly stageToken: string | null;
+}
+
+export async function findPublishInfo(env: Env, eventId: EventId, ownerId: string): Promise<Result<PublishInfo, CatalogError>> {
+  const owned = await requireOwnedEvent(env, eventId, ownerId);
+  if (!owned.ok) return owned;
+  return ok({ status: owned.value.status, joinCode: owned.value.join_code, stageToken: owned.value.stage_token });
+}
+
+export interface JoinCodeLookup {
+  readonly id: EventId;
+  readonly title: string;
+  readonly status: EventStatus;
+}
+
+/** JoinRoutes 専用。join_code から所有者不問でイベントを引く（参加者は主催者アカウントを持たないため） */
+export async function findEventByJoinCode(env: Env, joinCode: string): Promise<JoinCodeLookup | null> {
+  const row = await env.DB.prepare("SELECT id, title, status FROM event WHERE join_code = ?")
+    .bind(joinCode)
+    .first<{ id: string; title: string; status: EventStatus }>();
+  if (!row) return null;
+  return { id: row.id as EventId, title: row.title, status: row.status };
+}
+
+export async function findThemeSettings(env: Env, eventId: EventId): Promise<ThemeSettings> {
+  const themeRow = await env.DB.prepare("SELECT * FROM theme WHERE event_id = ?").bind(eventId).first<ThemeRow>();
+  return toTheme(themeRow);
+}
+
+export interface PublishResult {
+  readonly joinCode: string;
+  readonly stageToken: string;
+}
+
+/** 推測困難な識別子を生成する。参加用コードは英数字（紛らわしい文字を除く）で構成する */
+function randomJoinCode(length: number): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+}
+
+export async function publish(env: Env, eventId: EventId, ownerId: string): Promise<Result<PublishResult, CatalogError>> {
+  const owned = await requireOwnedEvent(env, eventId, ownerId);
+  if (!owned.ok) return owned;
+
+  // 再実行は冪等: 既に公開済みなら発行済みの参加情報をそのまま返す
+  if (owned.value.status !== "draft") {
+    return ok({ joinCode: owned.value.join_code ?? "", stageToken: owned.value.stage_token ?? "" });
+  }
+
+  const questionCount = await countQuestions(env, eventId);
+  if (questionCount === 0) return err({ code: "NO_QUESTIONS" });
+
+  const joinCode = randomJoinCode(10);
+  const stageToken = crypto.randomUUID();
+
+  await env.DB.prepare("UPDATE event SET status = 'published', join_code = ?, stage_token = ? WHERE id = ? AND status = 'draft'")
+    .bind(joinCode, stageToken, eventId)
+    .run();
+
+  return ok({ joinCode, stageToken });
 }
