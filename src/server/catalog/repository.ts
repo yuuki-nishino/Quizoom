@@ -5,6 +5,7 @@ import type {
   EventStatus,
   OptionId,
   QuestionId,
+  QuestionSnapshot,
   Result,
   ThemeSettings,
 } from "../../shared/domain-types";
@@ -195,6 +196,23 @@ async function loadQuestions(env: Env, eventId: EventId): Promise<readonly Quest
         orderIndex: o.order_index,
       })),
   }));
+}
+
+export async function loadQuestionSnapshot(env: Env, eventId: EventId): Promise<readonly QuestionSnapshot[]> {
+  const questions = await loadQuestions(env, eventId);
+  return questions.map((question) => {
+    const correctOption = question.options.find((option) => option.isCorrect)!;
+    return {
+      id: question.id,
+      orderIndex: question.orderIndex,
+      body: question.body,
+      imageAssetId: question.imageAssetId,
+      timeLimitSec: question.timeLimitSec,
+      explanation: question.explanation,
+      options: question.options.map((option) => ({ id: option.id, label: option.label, orderIndex: option.orderIndex })),
+      correctOptionId: correctOption.id,
+    };
+  });
 }
 
 async function toEventDetail(env: Env, row: EventRow): Promise<EventDetail> {

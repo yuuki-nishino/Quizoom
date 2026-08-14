@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { env, runInDurableObject } from "cloudflare:test";
-import type { EventId, EventMeta, ParticipantId } from "../../shared/domain-types";
+import { env, runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
+import type { EventId, EventMeta, EventStatus, ParticipantId } from "../../shared/domain-types";
 import { createParticipantTokenService } from "./participant-token";
 import { createLiveStore } from "./live-store";
+import { upsertQuestion } from "../catalog/repository";
 import { getSessionStub } from "./quiz-session-do";
 import type { QuizSessionDO } from "./quiz-session-do";
 
@@ -24,12 +25,42 @@ function newStub(): DurableObjectStub<QuizSessionDO> {
   return env.QUIZ_SESSION.get(id);
 }
 
-async function seedEvent(eventId: string, opts: { ownerId?: string; stageToken?: string } = {}): Promise<void> {
+async function seedEvent(
+  eventId: string,
+  opts: { ownerId?: string; stageToken?: string; status?: EventStatus } = {},
+): Promise<void> {
   await env.DB.prepare(
-    "INSERT INTO event (id, owner_id, title, subtitle, status, stage_token, created_at) VALUES (?, ?, 'T', '', 'live', ?, 1)",
+    "INSERT INTO event (id, owner_id, title, subtitle, status, stage_token, created_at) VALUES (?, ?, 'T', '', ?, ?, 1)",
   )
-    .bind(eventId, opts.ownerId ?? "owner-1", opts.stageToken ?? null)
+    .bind(eventId, opts.ownerId ?? "owner-1", opts.status ?? "live", opts.stageToken ?? null)
     .run();
+}
+
+async function seedQuestion(
+  eventId: string,
+  id: string,
+  orderIndex: number,
+  opts: { timeLimitSec?: number; correctOptionId?: string; explanation?: string } = {},
+): Promise<void> {
+  await env.DB.prepare(
+    "INSERT INTO question (id, event_id, order_index, body, time_limit_sec, explanation) VALUES (?, ?, ?, ?, ?, ?)",
+  )
+    .bind(id, eventId, orderIndex, `body-${id}`, opts.timeLimitSec ?? 30, opts.explanation ?? `explanation-${id}`)
+    .run();
+
+  const correctId = opts.correctOptionId ?? `${id}-a`;
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO option (id, question_id, label, is_correct, order_index) VALUES (?, ?, 'A', ?, 0)").bind(
+      `${id}-a`,
+      id,
+      correctId === `${id}-a` ? 1 : 0,
+    ),
+    env.DB.prepare("INSERT INTO option (id, question_id, label, is_correct, order_index) VALUES (?, ?, 'B', ?, 1)").bind(
+      `${id}-b`,
+      id,
+      correctId === `${id}-b` ? 1 : 0,
+    ),
+  ]);
 }
 
 async function publish(stub: DurableObjectStub<QuizSessionDO>, eventMeta: EventMeta): Promise<void> {
@@ -39,13 +70,87 @@ async function publish(stub: DurableObjectStub<QuizSessionDO>, eventMeta: EventM
 }
 
 /** WebSocket アップグレード以外の応答本文は、isolated storage のクリーンアップのため必ず読み切る */
-async function connectExpecting(stub: DurableObjectStub<QuizSessionDO>, params: Record<string, string>, status: number): Promise<Response> {
+async function connectExpecting(
+  stub: DurableObjectStub<QuizSessionDO>,
+  params: Record<string, string>,
+  status: number,
+): Promise<Response> {
   const url = new URL("https://do/connect");
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   const res = await stub.fetch(url.toString(), { headers: { Upgrade: "websocket" } });
   if (!res.webSocket) await res.text();
   expect(res.status).toBe(status);
   return res;
+}
+
+async function connectReal(stub: DurableObjectStub<QuizSessionDO>, params: Record<string, string>): Promise<WebSocket> {
+  const url = new URL("https://do/connect");
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  const res = await stub.fetch(url.toString(), { headers: { Upgrade: "websocket" } });
+  expect(res.status).toBe(101);
+  const ws = res.webSocket!;
+  ws.accept();
+  return ws;
+}
+
+function nextMessage(ws: WebSocket): Promise<any> {
+  return new Promise((resolve) => {
+    ws.addEventListener("message", (event) => resolve(JSON.parse(event.data as string)), { once: true });
+  });
+}
+
+/** connectReal に加えて、接続直後に届く stateSnapshot を読み捨てる（7.8 のスナップショット自体を検証するテスト以外で使う） */
+async function connectAndDrain(stub: DurableObjectStub<QuizSessionDO>, params: Record<string, string>): Promise<WebSocket> {
+  const ws = await connectReal(stub, params);
+  await nextMessage(ws);
+  return ws;
+}
+
+async function sendAndAwait(ws: WebSocket, command: unknown): Promise<any> {
+  const received = nextMessage(ws);
+  ws.send(JSON.stringify(command));
+  return received;
+}
+
+function fakeWebSocket(attachment: unknown): { ws: WebSocket; sent: string[] } {
+  const sent: string[] = [];
+  const ws = {
+    deserializeAttachment: () => attachment,
+    send: (message: string) => sent.push(message),
+    close: () => {},
+  } as unknown as WebSocket;
+  return { ws, sent };
+}
+
+async function sendHostCommand(
+  stub: DurableObjectStub<QuizSessionDO>,
+  eventId: string,
+  command: unknown,
+): Promise<{ readonly rejected: readonly unknown[] }> {
+  const { ws, sent } = fakeWebSocket({ role: "host", eventId });
+  await runInDurableObject(stub, (instance) => instance.webSocketMessage(ws, JSON.stringify(command)));
+  return { rejected: sent.map((m) => JSON.parse(m)) };
+}
+
+async function loadState(stub: DurableObjectStub<QuizSessionDO>) {
+  return runInDurableObject(stub, (_instance, state) => createLiveStore(state.storage.sql).load());
+}
+
+async function joinParticipant(
+  stub: DurableObjectStub<QuizSessionDO>,
+  eventId: string,
+  nickname: string,
+): Promise<{ readonly participantId: string; readonly token: string }> {
+  const res = await stub.fetch("https://do/internal/join", { method: "POST", body: JSON.stringify({ nickname }) });
+  const result = await res.json<{ ok: boolean; value?: { id: string }; error?: unknown }>();
+  if (!result.ok || !result.value) throw new Error(`join failed: ${JSON.stringify(result)}`);
+  const participantId = result.value.id;
+  const token = await createParticipantTokenService(env).issue({
+    eventId: eventId as EventId,
+    participantId: participantId as ParticipantId,
+    issuedAt: Date.now(),
+  });
+  return { participantId, token };
 }
 
 describe("QuizSessionDO connect", () => {
@@ -99,17 +204,7 @@ describe("QuizSessionDO connect", () => {
   });
 });
 
-describe("QuizSessionDO webSocketMessage", () => {
-  function fakeWebSocket(attachment: unknown): { ws: WebSocket; sent: string[] } {
-    const sent: string[] = [];
-    const ws = {
-      deserializeAttachment: () => attachment,
-      send: (message: string) => sent.push(message),
-      close: () => {},
-    } as unknown as WebSocket;
-    return { ws, sent };
-  }
-
+describe("QuizSessionDO webSocketMessage role gating", () => {
   it("rejects a host command (openQuestion) received on a stage connection", async () => {
     const stub = newStub();
     await publish(stub, meta);
@@ -141,7 +236,7 @@ describe("QuizSessionDO webSocketMessage", () => {
   it("rejects a malformed message as INVALID_COMMAND", async () => {
     const stub = newStub();
     await publish(stub, meta);
-    const { ws, sent } = fakeWebSocket({ role: "host" });
+    const { ws, sent } = fakeWebSocket({ role: "host", eventId: "event-1" });
 
     await runInDurableObject(stub, (instance) => instance.webSocketMessage(ws, "not json"));
 
@@ -157,7 +252,7 @@ describe("QuizSessionDO publish", () => {
     const stub = newStub();
     await publish(stub, meta);
 
-    const loaded = await runInDurableObject(stub, (_instance, state) => createLiveStore(state.storage.sql).load());
+    const loaded = await loadState(stub);
     expect(loaded).toEqual({ phase: { kind: "lobby" }, eventMeta: meta, questions: null, startedAt: null });
   });
 });
@@ -221,5 +316,440 @@ describe("getSessionStub", () => {
     const loaded = await runInDurableObject(stubB, (_instance, state) => createLiveStore(state.storage.sql).load());
 
     expect(loaded?.eventMeta).toEqual(meta);
+  });
+});
+
+describe("QuizSessionDO startSession", () => {
+  it("freezes the question snapshot, moves to ready, and updates event.status to live", async () => {
+    await seedEvent("event-1", { status: "published" });
+    await seedQuestion("event-1", "q1", 0);
+    await seedQuestion("event-1", "q2", 1);
+    const stub = newStub();
+    await publish(stub, meta);
+
+    const { rejected } = await sendHostCommand(stub, "event-1", { type: "startSession" });
+    expect(rejected).toEqual([]);
+
+    const row = await env.DB.prepare("SELECT status FROM event WHERE id = ?").bind("event-1").first<{ status: string }>();
+    expect(row?.status).toBe("live");
+
+    const loaded = await loadState(stub);
+    expect(loaded?.phase).toEqual({ kind: "ready", nextQuestionId: "q1" });
+    expect(loaded?.questions).toHaveLength(2);
+  });
+
+  it("rejects question edits with EVENT_LIVE once startSession has run", async () => {
+    await seedEvent("event-1", { status: "published" });
+    await seedQuestion("event-1", "q1", 0);
+    const stub = newStub();
+    await publish(stub, meta);
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+
+    const editResult = await upsertQuestion(env, "event-1" as EventId, "owner-1", {
+      body: "edited",
+      timeLimitSec: 30,
+      options: [
+        { label: "x", isCorrect: true },
+        { label: "y", isCorrect: false },
+      ],
+    });
+    expect(editResult).toEqual({ ok: false, error: { code: "EVENT_LIVE" } });
+  });
+
+  it("rejects a second startSession from ready as INVALID_PHASE", async () => {
+    await seedEvent("event-1", { status: "published" });
+    await seedQuestion("event-1", "q1", 0);
+    const stub = newStub();
+    await publish(stub, meta);
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+
+    const { rejected } = await sendHostCommand(stub, "event-1", { type: "startSession" });
+    expect(rejected).toEqual([{ type: "commandRejected", payload: { code: "INVALID_PHASE", message: expect.any(String) } }]);
+  });
+});
+
+describe("QuizSessionDO openQuestion / closeQuestion / alarm / pause / resume", () => {
+  async function setupOpenQuestion(stub: DurableObjectStub<QuizSessionDO>, timeLimitSec = 5) {
+    await seedEvent("event-1", { status: "published", stageToken: "tok" });
+    await seedQuestion("event-1", "q1", 0, { timeLimitSec });
+    await publish(stub, meta);
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+  }
+
+  it("sets an alarm and broadcasts questionOpened to a stage connection; the alarm auto-closes the question", async () => {
+    const stub = newStub();
+    await setupOpenQuestion(stub);
+    const stageWs = await connectAndDrain(stub, { eventId: "event-1", role: "stage", token: "tok" });
+    const opened = nextMessage(stageWs);
+
+    const { rejected } = await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+    expect(rejected).toEqual([]);
+
+    const openedEvent = await opened;
+    expect(openedEvent.type).toBe("questionOpened");
+    expect(openedEvent.payload.question.id).toBe("q1");
+    expect(typeof openedEvent.payload.deadlineAt).toBe("number");
+
+    expect((await loadState(stub))?.phase.kind).toBe("questionOpen");
+
+    const alarmRan = await runDurableObjectAlarm(stub);
+    expect(alarmRan).toBe(true);
+
+    const after = await loadState(stub);
+    expect(after?.phase).toEqual({ kind: "questionClosed", questionId: "q1", openedAt: expect.any(Number) });
+
+    stageWs.close();
+  });
+
+  it("performs the same close transition for a manual closeQuestion as for the alarm", async () => {
+    const stub = newStub();
+    await setupOpenQuestion(stub);
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+
+    const { rejected } = await sendHostCommand(stub, "event-1", { type: "closeQuestion" });
+    expect(rejected).toEqual([]);
+
+    const after = await loadState(stub);
+    expect(after?.phase).toEqual({ kind: "questionClosed", questionId: "q1", openedAt: expect.any(Number) });
+
+    const alarmRan = await runDurableObjectAlarm(stub);
+    expect(alarmRan).toBe(false);
+  });
+
+  it("clears the alarm on pause so the original deadline never auto-closes, and resume re-arms it", async () => {
+    const stub = newStub();
+    await setupOpenQuestion(stub, 5);
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+
+    await sendHostCommand(stub, "event-1", { type: "pause" });
+    expect((await loadState(stub))?.phase.kind).toBe("paused");
+    expect(await runDurableObjectAlarm(stub)).toBe(false);
+
+    await sendHostCommand(stub, "event-1", { type: "resume" });
+    expect((await loadState(stub))?.phase.kind).toBe("questionOpen");
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+  });
+});
+
+describe("QuizSessionDO reopenQuestion", () => {
+  it("reopens a closed question, keeps the existing answer's elapsedMs unchanged, and accepts new answers", async () => {
+    await seedEvent("event-1", { status: "published" });
+    await seedQuestion("event-1", "q1", 0, { timeLimitSec: 5 });
+    const stub = newStub();
+    await publish(stub, { ...meta, capacity: 5 });
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+
+    const alice = await joinParticipant(stub, "event-1", "alice");
+    const aliceWs = await connectAndDrain(stub, { eventId: "event-1", role: "participant", token: alice.token });
+    await sendAndAwait(aliceWs, { type: "submitAnswer", questionId: "q1", optionId: "q1-a" });
+
+    await sendHostCommand(stub, "event-1", { type: "closeQuestion" });
+    const beforeReopen = await runInDurableObject(stub, (_i, state) => createLiveStore(state.storage.sql).listAllAnswers());
+    const aliceBefore = beforeReopen.find((a) => a.participantId === alice.participantId)!;
+
+    const { rejected } = await sendHostCommand(stub, "event-1", { type: "reopenQuestion" });
+    expect(rejected).toEqual([]);
+    expect((await loadState(stub))?.phase.kind).toBe("questionOpen");
+
+    const bob = await joinParticipant(stub, "event-1", "bob");
+    const bobWs = await connectAndDrain(stub, { eventId: "event-1", role: "participant", token: bob.token });
+    await sendAndAwait(bobWs, { type: "submitAnswer", questionId: "q1", optionId: "q1-b" });
+
+    const afterReopen = await runInDurableObject(stub, (_i, state) => createLiveStore(state.storage.sql).listAllAnswers());
+    const aliceAfter = afterReopen.find((a) => a.participantId === alice.participantId)!;
+    expect(aliceAfter.elapsedMs).toBe(aliceBefore.elapsedMs);
+    expect(afterReopen).toHaveLength(2);
+
+    aliceWs.close();
+    bobWs.close();
+  });
+
+  it("rejects reopenQuestion once the question has already been revealed", async () => {
+    await seedEvent("event-1", { status: "published" });
+    await seedQuestion("event-1", "q1", 0, { timeLimitSec: 5 });
+    const stub = newStub();
+    await publish(stub, meta);
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+    await sendHostCommand(stub, "event-1", { type: "closeQuestion" });
+    await sendHostCommand(stub, "event-1", { type: "revealAnswer" });
+
+    const { rejected } = await sendHostCommand(stub, "event-1", { type: "reopenQuestion" });
+    expect(rejected).toEqual([{ type: "commandRejected", payload: { code: "ALREADY_REVEALED", message: expect.any(String) } }]);
+  });
+});
+
+describe("QuizSessionDO submitAnswer", () => {
+  async function setupOpenWithAlice(stub: DurableObjectStub<QuizSessionDO>) {
+    await seedEvent("event-1", { status: "published" });
+    await seedQuestion("event-1", "q1", 0, { timeLimitSec: 30 });
+    await publish(stub, meta);
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+    const alice = await joinParticipant(stub, "event-1", "alice");
+    const aliceWs = await connectAndDrain(stub, { eventId: "event-1", role: "participant", token: alice.token });
+    return { alice, aliceWs };
+  }
+
+  it("accepts the first answer and rejects a duplicate, keeping the first choice", async () => {
+    const stub = newStub();
+    const { aliceWs } = await setupOpenWithAlice(stub);
+
+    const first = await sendAndAwait(aliceWs, { type: "submitAnswer", questionId: "q1", optionId: "q1-a" });
+    expect(first).toEqual({ type: "answerAccepted", payload: { questionId: "q1", selectedOptionId: "q1-a" } });
+
+    const second = await sendAndAwait(aliceWs, { type: "submitAnswer", questionId: "q1", optionId: "q1-b" });
+    expect(second).toEqual({ type: "commandRejected", payload: { code: "ALREADY_ANSWERED", message: expect.any(String) } });
+
+    const answers = await runInDurableObject(stub, (_i, state) => createLiveStore(state.storage.sql).listAllAnswers());
+    expect(answers).toHaveLength(1);
+    expect(answers[0]?.selectedOptionId).toBe("q1-a");
+
+    aliceWs.close();
+  });
+
+  it("rejects a submission once the answer window has closed", async () => {
+    const stub = newStub();
+    const { aliceWs } = await setupOpenWithAlice(stub);
+    await sendHostCommand(stub, "event-1", { type: "closeQuestion" });
+
+    const rejected = await sendAndAwait(aliceWs, { type: "submitAnswer", questionId: "q1", optionId: "q1-a" });
+    expect(rejected).toEqual({
+      type: "commandRejected",
+      payload: { code: "ANSWER_WINDOW_CLOSED", message: expect.any(String) },
+    });
+
+    aliceWs.close();
+  });
+
+  it("broadcasts progress to a stage connection as a participant answers", async () => {
+    const stub = newStub();
+    await seedEvent("event-1", { status: "published", stageToken: "tok" });
+    await seedQuestion("event-1", "q1", 0, { timeLimitSec: 30 });
+    await publish(stub, meta);
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+    const stageWs = await connectAndDrain(stub, { eventId: "event-1", role: "stage", token: "tok" });
+
+    const alice = await joinParticipant(stub, "event-1", "alice");
+    const aliceWs = await connectAndDrain(stub, { eventId: "event-1", role: "participant", token: alice.token });
+
+    const progress = nextMessage(stageWs);
+    await sendAndAwait(aliceWs, { type: "submitAnswer", questionId: "q1", optionId: "q1-a" });
+
+    expect(await progress).toEqual({ type: "progressUpdated", payload: { answeredCount: 1, totalCount: 1 } });
+
+    stageWs.close();
+    aliceWs.close();
+  });
+});
+
+describe("QuizSessionDO revealAnswer", () => {
+  it("grades answers and broadcasts questionClosed: distribution/explanation to stage without per-participant detail, personalResult to the participant", async () => {
+    await seedEvent("event-1", { status: "published", stageToken: "tok" });
+    await seedQuestion("event-1", "q1", 0, { timeLimitSec: 30, correctOptionId: "q1-a" });
+    const stub = newStub();
+    await publish(stub, { ...meta, capacity: 5 });
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+
+    const alice = await joinParticipant(stub, "event-1", "alice");
+    const aliceWs = await connectAndDrain(stub, { eventId: "event-1", role: "participant", token: alice.token });
+    await sendAndAwait(aliceWs, { type: "submitAnswer", questionId: "q1", optionId: "q1-a" });
+
+    const bob = await joinParticipant(stub, "event-1", "bob");
+    const bobWs = await connectAndDrain(stub, { eventId: "event-1", role: "participant", token: bob.token });
+    await sendAndAwait(bobWs, { type: "submitAnswer", questionId: "q1", optionId: "q1-b" });
+
+    await sendHostCommand(stub, "event-1", { type: "closeQuestion" });
+
+    const stageWs = await connectAndDrain(stub, { eventId: "event-1", role: "stage", token: "tok" });
+    const stageMsg = nextMessage(stageWs);
+    const aliceMsg = nextMessage(aliceWs);
+
+    const { rejected } = await sendHostCommand(stub, "event-1", { type: "revealAnswer" });
+    expect(rejected).toEqual([]);
+
+    const stageEvent = await stageMsg;
+    expect(stageEvent.type).toBe("questionClosed");
+    expect(stageEvent.payload.correctOptionId).toBe("q1-a");
+    expect(stageEvent.payload.explanation).toBe("explanation-q1");
+    expect(stageEvent.payload.personalResult).toBeNull();
+    expect(stageEvent.payload.distribution).toEqual(
+      expect.arrayContaining([
+        { optionId: "q1-a", count: 1 },
+        { optionId: "q1-b", count: 1 },
+      ]),
+    );
+    expect(JSON.stringify(stageEvent)).not.toContain("alice");
+    expect(JSON.stringify(stageEvent)).not.toContain("bob");
+
+    const aliceEvent = await aliceMsg;
+    expect(aliceEvent.type).toBe("questionClosed");
+    expect(aliceEvent.payload.personalResult).toEqual({ isCorrect: true, correctCount: 1, rank: expect.any(Number) });
+
+    stageWs.close();
+    aliceWs.close();
+    bobWs.close();
+  });
+});
+
+describe("QuizSessionDO showRanking / finalize", () => {
+  async function setupRevealed(stub: DurableObjectStub<QuizSessionDO>) {
+    await seedEvent("event-1", { status: "published", stageToken: "tok" });
+    await seedQuestion("event-1", "q1", 0, { timeLimitSec: 30, correctOptionId: "q1-a" });
+    await publish(stub, { ...meta, capacity: 5 });
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+
+    const alice = await joinParticipant(stub, "event-1", "alice");
+    const aliceWs = await connectAndDrain(stub, { eventId: "event-1", role: "participant", token: alice.token });
+    await sendAndAwait(aliceWs, { type: "submitAnswer", questionId: "q1", optionId: "q1-a" });
+
+    await sendHostCommand(stub, "event-1", { type: "closeQuestion" });
+    await sendHostCommand(stub, "event-1", { type: "revealAnswer" });
+    return { aliceWs };
+  }
+
+  it("broadcasts an interim ranking to a stage connection on showRanking", async () => {
+    const stub = newStub();
+    const { aliceWs } = await setupRevealed(stub);
+    const stageWs = await connectAndDrain(stub, { eventId: "event-1", role: "stage", token: "tok" });
+
+    const ranking = nextMessage(stageWs);
+    const { rejected } = await sendHostCommand(stub, "event-1", { type: "showRanking" });
+    expect(rejected).toEqual([]);
+
+    const event = await ranking;
+    expect(event.type).toBe("rankingUpdated");
+    expect(event.payload.entries[0]).toMatchObject({ nickname: "alice", rank: 1, correctCount: 1 });
+
+    stageWs.close();
+    aliceWs.close();
+  });
+
+  it("rejects nextQuestion with NO_NEXT_QUESTION after the only question has been revealed", async () => {
+    const stub = newStub();
+    const { aliceWs } = await setupRevealed(stub);
+
+    const { rejected } = await sendHostCommand(stub, "event-1", { type: "nextQuestion" });
+    expect(rejected).toEqual([{ type: "commandRejected", payload: { code: "NO_NEXT_QUESTION", message: expect.any(String) } }]);
+
+    aliceWs.close();
+  });
+
+  it("finalizes: saves the result and updates event.status to finished", async () => {
+    const stub = newStub();
+    const { aliceWs } = await setupRevealed(stub);
+
+    const { rejected } = await sendHostCommand(stub, "event-1", { type: "finalize" });
+    expect(rejected).toEqual([]);
+
+    const row = await env.DB.prepare("SELECT status FROM event WHERE id = ?").bind("event-1").first<{ status: string }>();
+    expect(row?.status).toBe("finished");
+
+    const resultRow = await env.DB.prepare("SELECT id FROM result WHERE event_id = ?").bind("event-1").first();
+    expect(resultRow).not.toBeNull();
+
+    const entryRow = await env.DB.prepare(
+      "SELECT nickname, rank, correct_count FROM result_entry WHERE result_id = ?",
+    )
+      .bind((resultRow as { id: string }).id)
+      .first();
+    expect(entryRow).toEqual({ nickname: "alice", rank: 1, correct_count: 1 });
+
+    aliceWs.close();
+  });
+});
+
+describe("QuizSessionDO theme update", () => {
+  it("broadcasts themeUpdated to stage and participant connections without changing the phase", async () => {
+    await seedEvent("event-1", { stageToken: "tok" });
+    const stub = newStub();
+    await publish(stub, meta);
+
+    const stageWs = await connectAndDrain(stub, { eventId: "event-1", role: "stage", token: "tok" });
+    const alice = await joinParticipant(stub, "event-1", "alice");
+    const aliceWs = await connectAndDrain(stub, { eventId: "event-1", role: "participant", token: alice.token });
+
+    const stageMsg = nextMessage(stageWs);
+    const aliceMsg = nextMessage(aliceWs);
+
+    const newTheme = { ...meta.theme, primaryColor: "#abcdef" };
+    const res = await stub.fetch("https://do/internal/theme", { method: "POST", body: JSON.stringify(newTheme) });
+    await res.text();
+    expect(res.status).toBe(204);
+
+    expect(await stageMsg).toEqual({ type: "themeUpdated", payload: newTheme });
+    expect(await aliceMsg).toEqual({ type: "themeUpdated", payload: newTheme });
+
+    const loaded = await loadState(stub);
+    expect(loaded?.phase).toEqual({ kind: "lobby" });
+    expect(loaded?.eventMeta.theme).toEqual(newTheme);
+
+    stageWs.close();
+    aliceWs.close();
+  });
+});
+
+describe("QuizSessionDO stateSnapshot on connect", () => {
+  it("sends a full stateSnapshot immediately on connect, scoped to the caller's role", async () => {
+    await seedEvent("event-1", { stageToken: "tok" });
+    const stub = newStub();
+    await publish(stub, meta);
+
+    const stageWs = await connectReal(stub, { eventId: "event-1", role: "stage", token: "tok" });
+    const snapshot = await nextMessage(stageWs);
+
+    expect(snapshot).toEqual({
+      type: "stateSnapshot",
+      payload: {
+        eventId: "event-1",
+        phase: { kind: "lobby" },
+        theme: meta.theme,
+        serverNow: expect.any(Number),
+        self: { role: "stage" },
+      },
+    });
+
+    stageWs.close();
+  });
+
+  it("scopes a participant's stateSnapshot to their own nickname and answered questions", async () => {
+    const stub = newStub();
+    await publish(stub, meta);
+    const alice = await joinParticipant(stub, "event-1", "alice");
+
+    const aliceWs = await connectReal(stub, { eventId: "event-1", role: "participant", token: alice.token });
+    const snapshot = await nextMessage(aliceWs);
+
+    expect(snapshot.payload.self).toEqual({
+      role: "participant",
+      participantId: alice.participantId,
+      nickname: "alice",
+      answeredQuestionIds: [],
+    });
+
+    aliceWs.close();
+  });
+
+  it("resends a full stateSnapshot on reconnect, reflecting current phase", async () => {
+    await seedEvent("event-1", { status: "published", stageToken: "tok" });
+    await seedQuestion("event-1", "q1", 0);
+    const stub = newStub();
+    await publish(stub, meta);
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+
+    const firstWs = await connectReal(stub, { eventId: "event-1", role: "stage", token: "tok" });
+    const firstSnapshot = await nextMessage(firstWs);
+    expect(firstSnapshot.payload.phase).toEqual({ kind: "ready", nextQuestionId: "q1" });
+    firstWs.close();
+
+    const secondWs = await connectReal(stub, { eventId: "event-1", role: "stage", token: "tok" });
+    const secondSnapshot = await nextMessage(secondWs);
+    expect(secondSnapshot.payload.phase).toEqual({ kind: "ready", nextQuestionId: "q1" });
+
+    secondWs.close();
   });
 });

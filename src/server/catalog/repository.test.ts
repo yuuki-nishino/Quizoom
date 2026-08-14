@@ -14,6 +14,7 @@ import {
   reorderQuestions,
   countQuestions,
   putTheme,
+  loadQuestionSnapshot,
   THEME_PRESETS,
   DEFAULT_THEME,
 } from "./repository";
@@ -378,5 +379,46 @@ describe("putTheme", () => {
 
     const found = await findEvent(env, created.id, OWNER);
     expect(found.ok && found.value.theme).toEqual(preset);
+  });
+});
+
+describe("loadQuestionSnapshot", () => {
+  it("returns ordered questions with their correct option id resolved", async () => {
+    const created = await createEvent(env, OWNER, { title: "Mine" });
+    await upsertQuestion(env, created.id, OWNER, {
+      body: "Second question",
+      timeLimitSec: 20,
+      explanation: "because 4",
+      options: [
+        { label: "3", isCorrect: false },
+        { label: "4", isCorrect: true },
+      ],
+    });
+    await upsertQuestion(env, created.id, OWNER, {
+      body: "First question",
+      timeLimitSec: 30,
+      options: [
+        { label: "Paris", isCorrect: true },
+        { label: "Lyon", isCorrect: false },
+      ],
+    });
+
+    const snapshot = await loadQuestionSnapshot(env, created.id);
+
+    expect(snapshot).toHaveLength(2);
+    expect(snapshot.map((q) => q.body)).toEqual(["Second question", "First question"]);
+
+    const second = snapshot[0]!;
+    const correctOption = second.options.find((o) => o.label === "4")!;
+    expect(second.correctOptionId).toBe(correctOption.id);
+    expect(second.explanation).toBe("because 4");
+    expect(second.timeLimitSec).toBe(20);
+    expect(second.options.map((o) => o.label)).toEqual(["3", "4"]);
+  });
+
+  it("returns an empty array for an event without questions", async () => {
+    const created = await createEvent(env, OWNER, { title: "Empty" });
+    const snapshot = await loadQuestionSnapshot(env, created.id);
+    expect(snapshot).toEqual([]);
   });
 });
