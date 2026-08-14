@@ -251,8 +251,8 @@
   - _Requirements: 8.12, 8.13, 8.14, 10.2, 10.8_
   - _Depends: 9.2, 8.1_
 
-- [ ] 10. コア: クライアント共通基盤
-- [ ] 10.1 (P) LiveChannel: WebSocket接続・再接続・状態復元フック
+- [x] 10. コア: クライアント共通基盤
+- [x] 10.1 (P) LiveChannel: WebSocket接続・再接続・状態復元フック
   - 接続状態（`connecting`／`open`／`reconnecting`／`closed`）を管理し、指数バックオフで再接続する
   - 参加者トークンを `localStorage` からイベントIDでスコープして復元し、再接続後は必ず `stateSnapshot` で全状態を置換する
   - モバイルのバックグラウンド遷移からの復帰を `visibilitychange` で確実に再接続する
@@ -261,14 +261,14 @@
   - _Requirements: 9.2, 9.3, 9.4, 9.5_
   - _Boundary: LiveChannel_
 
-- [ ] 10.2 (P) ServerClock: サーバー基準の残り時間算出フック
+- [x] 10.2 (P) ServerClock: サーバー基準の残り時間算出フック
   - `sync(serverNow, receivedAt)` でサーバー時刻とのオフセットを算出し、`remainingMs(deadlineAt)` で端末時計に依存しない残り時間を返す
   - 表示専用とし、採点には使用しない
   - 観測可能な完了条件: 端末時計を意図的にずらした状態でも、`remainingMs` がサーバー基準で正しい残り時間を返すことをユニットテストで確認できる
   - _Requirements: 9.8, 6.2, 7.2_
   - _Boundary: ServerClock_
 
-- [ ] 10.3 (P) ThemeProvider: 外観設定のCSSカスタムプロパティ適用
+- [x] 10.3 (P) ThemeProvider: 外観設定のCSSカスタムプロパティ適用
   - `ThemeSettings`（基調色・アクセント色・背景色・文字色・ロゴ／背景画像）をCSSカスタムプロパティへ変換して適用する
   - 文字色と背景色のコントラスト比を算出し、4.5:1を下回る場合に警告を提示する
   - 観測可能な完了条件: 低コントラストな配色を設定すると警告が表示され、保存自体はブロックされないことを確認できる

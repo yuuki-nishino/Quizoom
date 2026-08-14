@@ -1,0 +1,72 @@
+import { describe, it, expect } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { contrastRatio, isLowContrast, themeToCssProperties, ThemeProvider, MIN_CONTRAST_RATIO } from "./theme";
+import type { ThemeSettings } from "../../shared/domain-types";
+
+function theme(overrides: Partial<ThemeSettings> = {}): ThemeSettings {
+  return {
+    primaryColor: "#112233",
+    accentColor: "#445566",
+    backgroundColor: "#ffffff",
+    textColor: "#000000",
+    logoAssetId: null,
+    backgroundAssetId: null,
+    ...overrides,
+  };
+}
+
+describe("themeToCssProperties", () => {
+  it("maps the four theme colors to CSS custom properties", () => {
+    expect(themeToCssProperties(theme())).toEqual({
+      "--quizoom-color-primary": "#112233",
+      "--quizoom-color-accent": "#445566",
+      "--quizoom-color-background": "#ffffff",
+      "--quizoom-color-text": "#000000",
+    });
+  });
+});
+
+describe("contrastRatio", () => {
+  it("returns 21 for black on white (maximum contrast)", () => {
+    expect(contrastRatio("#000000", "#ffffff")).toBeCloseTo(21, 1);
+  });
+
+  it("returns 1 for identical colors (no contrast)", () => {
+    expect(contrastRatio("#336699", "#336699")).toBeCloseTo(1, 5);
+  });
+
+  it("is symmetric regardless of argument order", () => {
+    const a = contrastRatio("#222222", "#eeeeee");
+    const b = contrastRatio("#eeeeee", "#222222");
+    expect(a).toBeCloseTo(b ?? Number.NaN, 10);
+  });
+
+  it("returns null for an unparseable color", () => {
+    expect(contrastRatio("not-a-color", "#ffffff")).toBeNull();
+  });
+});
+
+describe("isLowContrast", () => {
+  it("is false for black text on white background", () => {
+    expect(isLowContrast(theme({ textColor: "#000000", backgroundColor: "#ffffff" }))).toBe(false);
+  });
+
+  it("is true for a low-contrast pairing below the 4.5:1 threshold", () => {
+    const low = theme({ textColor: "#999999", backgroundColor: "#aaaaaa" });
+    expect(contrastRatio(low.textColor, low.backgroundColor)).toBeLessThan(MIN_CONTRAST_RATIO);
+    expect(isLowContrast(low)).toBe(true);
+  });
+});
+
+describe("ThemeProvider", () => {
+  it("applies the theme colors as inline CSS custom properties on the wrapper element", () => {
+    const markup = renderToStaticMarkup(
+      <ThemeProvider theme={theme({ primaryColor: "#abcdef" })}>
+        <span>content</span>
+      </ThemeProvider>,
+    );
+
+    expect(markup).toContain("--quizoom-color-primary:#abcdef");
+    expect(markup).toContain("content");
+  });
+});
