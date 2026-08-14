@@ -80,6 +80,41 @@ describe("GET /api/events/:id/results", () => {
   });
 });
 
+describe("DELETE /api/events/:id/participant-data", () => {
+  it("rejects an unauthenticated request with 401", async () => {
+    const res = await SELF.fetch("https://example.com/api/events/e1/participant-data", { method: "DELETE" });
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects a non-owner with 403", async () => {
+    const cookie = await hostCookie();
+    const created = await createFinalizedEvent(cookie);
+    const otherCookie = await hostCookie("owner-2");
+
+    const res = await SELF.fetch(`https://example.com/api/events/${created.id}/participant-data`, {
+      method: "DELETE",
+      headers: { Cookie: otherCookie },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("deletes participant data and results, and disables sharing at the same time", async () => {
+    const cookie = await hostCookie();
+    const created = await createFinalizedEvent(cookie);
+
+    await SELF.fetch(`https://example.com/api/events/${created.id}/share`, { method: "POST", headers: { Cookie: cookie } });
+
+    const deleteRes = await SELF.fetch(`https://example.com/api/events/${created.id}/participant-data`, {
+      method: "DELETE",
+      headers: { Cookie: cookie },
+    });
+    expect(deleteRes.status).toBe(204);
+
+    const resultsRes = await SELF.fetch(`https://example.com/api/events/${created.id}/results`, { headers: { Cookie: cookie } });
+    expect(resultsRes.status).toBe(404);
+  });
+});
+
 describe("POST/DELETE /api/events/:id/share and GET /api/share/:shareCode", () => {
   it("enables sharing and serves the public result without auth", async () => {
     const cookie = await hostCookie();

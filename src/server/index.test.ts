@@ -16,3 +16,12 @@ describe("GET /api/host/me", () => {
     expect(await res.json()).toEqual({ error: "UNAUTHENTICATED" });
   });
 });
+
+describe("client-side routes fall back to the SPA shell", () => {
+  it("serves the built index.html for a non-API path such as /host", async () => {
+    const res = await SELF.fetch("https://example.com/host/events/abc/live");
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('id="root"');
+  });
+});

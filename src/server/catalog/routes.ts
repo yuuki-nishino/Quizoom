@@ -28,7 +28,14 @@ import {
   type PreflightStatus,
 } from "./schema";
 import type { CreateEventInput, QuestionInput, UpdateEventInput } from "./repository";
-import { findForOwner, enableSharing, disableSharing, findPublicByShareCode, type ArchiveError } from "../results/archive";
+import {
+  findForOwner,
+  enableSharing,
+  disableSharing,
+  findPublicByShareCode,
+  deleteParticipantData,
+  type ArchiveError,
+} from "../results/archive";
 import type { EventId, EventMeta, QuestionId } from "../../shared/domain-types";
 import { getSessionStub } from "../session/quiz-session-do";
 
@@ -336,6 +343,16 @@ catalogRoutes.get("/api/events/:id/results", async (c) => {
   const result = await findForOwner(c.env, eventId, auth.value.userId);
   if (!result.ok) return c.json({ error: result.error.code }, archiveErrorStatus(result.error.code));
   return c.json(result.value);
+});
+
+catalogRoutes.delete("/api/events/:id/participant-data", async (c) => {
+  const eventId = c.req.param("id") as EventId;
+  const auth = await requireHost(c.req.raw, c.env);
+  if (!auth.ok) return c.json({ error: auth.error.code }, authStatus(auth.error.code));
+
+  const result = await deleteParticipantData(c.env, eventId, auth.value.userId);
+  if (!result.ok) return c.json({ error: result.error.code }, archiveErrorStatus(result.error.code));
+  return c.body(null, 204);
 });
 
 catalogRoutes.post("/api/events/:id/share", async (c) => {

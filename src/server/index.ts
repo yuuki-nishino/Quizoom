@@ -22,5 +22,9 @@ app.get("/api/host/me", async (c) => {
   return c.json({ userId: result.value.userId });
 });
 
+// API に一致しない全ての GET は SPA へ委譲する。ASSETS の not_found_handling
+// ("single-page-application") により、/host/events/:id のような深いリンクも index.html に解決される
+app.get("*", (c) => c.env.ASSETS.fetch(c.req.raw));
+
 export default app;
 export { QuizSessionDO } from "./session/quiz-session-do";
