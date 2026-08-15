@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import "./styles.css";
 import { HostApp } from "./host/host-app";
 import { StageApp } from "./stage/stage-app";
 import { PlayerApp } from "./player/player-app";

@@ -27,13 +27,17 @@ export function HostApp() {
     if (result.ok) window.location.href = result.value.url;
   }
 
-  if (authState === "checking") return <p>読み込み中…</p>;
+  if (authState === "checking") return <p className="p-8 text-slate-500">読み込み中…</p>;
 
   if (authState === "signedOut") {
     return (
-      <section aria-label="ログイン">
-        <h1>Quizoom 主催者コンソール</h1>
-        <button type="button" onClick={handleSignIn}>
+      <section aria-label="ログイン" className="flex min-h-screen flex-col items-center justify-center gap-6 bg-slate-50 px-4">
+        <h1 className="text-2xl font-bold text-slate-900">Quizoom 主催者コンソール</h1>
+        <button
+          type="button"
+          onClick={handleSignIn}
+          className="rounded-md bg-indigo-600 px-5 py-2.5 font-medium text-white shadow-sm hover:bg-indigo-700"
+        >
           Googleでログイン
         </button>
       </section>

@@ -61,61 +61,103 @@ export function ThemeEditor({ apiClient, eventId, event, onEventChange }: ThemeE
 
   const lowContrast = isLowContrast(theme);
 
-  return (
-    <section aria-label="外観エディタ">
-      <h2>外観</h2>
-      {error && <p role="alert">保存に失敗しました（{error}）。</p>}
+  const colorFieldClass = "flex flex-col gap-1 text-sm font-medium text-slate-700";
+  const colorInputClass = "h-10 w-16 cursor-pointer rounded border border-slate-300";
 
-      <fieldset>
-        <legend>プリセットテーマ</legend>
-        {THEME_PRESETS.map((preset, index) => (
-          <button key={index} type="button" onClick={() => applyPreset(preset)} style={{ background: preset.primaryColor }}>
-            プリセット{index + 1}
-          </button>
-        ))}
+  return (
+    <section aria-label="外観エディタ" className="max-w-2xl">
+      <h2 className="text-lg font-semibold text-slate-900">外観</h2>
+      {error && (
+        <p role="alert" className="mt-2 rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800">
+          保存に失敗しました（{error}）。
+        </p>
+      )}
+
+      <fieldset className="mt-4">
+        <legend className="text-sm font-medium text-slate-700">プリセットテーマ</legend>
+        <div className="mt-1 flex flex-wrap gap-2">
+          {THEME_PRESETS.map((preset, index) => (
+            <button
+              key={index}
+              type="button"
+              onClick={() => applyPreset(preset)}
+              style={{ background: preset.primaryColor }}
+              className="rounded-md px-3 py-1.5 text-sm font-medium text-white shadow-sm"
+            >
+              プリセット{index + 1}
+            </button>
+          ))}
+        </div>
       </fieldset>
 
-      <label>
-        基調色
-        <input type="color" value={theme.primaryColor} onChange={(e) => updateColor("primaryColor", e.target.value)} />
-      </label>
-      <label>
-        アクセント色
-        <input type="color" value={theme.accentColor} onChange={(e) => updateColor("accentColor", e.target.value)} />
-      </label>
-      <label>
-        背景色
-        <input type="color" value={theme.backgroundColor} onChange={(e) => updateColor("backgroundColor", e.target.value)} />
-      </label>
-      <label>
-        文字色
-        <input type="color" value={theme.textColor} onChange={(e) => updateColor("textColor", e.target.value)} />
-      </label>
+      <div className="mt-4 flex flex-wrap gap-4">
+        <label className={colorFieldClass}>
+          基調色
+          <input type="color" value={theme.primaryColor} onChange={(e) => updateColor("primaryColor", e.target.value)} className={colorInputClass} />
+        </label>
+        <label className={colorFieldClass}>
+          アクセント色
+          <input type="color" value={theme.accentColor} onChange={(e) => updateColor("accentColor", e.target.value)} className={colorInputClass} />
+        </label>
+        <label className={colorFieldClass}>
+          背景色
+          <input type="color" value={theme.backgroundColor} onChange={(e) => updateColor("backgroundColor", e.target.value)} className={colorInputClass} />
+        </label>
+        <label className={colorFieldClass}>
+          文字色
+          <input type="color" value={theme.textColor} onChange={(e) => updateColor("textColor", e.target.value)} className={colorInputClass} />
+        </label>
+      </div>
 
-      {lowContrast && <p role="alert">文字色と背景色のコントラストが低く、視認性が低い可能性があります。</p>}
+      {lowContrast && (
+        <p role="alert" className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          文字色と背景色のコントラストが低く、視認性が低い可能性があります。
+        </p>
+      )}
 
-      <label>
-        ロゴ画像
-        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => handleUpload("logo", e.target.files?.[0])} />
-      </label>
-      {uploadingLogo && <p>アップロード中…</p>}
+      <div className="mt-4 space-y-3">
+        <label className="block text-sm font-medium text-slate-700">
+          ロゴ画像
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(e) => handleUpload("logo", e.target.files?.[0])}
+            className="mt-1 block text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
+          />
+        </label>
+        {uploadingLogo && <p className="text-sm text-slate-500">アップロード中…</p>}
 
-      <label>
-        背景画像
-        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => handleUpload("background", e.target.files?.[0])} />
-      </label>
-      {uploadingBackground && <p>アップロード中…</p>}
+        <label className="block text-sm font-medium text-slate-700">
+          背景画像
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(e) => handleUpload("background", e.target.files?.[0])}
+            className="mt-1 block text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
+          />
+        </label>
+        {uploadingBackground && <p className="text-sm text-slate-500">アップロード中…</p>}
+      </div>
 
-      <button type="button" disabled={saving} onClick={handleSave}>
+      <button
+        type="button"
+        disabled={saving}
+        onClick={handleSave}
+        className="mt-4 rounded-md bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+      >
         保存する
       </button>
 
-      <div aria-label="プレビュー">
+      <div aria-label="プレビュー" className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <ThemeProvider theme={theme}>
-          <div data-preview="stage">投影用プレビュー: {event.title}</div>
+          <div data-preview="stage" className="rounded-lg border border-slate-200 p-6 text-center font-bold">
+            投影用プレビュー: {event.title}
+          </div>
         </ThemeProvider>
         <ThemeProvider theme={theme}>
-          <div data-preview="player">回答用プレビュー: {event.title}</div>
+          <div data-preview="player" className="rounded-lg border border-slate-200 p-6 text-center">
+            回答用プレビュー: {event.title}
+          </div>
         </ThemeProvider>
       </div>
     </section>

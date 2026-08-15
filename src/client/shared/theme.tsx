@@ -73,5 +73,9 @@ export interface ThemeProviderProps {
 /** 外観設定を CSS カスタムプロパティとして子要素に適用する */
 export function ThemeProvider({ theme, children }: ThemeProviderProps): ReactElement {
   const style = useMemo(() => themeToCssProperties(theme), [theme]);
-  return <div style={style}>{children}</div>;
+  return (
+    <div style={style} className="min-h-full bg-brand-bg text-brand-text">
+      {children}
+    </div>
+  );
 }

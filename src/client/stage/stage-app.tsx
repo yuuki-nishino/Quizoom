@@ -46,13 +46,21 @@ export function StageApp() {
   const frozenRemainingMs = pausedRemainingMs(state.phase);
 
   if (!route || !route.token) {
-    return <p role="alert">投影URLが無効です。主催者からQRコードまたはURLを再度取得してください。</p>;
+    return (
+      <p role="alert" className="flex min-h-screen items-center justify-center bg-slate-900 p-8 text-center text-xl text-white">
+        投影URLが無効です。主催者からQRコードまたはURLを再度取得してください。
+      </p>
+    );
   }
   if (infoError) {
-    return <p role="alert">投影画面を表示できませんでした（{infoError}）。</p>;
+    return (
+      <p role="alert" className="flex min-h-screen items-center justify-center bg-slate-900 p-8 text-center text-xl text-white">
+        投影画面を表示できませんでした（{infoError}）。
+      </p>
+    );
   }
   if (!info) {
-    return <p>読み込み中…</p>;
+    return <p className="flex min-h-screen items-center justify-center bg-slate-900 text-xl text-slate-300">読み込み中…</p>;
   }
 
   const theme = state.theme ?? info.theme;
@@ -60,8 +68,12 @@ export function StageApp() {
 
   return (
     <ThemeProvider theme={theme}>
-      <ConnectionBadge status={status} />
-      <RecoveryBanner status={status} />
+      <div className="fixed top-4 right-4 z-10">
+        <ConnectionBadge status={status} />
+      </div>
+      <div className="fixed top-16 left-4 right-4 z-10">
+        <RecoveryBanner status={status} />
+      </div>
 
       {state.ranking !== null ? (
         <RankingView entries={state.ranking} isFinal={state.isFinalRanking} />

@@ -26,7 +26,7 @@ describe("AnswerScreen", () => {
     expect(markup).toContain("日本の首都は？");
     expect(markup).toContain("8秒");
     expect(markup).toContain("東京");
-    expect(markup).not.toContain("disabled");
+    expect(markup).not.toContain('disabled=""');
   });
 
   it("indicates the paused state", () => {

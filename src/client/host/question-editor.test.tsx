@@ -11,7 +11,7 @@ describe("QuestionEditor", () => {
     );
     expect(markup).toContain("1 + 1 は？");
     expect(markup).not.toContain("開催中のため設問は編集できません");
-    expect(markup).toMatch(/<button type="button">設問を追加<\/button>/);
+    expect(markup).toMatch(/<button type="button"[^>]*>設問を追加<\/button>/);
   });
 
   it("disables all editing controls and shows a notice when the event is live", () => {

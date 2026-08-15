@@ -44,24 +44,50 @@ export function PreflightPanel({ apiClient, eventId }: PreflightPanelProps) {
     }
   }
 
+  const overallClass =
+    report?.overall === "ok"
+      ? "bg-emerald-100 text-emerald-800"
+      : report?.overall === "warn"
+        ? "bg-amber-100 text-amber-800"
+        : "bg-red-100 text-red-800";
+  const statusClass: Record<string, string> = {
+    ok: "bg-emerald-100 text-emerald-800",
+    warn: "bg-amber-100 text-amber-800",
+    fail: "bg-red-100 text-red-800",
+  };
+
   return (
-    <section aria-label="事前確認">
-      <h2>事前確認</h2>
-      <button type="button" disabled={running} onClick={runPreflight}>
+    <section aria-label="事前確認" className="max-w-2xl">
+      <h2 className="text-lg font-semibold text-slate-900">事前確認</h2>
+      <button
+        type="button"
+        disabled={running}
+        onClick={runPreflight}
+        className="mt-3 rounded-md bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+      >
         {running ? "確認中…" : "事前確認を実行する"}
       </button>
 
-      {error && <p role="alert">確認に失敗しました（{error}）。</p>}
+      {error && (
+        <p role="alert" className="mt-3 rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800">
+          確認に失敗しました（{error}）。
+        </p>
+      )}
 
       {report && (
-        <div>
-          <p>
-            総合結果: <strong>{report.overall}</strong>
+        <div className="mt-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-slate-700">
+            総合結果:{" "}
+            <strong className={`ml-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${overallClass}`}>{report.overall}</strong>
           </p>
-          <ul>
+          <ul className="mt-3 space-y-2">
             {report.checks.map((check) => (
-              <li key={check.id} data-status={check.status}>
-                {CHECK_LABELS[check.id]}: {check.status} ({checkDetail(check)})
+              <li key={check.id} data-status={check.status} className="flex items-center justify-between border-t border-slate-100 pt-2 text-sm first:border-t-0 first:pt-0">
+                <span className="text-slate-700">{CHECK_LABELS[check.id]}</span>
+                <span className="flex items-center gap-2">
+                  <span className="text-slate-500">{checkDetail(check)}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClass[check.status] ?? ""}`}>{check.status}</span>
+                </span>
               </li>
             ))}
           </ul>

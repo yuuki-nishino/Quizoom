@@ -27,15 +27,15 @@ export function AnswerScreen({ question, imageUrl, remainingMs, paused, alreadyA
   const selectedLabel = selectedOptionId ? question.options.find((o) => o.id === selectedOptionId)?.label : undefined;
 
   return (
-    <section aria-label="出題中" className="player-answer-screen">
-      <h1>{question.body}</h1>
-      {imageUrl && <img src={imageUrl} alt="" />}
+    <section aria-label="出題中" className="player-answer-screen flex min-h-screen flex-col gap-4 px-4 py-6">
+      <h1 className="text-xl font-bold leading-snug">{question.body}</h1>
+      {imageUrl && <img src={imageUrl} alt="" className="max-h-48 w-full rounded-lg object-contain" />}
 
-      <p aria-label="残り時間">
-        {formatRemainingSeconds(remainingMs)}秒{paused && "（一時停止中）"}
+      <p aria-label="残り時間" className="text-center text-4xl font-black tabular-nums text-brand-primary">
+        {formatRemainingSeconds(remainingMs)}秒{paused && <span className="ml-2 text-base font-normal text-amber-500">（一時停止中）</span>}
       </p>
 
-      <div className="player-options" role="group" aria-label="選択肢">
+      <div className="player-options grid grid-cols-1 gap-3" role="group" aria-label="選択肢">
         {question.options.map((option) => (
           <button
             key={option.id}
@@ -43,26 +43,35 @@ export function AnswerScreen({ question, imageUrl, remainingMs, paused, alreadyA
             disabled={locked || submission.status === "failed"}
             aria-pressed={option.id === selectedOptionId}
             onClick={() => onSelect(option.id)}
+            className={`min-h-16 rounded-xl border-2 px-4 py-4 text-lg font-semibold shadow-sm transition-colors disabled:opacity-60 ${
+              option.id === selectedOptionId
+                ? "border-brand-primary bg-brand-primary text-white"
+                : "border-slate-300 bg-white text-slate-800 active:bg-slate-100"
+            }`}
           >
             {option.label}
           </button>
         ))}
       </div>
 
-      {submission.status === "pending" && <p role="status">送信中…</p>}
+      {submission.status === "pending" && <p role="status" className="text-center text-sm text-slate-500">送信中…</p>}
 
       {accepted && (
-        <p role="status">回答を受け付けました{selectedLabel ? `（${selectedLabel}）` : ""}</p>
+        <p role="status" className="rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-center text-sm text-emerald-800">
+          回答を受け付けました{selectedLabel ? `（${selectedLabel}）` : ""}
+        </p>
       )}
 
       {submission.status === "rejected" && (
-        <p role="alert">{REJECTION_MESSAGES[submission.code] ?? `送信できませんでした（${submission.code}）。`}</p>
+        <p role="alert" className="rounded-md border border-red-300 bg-red-50 px-4 py-2 text-center text-sm text-red-800">
+          {REJECTION_MESSAGES[submission.code] ?? `送信できませんでした（${submission.code}）。`}
+        </p>
       )}
 
       {submission.status === "failed" && (
-        <div role="alert">
+        <div role="alert" className="flex flex-col items-center gap-2 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-center text-sm text-red-800">
           <p>送信に失敗しました。通信状態をご確認のうえ、再送信してください。</p>
-          <button type="button" onClick={onRetry}>
+          <button type="button" onClick={onRetry} className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
             再送信する
           </button>
         </div>

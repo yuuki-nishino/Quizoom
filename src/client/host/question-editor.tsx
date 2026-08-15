@@ -157,46 +157,83 @@ export function QuestionEditor({ apiClient, eventId, event, onEventChange }: Que
     else setServerError(result.code);
   }
 
+  const inputClass =
+    "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-base text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200";
+  const fieldErrorClass = "mt-1 text-sm text-red-700";
+  const secondaryButtonClass = "rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40";
+
   return (
     <section aria-label="設問エディタ">
-      <h2>設問</h2>
-      {readOnly && <p role="status">開催中のため設問は編集できません。外観の変更のみ可能です。</p>}
-      {serverError && <p role="alert">エラーが発生しました（{serverError}）。</p>}
+      <h2 className="text-lg font-semibold text-slate-900">設問</h2>
+      {readOnly && (
+        <p role="status" className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          開催中のため設問は編集できません。外観の変更のみ可能です。
+        </p>
+      )}
+      {serverError && (
+        <p role="alert" className="mt-2 rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800">
+          エラーが発生しました（{serverError}）。
+        </p>
+      )}
 
-      <ol>
+      <ol className="mt-4 space-y-2">
         {questions.map((question, index) => (
-          <li key={question.id}>
-            <span>{question.body}</span>
-            <span> ({question.timeLimitSec}秒)</span>
-            <button type="button" disabled={readOnly} onClick={() => startEdit(question)}>
-              編集
-            </button>
-            <button type="button" disabled={readOnly || index === 0} onClick={() => move(question, -1)}>
-              上へ
-            </button>
-            <button type="button" disabled={readOnly || index === questions.length - 1} onClick={() => move(question, 1)}>
-              下へ
-            </button>
-            <button type="button" disabled={readOnly} onClick={() => setPendingDelete(question)}>
-              削除
-            </button>
+          <li
+            key={question.id}
+            className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm"
+          >
+            <span className="font-medium text-slate-900">{question.body}</span>
+            <span className="text-sm text-slate-500">({question.timeLimitSec}秒)</span>
+            <div className="ml-auto flex gap-2">
+              <button type="button" disabled={readOnly} onClick={() => startEdit(question)} className={secondaryButtonClass}>
+                編集
+              </button>
+              <button type="button" disabled={readOnly || index === 0} onClick={() => move(question, -1)} className={secondaryButtonClass}>
+                上へ
+              </button>
+              <button
+                type="button"
+                disabled={readOnly || index === questions.length - 1}
+                onClick={() => move(question, 1)}
+                className={secondaryButtonClass}
+              >
+                下へ
+              </button>
+              <button
+                type="button"
+                disabled={readOnly}
+                onClick={() => setPendingDelete(question)}
+                className="rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                削除
+              </button>
+            </div>
           </li>
         ))}
       </ol>
 
-      <button type="button" disabled={readOnly} onClick={startNew}>
+      <button
+        type="button"
+        disabled={readOnly}
+        onClick={startNew}
+        className="mt-4 rounded-md bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+      >
         設問を追加
       </button>
 
       {editingId !== null && (
-        <form onSubmit={handleSubmit} aria-label="設問フォーム">
-          <label>
+        <form onSubmit={handleSubmit} aria-label="設問フォーム" className="mt-4 space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <label className="block text-sm font-medium text-slate-700">
             問題文
-            <textarea value={form.body} onChange={(e) => setForm((prev) => ({ ...prev, body: e.target.value }))} />
+            <textarea
+              value={form.body}
+              onChange={(e) => setForm((prev) => ({ ...prev, body: e.target.value }))}
+              className={`${inputClass} min-h-20`}
+            />
           </label>
-          {errors.includes("body") && <p role="alert">{FIELD_LABELS.body}</p>}
+          {errors.includes("body") && <p role="alert" className={fieldErrorClass}>{FIELD_LABELS.body}</p>}
 
-          <label>
+          <label className="block text-sm font-medium text-slate-700">
             制限時間（秒）
             <input
               type="number"
@@ -204,55 +241,74 @@ export function QuestionEditor({ apiClient, eventId, event, onEventChange }: Que
               max={300}
               value={form.timeLimitSec}
               onChange={(e) => setForm((prev) => ({ ...prev, timeLimitSec: Number(e.target.value) }))}
+              className={`${inputClass} w-32`}
             />
           </label>
-          {errors.includes("timeLimitSec") && <p role="alert">{FIELD_LABELS.timeLimitSec}</p>}
+          {errors.includes("timeLimitSec") && <p role="alert" className={fieldErrorClass}>{FIELD_LABELS.timeLimitSec}</p>}
 
           <fieldset>
-            <legend>選択肢の形式</legend>
-            <label>
-              <input type="radio" checked={form.format === "two"} onChange={() => changeFormat("two")} />
-              二択
-            </label>
-            <label>
-              <input type="radio" checked={form.format === "four"} onChange={() => changeFormat("four")} />
-              四択
-            </label>
+            <legend className="text-sm font-medium text-slate-700">選択肢の形式</legend>
+            <div className="mt-1 flex gap-4">
+              <label className="flex items-center gap-1.5 text-sm text-slate-700">
+                <input type="radio" checked={form.format === "two"} onChange={() => changeFormat("two")} />
+                二択
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-slate-700">
+                <input type="radio" checked={form.format === "four"} onChange={() => changeFormat("four")} />
+                四択
+              </label>
+            </div>
           </fieldset>
 
           <fieldset>
-            <legend>選択肢（正解を1つ選択）</legend>
-            {form.options.slice(0, optionCountForFormat(form.format)).map((option, index) => (
-              <div key={index}>
-                <input type="radio" name="correct-option" checked={option.isCorrect} onChange={() => selectCorrectOption(index)} />
-                <input
-                  type="text"
-                  value={option.label}
-                  onChange={(e) => changeOptionLabel(index, e.target.value)}
-                  placeholder={`選択肢${index + 1}`}
-                />
-              </div>
-            ))}
+            <legend className="text-sm font-medium text-slate-700">選択肢（正解を1つ選択）</legend>
+            <div className="mt-1 space-y-2">
+              {form.options.slice(0, optionCountForFormat(form.format)).map((option, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <input type="radio" name="correct-option" checked={option.isCorrect} onChange={() => selectCorrectOption(index)} />
+                  <input
+                    type="text"
+                    value={option.label}
+                    onChange={(e) => changeOptionLabel(index, e.target.value)}
+                    placeholder={`選択肢${index + 1}`}
+                    className={`${inputClass} mt-0 flex-1`}
+                  />
+                </div>
+              ))}
+            </div>
           </fieldset>
-          {errors.includes("options") && <p role="alert">{FIELD_LABELS.options}</p>}
-          {errors.includes("correctOption") && <p role="alert">{FIELD_LABELS.correctOption}</p>}
+          {errors.includes("options") && <p role="alert" className={fieldErrorClass}>{FIELD_LABELS.options}</p>}
+          {errors.includes("correctOption") && <p role="alert" className={fieldErrorClass}>{FIELD_LABELS.correctOption}</p>}
 
-          <label>
+          <label className="block text-sm font-medium text-slate-700">
             解説文
-            <textarea value={form.explanation} onChange={(e) => setForm((prev) => ({ ...prev, explanation: e.target.value }))} />
+            <textarea
+              value={form.explanation}
+              onChange={(e) => setForm((prev) => ({ ...prev, explanation: e.target.value }))}
+              className={`${inputClass} min-h-16`}
+            />
           </label>
 
-          <label>
+          <label className="block text-sm font-medium text-slate-700">
             画像添付
-            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => handleImageChange(e.target.files?.[0])} />
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => handleImageChange(e.target.files?.[0])}
+              className="mt-1 block text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
+            />
           </label>
-          {uploading && <p>アップロード中…</p>}
-          {form.imageAssetId && <p>画像を添付しました</p>}
+          {uploading && <p className="text-sm text-slate-500">アップロード中…</p>}
+          {form.imageAssetId && <p className="text-sm text-emerald-700">画像を添付しました</p>}
 
-          <button type="submit">保存する</button>
-          <button type="button" onClick={() => setEditingId(null)}>
-            キャンセル
-          </button>
+          <div className="flex gap-3 pt-2">
+            <button type="submit" className="rounded-md bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700">
+              保存する
+            </button>
+            <button type="button" onClick={() => setEditingId(null)} className={secondaryButtonClass}>
+              キャンセル
+            </button>
+          </div>
         </form>
       )}
 

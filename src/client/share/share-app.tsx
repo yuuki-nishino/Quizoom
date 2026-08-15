@@ -46,22 +46,35 @@ export function ShareApp() {
   }
 
   if (!route) {
-    return <p role="alert">共有URLが無効です。</p>;
+    return (
+      <p role="alert" className="flex min-h-screen items-center justify-center px-6 text-center text-red-700">
+        共有URLが無効です。
+      </p>
+    );
   }
   if (error) {
-    return <p role="alert">{ERROR_MESSAGES[error] ?? `エラーが発生しました（${error}）。`}</p>;
+    return (
+      <p role="alert" className="flex min-h-screen items-center justify-center px-6 text-center text-red-700">
+        {ERROR_MESSAGES[error] ?? `エラーが発生しました（${error}）。`}
+      </p>
+    );
   }
   if (!result) {
-    return <p>読み込み中…</p>;
+    return <p className="flex min-h-screen items-center justify-center text-slate-500">読み込み中…</p>;
   }
 
   return (
     <ThemeProvider theme={result.theme}>
-      <section aria-label="結果共有">
-        <h1>{result.eventTitle}</h1>
-        <h2>最終ランキング</h2>
+      <section aria-label="結果共有" className="flex min-h-screen flex-col items-center gap-2 px-6 py-10 text-center">
+        <h1 className="text-2xl font-bold text-brand-primary">{result.eventTitle}</h1>
+        <h2 className="text-lg font-semibold text-brand-text/80">最終ランキング</h2>
         <RankingList entries={result.entries} />
-        <button type="button" disabled={savingImage} onClick={handleSaveImage}>
+        <button
+          type="button"
+          disabled={savingImage}
+          onClick={handleSaveImage}
+          className="mt-6 rounded-lg bg-brand-primary px-5 py-2.5 font-medium text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+        >
           画像として保存
         </button>
       </section>

@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+/*
+ * ThemeProvider(src/client/shared/theme.tsx)がイベントごとに --quizoom-color-* を
+ * ラップする<div>へ設定する。ここではそれを Tailwind のテーマ色として再公開し、
+ * bg-brand-primary のようなユーティリティで参照できるようにする。
+ * デフォルト値は ThemeProvider の外側(未適用時)でも壊れないためのフォールバック。
+ */
+@theme {
+  --color-brand-primary: var(--quizoom-color-primary, #4338ca);
+  --color-brand-accent: var(--quizoom-color-accent, #f59e0b);
+  --color-brand-bg: var(--quizoom-color-background, #ffffff);
+  --color-brand-text: var(--quizoom-color-text, #111827);
+
+  --font-sans:
+    "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", system-ui, -apple-system, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 font-sans;
+}
+
+#root {
+  min-height: 100%;
+}

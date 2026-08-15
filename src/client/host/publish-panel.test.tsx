@@ -20,6 +20,6 @@ describe("PublishPanel", () => {
       <PublishPanel apiClient={unimplementedApiClient()} eventId={event.id} event={event} onEventChange={() => {}} />,
     );
     expect(markup).not.toContain("設問が1件も登録されていないため公開できません");
-    expect(markup).toMatch(/<button type="button">公開する<\/button>/);
+    expect(markup).toMatch(/<button type="button"[^>]*>公開する<\/button>/);
   });
 });

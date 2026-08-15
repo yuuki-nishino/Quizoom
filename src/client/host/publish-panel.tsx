@@ -54,33 +54,52 @@ export function PublishPanel({ apiClient, eventId, event, onEventChange }: Publi
   }, [publishResult]);
 
   return (
-    <section aria-label="公開">
-      <h2>公開</h2>
-      {error && <p role="alert">エラーが発生しました（{error}）。</p>}
+    <section aria-label="公開" className="max-w-2xl">
+      <h2 className="text-lg font-semibold text-slate-900">公開</h2>
+      {error && (
+        <p role="alert" className="mt-2 rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800">
+          エラーが発生しました（{error}）。
+        </p>
+      )}
 
       {!alreadyPublished && (
         <>
-          {hasNoQuestions && <p role="alert">設問が1件も登録されていないため公開できません。先に設問を追加してください。</p>}
-          <button type="button" disabled={hasNoQuestions || publishing} onClick={doPublish}>
+          {hasNoQuestions && (
+            <p role="alert" className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+              設問が1件も登録されていないため公開できません。先に設問を追加してください。
+            </p>
+          )}
+          <button
+            type="button"
+            disabled={hasNoQuestions || publishing}
+            onClick={doPublish}
+            className="mt-4 rounded-md bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
             公開する
           </button>
         </>
       )}
 
       {publishResult && (
-        <div>
-          <p>
-            参加用URL: <a href={publishResult.joinUrl}>{publishResult.joinUrl}</a>
+        <div className="mt-6 space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="break-all text-sm text-slate-700">
+            参加用URL:{" "}
+            <a href={publishResult.joinUrl} className="text-indigo-700 hover:underline">
+              {publishResult.joinUrl}
+            </a>
           </p>
-          <p>
-            投影用URL: <a href={publishResult.stageUrl}>{publishResult.stageUrl}</a>
+          <p className="break-all text-sm text-slate-700">
+            投影用URL:{" "}
+            <a href={publishResult.stageUrl} className="text-indigo-700 hover:underline">
+              {publishResult.stageUrl}
+            </a>
           </p>
 
           {joinQrSvg && (
-            <>
-              <figure aria-label="印刷用QRコード" data-qr="printable" dangerouslySetInnerHTML={{ __html: joinQrSvg }} />
-              <figure aria-label="投影用QRコード" data-qr="projector" dangerouslySetInnerHTML={{ __html: joinQrSvg }} />
-            </>
+            <div className="flex flex-wrap gap-6">
+              <figure aria-label="印刷用QRコード" data-qr="printable" className="w-40" dangerouslySetInnerHTML={{ __html: joinQrSvg }} />
+              <figure aria-label="投影用QRコード" data-qr="projector" className="w-40" dangerouslySetInnerHTML={{ __html: joinQrSvg }} />
+            </div>
           )}
         </div>
       )}

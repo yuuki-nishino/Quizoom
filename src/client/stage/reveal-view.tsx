@@ -10,24 +10,34 @@ export function RevealView({ question, closed }: RevealViewProps) {
   const totalAnswers = closed.distribution.reduce((sum, d) => sum + d.count, 0);
 
   return (
-    <div aria-label="正解発表" className="stage-reveal-view">
-      <h1>{question.body}</h1>
-      <ul className="stage-options">
+    <div aria-label="正解発表" className="stage-reveal-view flex min-h-screen flex-col items-center gap-6 px-12 py-10 text-center">
+      <h1 className="max-w-5xl text-4xl font-extrabold leading-snug sm:text-5xl">{question.body}</h1>
+      <ul className="stage-options grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
         {question.options.map((option) => {
           const isCorrect = option.id === closed.correctOptionId;
           const entry = closed.distribution.find((d) => d.optionId === option.id);
           const count = entry?.count ?? 0;
           const pct = totalAnswers > 0 ? Math.round((count / totalAnswers) * 100) : 0;
           return (
-            <li key={option.id} data-correct={isCorrect} className={isCorrect ? "stage-option-correct" : undefined}>
-              {option.label}
-              {isCorrect && " ◎正解"}
-              <span> {count}人（{pct}%）</span>
+            <li
+              key={option.id}
+              data-correct={isCorrect}
+              className={
+                isCorrect
+                  ? "stage-option-correct rounded-xl border-2 border-emerald-500 bg-emerald-50 px-6 py-5 text-left text-2xl font-bold text-emerald-900 shadow"
+                  : "rounded-xl border-2 border-slate-200 bg-white/80 px-6 py-5 text-left text-2xl text-slate-500 shadow"
+              }
+            >
+              <span>{option.label}</span>
+              {isCorrect && <span className="ml-2">◎正解</span>}
+              <span className="mt-1 block text-base font-normal">
+                {count}人（{pct}%）
+              </span>
             </li>
           );
         })}
       </ul>
-      {closed.explanation && <p className="stage-explanation">{closed.explanation}</p>}
+      {closed.explanation && <p className="stage-explanation max-w-3xl text-xl text-brand-text/80">{closed.explanation}</p>}
     </div>
   );
 }

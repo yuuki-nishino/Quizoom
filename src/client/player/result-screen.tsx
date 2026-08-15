@@ -10,21 +10,23 @@ export interface ResultScreenProps {
 export function ResultScreen({ personalResult, personalRank }: ResultScreenProps) {
   if (personalRank?.isFinal) {
     return (
-      <section aria-label="最終結果">
-        <h1>最終結果</h1>
-        <p>あなたの順位: {personalRank.rank}位</p>
-        <p>正解数: {personalRank.correctCount}</p>
-        <p>合計回答時間: {formatElapsedMs(personalRank.totalElapsedMs)}</p>
+      <section aria-label="最終結果" className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+        <h1 className="text-3xl font-extrabold text-brand-primary">最終結果</h1>
+        <p className="text-2xl font-bold">あなたの順位: {personalRank.rank}位</p>
+        <p className="text-lg text-brand-text/80">正解数: {personalRank.correctCount}</p>
+        <p className="text-lg text-brand-text/80">合計回答時間: {formatElapsedMs(personalRank.totalElapsedMs)}</p>
       </section>
     );
   }
 
   if (personalResult) {
     return (
-      <section aria-label="回答結果">
-        <p>{personalResult.isCorrect ? "正解です！" : "不正解でした"}</p>
-        <p>現在の正解数: {personalResult.correctCount}</p>
-        <p>現在の順位: {personalResult.rank}位</p>
+      <section aria-label="回答結果" className="flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center">
+        <p className={`text-2xl font-bold ${personalResult.isCorrect ? "text-emerald-600" : "text-slate-600"}`}>
+          {personalResult.isCorrect ? "正解です！" : "不正解でした"}
+        </p>
+        <p className="text-lg text-brand-text/80">現在の正解数: {personalResult.correctCount}</p>
+        <p className="text-lg text-brand-text/80">現在の順位: {personalResult.rank}位</p>
       </section>
     );
   }

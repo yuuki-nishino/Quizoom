@@ -70,13 +70,21 @@ export function PlayerApp() {
   const frozenRemainingMs = pausedRemainingMs(state.phase);
 
   if (!route) {
-    return <p role="alert">参加用URLが無効です。QRコードを再度読み取ってください。</p>;
+    return (
+      <p role="alert" className="flex min-h-screen items-center justify-center px-6 text-center text-red-700">
+        参加用URLが無効です。QRコードを再度読み取ってください。
+      </p>
+    );
   }
   if (joinInfoError) {
-    return <p role="alert">参加できませんでした（{joinInfoError}）。</p>;
+    return (
+      <p role="alert" className="flex min-h-screen items-center justify-center px-6 text-center text-red-700">
+        参加できませんでした（{joinInfoError}）。
+      </p>
+    );
   }
   if (!joinInfo) {
-    return <p>読み込み中…</p>;
+    return <p className="flex min-h-screen items-center justify-center text-slate-500">読み込み中…</p>;
   }
 
   if (!token) {
@@ -94,16 +102,22 @@ export function PlayerApp() {
 
   return (
     <ThemeProvider theme={theme}>
-      <ConnectionBadge status={status} />
-      <RecoveryBanner status={status} />
+      <div className="fixed top-3 right-3 z-10">
+        <ConnectionBadge status={status} />
+      </div>
+      <div className="px-4 pt-3">
+        <RecoveryBanner status={status} />
+      </div>
       {showLateJoinNotice && <LateJoinNotice onDismiss={() => setLateJoinDismissed(true)} />}
 
       {state.phase === null ? (
-        <p>読み込み中…</p>
+        <p className="flex min-h-screen items-center justify-center text-slate-500">読み込み中…</p>
       ) : state.closedQuestion !== null ? (
         <ResultScreen personalResult={state.closedQuestion.personalResult} personalRank={state.personalRank} />
       ) : state.phase.kind === "questionClosed" ? (
-        <p role="status">回答受付を終了しました。正解発表をお待ちください。</p>
+        <p role="status" className="flex min-h-screen items-center justify-center px-6 text-center text-lg text-brand-text/80">
+          回答受付を終了しました。正解発表をお待ちください。
+        </p>
       ) : state.currentQuestion !== null && (state.phase.kind === "questionOpen" || state.phase.kind === "paused") ? (
         <AnswerScreen
           question={state.currentQuestion}

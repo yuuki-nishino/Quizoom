@@ -26,10 +26,10 @@ export function NicknameForm({ eventTitle, submitting, errorCode, onSubmit }: Ni
   }
 
   return (
-    <section aria-label="参加登録">
-      <h1>{eventTitle}</h1>
-      <form onSubmit={handleSubmit}>
-        <label>
+    <section aria-label="参加登録" className="flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
+      <h1 className="text-2xl font-bold text-brand-primary">{eventTitle}</h1>
+      <form onSubmit={handleSubmit} className="flex w-full max-w-sm flex-col gap-4">
+        <label className="block text-left text-sm font-medium text-brand-text/80">
           ニックネーム
           <input
             value={nickname}
@@ -37,13 +37,22 @@ export function NicknameForm({ eventTitle, submitting, errorCode, onSubmit }: Ni
             maxLength={20}
             placeholder="ニックネームを入力"
             autoComplete="off"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-4 py-3 text-lg text-slate-900 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
           />
         </label>
-        <button type="submit" disabled={submitting || nickname.trim().length === 0}>
+        <button
+          type="submit"
+          disabled={submitting || nickname.trim().length === 0}
+          className="rounded-lg bg-brand-primary px-5 py-3 text-lg font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
+        >
           参加する
         </button>
       </form>
-      {errorCode && <p role="alert">{ERROR_MESSAGES[errorCode] ?? `エラーが発生しました（${errorCode}）。`}</p>}
+      {errorCode && (
+        <p role="alert" className="rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800">
+          {ERROR_MESSAGES[errorCode] ?? `エラーが発生しました（${errorCode}）。`}
+        </p>
+      )}
     </section>
   );
 }

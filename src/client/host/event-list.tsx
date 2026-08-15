@@ -63,44 +63,69 @@ export function EventList({ apiClient, onOpenEvent }: EventListProps) {
   }
 
   return (
-    <section aria-label="イベント一覧">
-      <h1>マイイベント</h1>
+    <section aria-label="イベント一覧" className="mx-auto max-w-2xl px-4 py-8">
+      <h1 className="text-2xl font-bold text-slate-900">マイイベント</h1>
 
-      <form onSubmit={handleCreate}>
-        <label>
+      <form onSubmit={handleCreate} className="mt-6 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <label className="flex-1 min-w-48 text-sm font-medium text-slate-700">
           新しいイベント名
-          <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="イベント名" />
+          <input
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            placeholder="イベント名"
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-base text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          />
         </label>
-        <button type="submit" disabled={creating || newTitle.trim().length === 0}>
+        <button
+          type="submit"
+          disabled={creating || newTitle.trim().length === 0}
+          className="rounded-md bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+        >
           作成する
         </button>
       </form>
 
       {error && (
-        <p role="alert">
+        <p role="alert" className="mt-4 rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800">
           エラーが発生しました（{error}）。再読み込みしてください。
         </p>
       )}
 
       {events === null ? (
-        <p>読み込み中…</p>
+        <p className="mt-6 text-slate-500">読み込み中…</p>
       ) : events.length === 0 ? (
-        <p>まだイベントがありません。上のフォームから作成してください。</p>
+        <p className="mt-6 text-slate-500">まだイベントがありません。上のフォームから作成してください。</p>
       ) : (
-        <ul>
+        <ul className="mt-6 divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white shadow-sm">
           {events.map((event) => (
-            <li key={event.id}>
-              <button type="button" onClick={() => onOpenEvent(event.id)}>
+            <li key={event.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => onOpenEvent(event.id)}
+                className="text-left font-medium text-indigo-700 hover:underline"
+              >
                 {event.title}
               </button>
-              <span> [{eventStatusLabel(event.status)}]</span>
-              <span> 設問{event.questionCount}件</span>
-              <button type="button" onClick={() => handleDuplicate(event.id)}>
-                複製
-              </button>
-              <button type="button" onClick={() => setPendingDelete(event)}>
-                削除
-              </button>
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                {eventStatusLabel(event.status)}
+              </span>
+              <span className="text-sm text-slate-500">設問{event.questionCount}件</span>
+              <div className="ml-auto flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDuplicate(event.id)}
+                  className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  複製
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingDelete(event)}
+                  className="rounded-md border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50"
+                >
+                  削除
+                </button>
+              </div>
             </li>
           ))}
         </ul>
