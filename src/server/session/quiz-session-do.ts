@@ -7,6 +7,7 @@ import { loadQuestionSnapshot, updateStatus } from "../catalog/repository";
 import { save as saveResult, type JudgedAnswer } from "../results/archive";
 import { judge, aggregate, rank } from "../../shared/scoring";
 import { next } from "./phase-machine";
+import { retryAsync } from "./retry";
 import {
   clientCommandSchema,
   type ClientCommand,
@@ -442,16 +443,10 @@ export class QuizSessionDO extends DurableObject<Env> {
     this.#broadcastRanking(questions, true);
   }
 
-  async #updateStatusWithRetry(eventId: EventId, expected: EventStatus, nextStatus: EventStatus, attempts = 3): Promise<void> {
-    for (let i = 0; i < attempts; i++) {
-      try {
-        await updateStatus(this.env, eventId, expected, nextStatus);
-        return;
-      } catch {
-        // D1 への書き戻し失敗は DO 側の状態を正としてリトライする。最終的に失敗しても
-        // フェーズ遷移は既に確定しているため、進行は止めない。
-      }
-    }
+  async #updateStatusWithRetry(eventId: EventId, expected: EventStatus, nextStatus: EventStatus): Promise<void> {
+    // Result の err（STATUS_CONFLICT 等の業務的な不一致）はリトライで解消しないため対象としない。
+    // ここで再試行するのは updateStatus 自体が例外を投げる、D1 への書き戻し失敗のみ
+    await retryAsync(() => updateStatus(this.env, eventId, expected, nextStatus).then(() => undefined));
   }
 
   async #applyAlarm(intent: AlarmIntent): Promise<void> {

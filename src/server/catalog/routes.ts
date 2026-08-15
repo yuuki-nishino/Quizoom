@@ -23,6 +23,7 @@ import {
   questionRequestSchema,
   reorderQuestionsRequestSchema,
   themeSettingsRequestSchema,
+  classifyRoundTrip,
   type PreflightCheck,
   type PreflightReport,
   type PreflightStatus,
@@ -258,8 +259,6 @@ catalogRoutes.get("/api/events/:id/stage-token", async (c) => {
   return c.json({ stageToken: info.value.stageToken, stageUrl: `${origin}/stage/${eventId}?token=${info.value.stageToken}` });
 });
 
-const ROUND_TRIP_OK_MS = 300;
-const ROUND_TRIP_WARN_MS = 800;
 const PREFLIGHT_SEVERITY: Record<PreflightStatus, number> = { ok: 0, warn: 1, fail: 2 };
 
 catalogRoutes.get("/api/events/:id/preflight", async (c) => {
@@ -307,11 +306,7 @@ catalogRoutes.get("/api/events/:id/preflight", async (c) => {
   }
   const measuredMs = Date.now() - startedAt;
   checks.push({ id: "sessionReachable", status: sessionStatus, detail: sessionDetail });
-  checks.push({
-    id: "roundTripMs",
-    status: sessionStatus !== "ok" ? "fail" : measuredMs <= ROUND_TRIP_OK_MS ? "ok" : measuredMs <= ROUND_TRIP_WARN_MS ? "warn" : "fail",
-    measuredMs,
-  });
+  checks.push({ id: "roundTripMs", status: classifyRoundTrip(measuredMs, sessionStatus === "ok"), measuredMs });
 
   const overall = checks.reduce<PreflightStatus>(
     (worst, check) => (PREFLIGHT_SEVERITY[check.status] > PREFLIGHT_SEVERITY[worst] ? check.status : worst),

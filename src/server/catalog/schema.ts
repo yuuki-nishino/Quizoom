@@ -66,3 +66,14 @@ export interface PreflightReport {
   readonly checkedAt: number;
   readonly checks: readonly PreflightCheck[];
 }
+
+export const ROUND_TRIP_OK_MS = 300;
+export const ROUND_TRIP_WARN_MS = 800;
+
+/** DOへの往復遅延をしきい値に基づき ok/warn/fail へ分類する純粋関数（要件12.3, 12.4） */
+export function classifyRoundTrip(measuredMs: number, sessionReachable: boolean): PreflightStatus {
+  if (!sessionReachable) return "fail";
+  if (measuredMs <= ROUND_TRIP_OK_MS) return "ok";
+  if (measuredMs <= ROUND_TRIP_WARN_MS) return "warn";
+  return "fail";
+}
