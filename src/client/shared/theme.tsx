@@ -10,8 +10,11 @@ export const THEME_CSS_VARIABLES = {
 
 export const MIN_CONTRAST_RATIO = 4.5;
 
-/** ThemeSettings の4色を CSS カスタムプロパティへ変換する */
-export function themeToCssProperties(theme: ThemeSettings): CSSProperties {
+/** 4色のみを要求する。ThemeSettings（画像参照込み）に加え、共有ページ用の PublicTheme もそのまま渡せる */
+export type ThemeColors = Pick<ThemeSettings, "primaryColor" | "accentColor" | "backgroundColor" | "textColor">;
+
+/** 4色を CSS カスタムプロパティへ変換する */
+export function themeToCssProperties(theme: ThemeColors): CSSProperties {
   return {
     [THEME_CSS_VARIABLES.primaryColor]: theme.primaryColor,
     [THEME_CSS_VARIABLES.accentColor]: theme.accentColor,
@@ -57,13 +60,13 @@ export function contrastRatio(colorA: string, colorB: string): number | null {
 }
 
 /** 文字色と背景色のコントラスト比が 4.5:1 を下回るかどうか。保存自体はブロックしないための警告用途 */
-export function isLowContrast(theme: ThemeSettings): boolean {
+export function isLowContrast(theme: ThemeColors): boolean {
   const ratio = contrastRatio(theme.textColor, theme.backgroundColor);
   return ratio !== null && ratio < MIN_CONTRAST_RATIO;
 }
 
 export interface ThemeProviderProps {
-  readonly theme: ThemeSettings;
+  readonly theme: ThemeColors;
   readonly children: ReactNode;
 }
 

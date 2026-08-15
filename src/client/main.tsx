@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { HostApp } from "./host/host-app";
 import { StageApp } from "./stage/stage-app";
 import { PlayerApp } from "./player/player-app";
+import { ShareApp } from "./share/share-app";
 
 function App() {
   const pathname = window.location.pathname;
@@ -16,9 +17,11 @@ function App() {
   if (pathname.startsWith("/join")) {
     return <PlayerApp />;
   }
+  if (pathname.startsWith("/share")) {
+    return <ShareApp />;
+  }
 
-  // /share は後続タスク(14)で実装する
-  return <div>準備中です。</div>;
+  return <div>ページが見つかりません。</div>;
 }
 
 const container = document.getElementById("root");
