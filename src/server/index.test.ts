@@ -17,6 +17,13 @@ describe("GET /api/host/me", () => {
   });
 });
 
+describe("GET /connect", () => {
+  it("rejects a request missing eventId as 400, without falling back to the SPA shell", async () => {
+    const res = await SELF.fetch("https://example.com/connect?role=host", { headers: { Upgrade: "websocket" } });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("client-side routes fall back to the SPA shell", () => {
   it("serves the built index.html for a non-API path such as /host", async () => {
     const res = await SELF.fetch("https://example.com/host/events/abc/live");
