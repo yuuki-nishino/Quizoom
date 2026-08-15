@@ -52,7 +52,7 @@ joinRoutes.get("/api/join/:joinCode", async (c) => {
   if (event.status === "finished") return c.json({ error: "EVENT_FINISHED" }, 410);
 
   const theme = await findThemeSettings(c.env, event.id);
-  return c.json({ eventTitle: event.title, theme, accepting: event.status !== "draft" });
+  return c.json({ eventId: event.id, eventTitle: event.title, theme, accepting: event.status !== "draft" });
 });
 
 joinRoutes.post("/api/join/:joinCode", async (c) => {
@@ -82,7 +82,7 @@ joinRoutes.post("/api/join/:joinCode", async (c) => {
     issuedAt: Date.now(),
   });
 
-  return c.json({ token, participantId });
+  return c.json({ token, participantId, eventId: event.id });
 });
 
 // 投影画面の待機状態表示専用。認証不要・stage_token の一致のみを根拠とする（要件6.1）

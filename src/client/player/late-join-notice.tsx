@@ -1,0 +1,15 @@
+export interface LateJoinNoticeProps {
+  readonly onDismiss: () => void;
+}
+
+/** 途中参加の通知（要件4.10）。参加直後の一度きりの表示を想定し、閉じる操作を提供する */
+export function LateJoinNotice({ onDismiss }: LateJoinNoticeProps) {
+  return (
+    <div role="alert" className="player-late-join-notice">
+      <p>途中から参加したため、既に出題された設問には回答できず、順位が不利になる場合があります。</p>
+      <button type="button" onClick={onDismiss}>
+        閉じる
+      </button>
+    </div>
+  );
+}

@@ -123,6 +123,8 @@ export interface PersonalRankPayload {
   readonly rank: number;
   readonly correctCount: number;
   readonly totalElapsedMs: number;
+  /** finalize による最終順位確定か、showRanking による中間順位かを参加者クライアントが区別するためのフラグ */
+  readonly isFinal: boolean;
 }
 
 export interface CommandRejectedPayload {

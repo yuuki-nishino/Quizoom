@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { HostApp } from "./host/host-app";
 import { StageApp } from "./stage/stage-app";
+import { PlayerApp } from "./player/player-app";
 
 function App() {
   const pathname = window.location.pathname;
@@ -12,8 +13,11 @@ function App() {
   if (pathname.startsWith("/stage")) {
     return <StageApp />;
   }
+  if (pathname.startsWith("/join")) {
+    return <PlayerApp />;
+  }
 
-  // /join, /share は後続タスク(13-14)で実装する
+  // /share は後続タスク(14)で実装する
   return <div>準備中です。</div>;
 }
 

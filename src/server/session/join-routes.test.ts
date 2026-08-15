@@ -51,13 +51,14 @@ describe("GET /api/join/:joinCode", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns the event title, theme, and accepting status for a published event", async () => {
+  it("returns the eventId, event title, theme, and accepting status for a published event", async () => {
     const cookie = await hostCookie();
-    const { joinCode } = await createAndPublish(cookie);
+    const { id, joinCode } = await createAndPublish(cookie);
 
     const res = await SELF.fetch(`https://example.com/api/join/${joinCode}`);
     expect(res.status).toBe(200);
-    const body = await res.json<{ eventTitle: string; accepting: boolean; theme: { primaryColor: string } }>();
+    const body = await res.json<{ eventId: string; eventTitle: string; accepting: boolean; theme: { primaryColor: string } }>();
+    expect(body.eventId).toBe(id);
     expect(body.eventTitle).toBe("My Event");
     expect(body.accepting).toBe(true);
     expect(typeof body.theme.primaryColor).toBe("string");
@@ -83,9 +84,9 @@ describe("POST /api/join/:joinCode", () => {
     expect(res.status).toBe(404);
   });
 
-  it("registers a participant and returns a token and participantId", async () => {
+  it("registers a participant and returns a token, participantId, and eventId", async () => {
     const cookie = await hostCookie();
-    const { joinCode } = await createAndPublish(cookie);
+    const { id, joinCode } = await createAndPublish(cookie);
 
     const res = await SELF.fetch(`https://example.com/api/join/${joinCode}`, {
       method: "POST",
@@ -93,9 +94,10 @@ describe("POST /api/join/:joinCode", () => {
       body: JSON.stringify({ nickname: "alice" }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json<{ token: string; participantId: string }>();
+    const body = await res.json<{ token: string; participantId: string; eventId: string }>();
     expect(typeof body.token).toBe("string");
     expect(typeof body.participantId).toBe("string");
+    expect(body.eventId).toBe(id);
   });
 
   it("rejects a duplicate nickname with 409", async () => {

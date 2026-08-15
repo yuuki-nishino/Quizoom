@@ -415,7 +415,7 @@ export class QuizSessionDO extends DurableObject<Env> {
       if (!role || role.role !== "participant") continue;
       const my = rankByParticipant.get(role.participantId);
       if (!my) continue;
-      const payload: PersonalRankPayload = { rank: my.rank, correctCount: my.correctCount, totalElapsedMs: my.totalElapsedMs };
+      const payload: PersonalRankPayload = { rank: my.rank, correctCount: my.correctCount, totalElapsedMs: my.totalElapsedMs, isFinal };
       this.#sendTo(ws, { type: "personalRank", payload });
     }
   }

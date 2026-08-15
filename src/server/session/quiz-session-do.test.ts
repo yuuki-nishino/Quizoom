@@ -647,6 +647,25 @@ describe("QuizSessionDO showRanking / finalize", () => {
     aliceWs.close();
   });
 
+  it("sends the participant a personalRank with isFinal matching showRanking vs finalize", async () => {
+    const stub = newStub();
+    const { aliceWs } = await setupRevealed(stub);
+
+    const interim = nextMessage(aliceWs);
+    await sendHostCommand(stub, "event-1", { type: "showRanking" });
+    const interimEvent = await interim;
+    expect(interimEvent.type).toBe("personalRank");
+    expect(interimEvent.payload).toMatchObject({ rank: 1, correctCount: 1, isFinal: false });
+
+    const final = nextMessage(aliceWs);
+    await sendHostCommand(stub, "event-1", { type: "finalize" });
+    const finalEvent = await final;
+    expect(finalEvent.type).toBe("personalRank");
+    expect(finalEvent.payload).toMatchObject({ rank: 1, correctCount: 1, isFinal: true });
+
+    aliceWs.close();
+  });
+
   it("rejects nextQuestion with NO_NEXT_QUESTION after the only question has been revealed", async () => {
     const stub = newStub();
     const { aliceWs } = await setupRevealed(stub);
