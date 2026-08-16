@@ -8,7 +8,13 @@
   "assets": {
     "directory": "./dist/client",
     "not_found_handling": "single-page-application",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    // run_worker_first を付けないと、ブラウザの通常のページ遷移に見えるリクエスト
+    // (Sec-Fetch-Dest: document 等)は SPA フォールバックがエッジで横取りしてしまい、
+    // /api/auth/callback/google のような Worker 側で処理すべきAPIルートに一切届かない。
+    // 実際、GoogleのOAuthコールバックがこれによってワーカーへ到達せず、
+    // ログインが完全に失敗する不具合が本番で発生した
+    "run_worker_first": true
   },
   "d1_databases": [
     {
