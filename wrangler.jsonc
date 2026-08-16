@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "quizoom",
+  "account_id": "7ce2d4c56b6d2496c1e6eb39dee1729a",
   "compatibility_date": "2025-09-06",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/server/index.ts",

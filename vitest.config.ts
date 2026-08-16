@@ -11,7 +11,15 @@ export default defineWorkersConfig(async () => {
         workers: {
           wrangler: { configPath: "./wrangler.jsonc" },
           miniflare: {
-            bindings: { TEST_MIGRATIONS: migrations },
+            // CI等 .dev.vars が存在しない環境でも決定的にテストできるよう、
+            // 秘密鍵系のバインディングはここで固定値を注入する(本物の値である必要はない)
+            bindings: {
+              TEST_MIGRATIONS: migrations,
+              PARTICIPANT_TOKEN_SECRET: "test-participant-token-secret",
+              BETTER_AUTH_SECRET: "test-better-auth-secret",
+              GOOGLE_CLIENT_ID: "test-google-client-id",
+              GOOGLE_CLIENT_SECRET: "test-google-client-secret",
+            },
           },
         },
       },
