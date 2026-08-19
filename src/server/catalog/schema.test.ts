@@ -20,7 +20,7 @@ async function seedEventWithQuestion() {
 
 beforeEach(async () => {
   await env.DB.exec(
-    "DELETE FROM result_answer; DELETE FROM result_entry; DELETE FROM result; DELETE FROM theme; DELETE FROM option; DELETE FROM question; DELETE FROM event;",
+    "DELETE FROM result_answer; DELETE FROM result_entry; DELETE FROM result; DELETE FROM theme; DELETE FROM option; DELETE FROM question; DELETE FROM event_collaborator; DELETE FROM event;",
   );
 });
 
@@ -63,5 +63,36 @@ describe("D1 schema constraints", () => {
 
     expect(questions?.n).toBe(0);
     expect(options?.n).toBe(0);
+  });
+
+  it("rejects a second unresolved invite to the same email for the same event", async () => {
+    await env.DB.prepare(
+      "INSERT INTO event (id, owner_id, title, status, created_at) VALUES ('e1','u1','Test Event','draft', 1000)",
+    ).run();
+    await env.DB.prepare(
+      "INSERT INTO event_collaborator (id, event_id, invited_email, invite_token, status, created_at) VALUES ('c1','e1','friend@example.com','tok1','pending', 1000)",
+    ).run();
+
+    await expect(
+      env.DB.prepare(
+        "INSERT INTO event_collaborator (id, event_id, invited_email, invite_token, status, created_at) VALUES ('c2','e1','friend@example.com','tok2','pending', 1001)",
+      ).run(),
+    ).rejects.toThrow(/UNIQUE constraint failed/);
+  });
+
+  it("cascades event_collaborator deletion when the owning event is deleted", async () => {
+    await env.DB.prepare(
+      "INSERT INTO event (id, owner_id, title, status, created_at) VALUES ('e1','u1','Test Event','draft', 1000)",
+    ).run();
+    await env.DB.prepare(
+      "INSERT INTO event_collaborator (id, event_id, invited_email, invite_token, status, created_at) VALUES ('c1','e1','friend@example.com','tok1','pending', 1000)",
+    ).run();
+
+    await env.DB.prepare("DELETE FROM event WHERE id = 'e1'").run();
+
+    const collaborators = await env.DB.prepare("SELECT count(*) as n FROM event_collaborator WHERE event_id = 'e1'").first<{
+      n: number;
+    }>();
+    expect(collaborators?.n).toBe(0);
   });
 });
