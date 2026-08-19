@@ -6,6 +6,7 @@ import { requireHost } from "./auth/guard";
 import { catalogRoutes } from "./catalog/routes";
 import { joinRoutes } from "./session/join-routes";
 import { mediaRoutes } from "./media/routes";
+import { collaboratorRoutes } from "./collaborators/routes";
 import { getSessionStub } from "./session/quiz-session-do";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -17,6 +18,7 @@ app.on(["GET", "POST"], "/api/auth/*", (c) => createAuth(c.env).handler(c.req.ra
 app.route("/", catalogRoutes);
 app.route("/", joinRoutes);
 app.route("/", mediaRoutes);
+app.route("/", collaboratorRoutes);
 
 app.get("/api/host/me", async (c) => {
   const result = await requireHost(c.req.raw, c.env);

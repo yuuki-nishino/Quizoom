@@ -9,13 +9,14 @@ export type AccessLevel = "owner" | "collaborator";
 
 export interface HostSession {
   readonly userId: string;
+  readonly email: string;
 }
 
 export async function requireHost(request: Request, env: Env): Promise<Result<HostSession, AuthError>> {
   const auth = createAuth(env);
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session) return err({ code: "UNAUTHENTICATED" });
-  return ok({ userId: session.user.id });
+  return ok({ userId: session.user.id, email: session.user.email });
 }
 
 /** イベント所有権の判定のみを担う。requireHost が返した userId を対象に検証する */
