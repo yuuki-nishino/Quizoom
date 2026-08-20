@@ -10,6 +10,8 @@ import type {
   ThemeSettings,
 } from "../../shared/domain-types";
 import type { Env } from "../env";
+import { checkEventAccess } from "../auth/guard";
+import { listAccessibleEventIds } from "../collaborators/repository";
 
 export type CatalogError =
   | { readonly code: "NOT_FOUND" }
@@ -27,6 +29,7 @@ export interface EventSummary {
   readonly title: string;
   readonly status: EventStatus;
   readonly questionCount: number;
+  readonly role: "owner" | "collaborator";
 }
 
 export interface QuestionOption {
@@ -55,6 +58,7 @@ export interface EventDetail {
   readonly createdAt: number;
   readonly questions: readonly Question[];
   readonly theme: ThemeSettings;
+  readonly role: "owner" | "collaborator";
 }
 
 export interface CreateEventInput {
@@ -221,7 +225,7 @@ export async function loadQuestionSnapshot(env: Env, eventId: EventId): Promise<
   });
 }
 
-async function toEventDetail(env: Env, row: EventRow): Promise<EventDetail> {
+async function toEventDetail(env: Env, row: EventRow, role: "owner" | "collaborator"): Promise<EventDetail> {
   const [questions, themeRow] = await Promise.all([
     loadQuestions(env, row.id as EventId),
     env.DB.prepare("SELECT * FROM theme WHERE event_id = ?").bind(row.id).first<ThemeRow>(),
@@ -235,6 +239,7 @@ async function toEventDetail(env: Env, row: EventRow): Promise<EventDetail> {
     createdAt: row.created_at,
     questions,
     theme: toTheme(themeRow),
+    role,
   };
 }
 
@@ -242,6 +247,7 @@ async function findEventRow(env: Env, eventId: EventId): Promise<EventRow | null
   return env.DB.prepare("SELECT * FROM event WHERE id = ?").bind(eventId).first<EventRow>();
 }
 
+/** 所有者のみを許可する。イベント削除・複製など、共同運営者には委譲しない操作向け */
 async function requireOwnedEvent(env: Env, eventId: EventId, ownerId: string): Promise<Result<EventRow, CatalogError>> {
   const row = await findEventRow(env, eventId);
   if (!row) return err({ code: "NOT_FOUND" });
@@ -249,25 +255,57 @@ async function requireOwnedEvent(env: Env, eventId: EventId, ownerId: string): P
   return ok(row);
 }
 
-export async function listEvents(env: Env, ownerId: string): Promise<readonly EventSummary[]> {
-  const { results } = await env.DB.prepare(
-    "SELECT e.id, e.title, e.status, COUNT(q.id) as question_count FROM event e LEFT JOIN question q ON q.event_id = e.id WHERE e.owner_id = ? GROUP BY e.id ORDER BY e.created_at DESC",
-  )
-    .bind(ownerId)
-    .all<{ id: string; title: string; status: EventStatus; question_count: number }>();
+/**
+ * 所有者または受諾済み共同運営者を許可する。認可判定そのものは Auth Guard の
+ * checkEventAccess に委譲し、event_collaborator テーブルへは直接クエリしない。
+ */
+async function requireAccessibleEvent(
+  env: Env,
+  eventId: EventId,
+  userId: string,
+): Promise<Result<{ readonly row: EventRow; readonly role: "owner" | "collaborator" }, CatalogError>> {
+  // NOT_FOUND / FORBIDDEN の区別はカタログドメイン自身の既存の関心事であり、
+  // checkEventAccess(要件10.4に沿って両者を区別せずFORBIDDENへ統一している)より先に判定する
+  const row = await findEventRow(env, eventId);
+  if (!row) return err({ code: "NOT_FOUND" });
 
-  return results.map((r) => ({
-    id: r.id as EventId,
-    title: r.title,
-    status: r.status,
-    questionCount: r.question_count,
-  }));
+  const access = await checkEventAccess(env, eventId, userId);
+  if (!access.ok) return err({ code: "FORBIDDEN" });
+
+  return ok({ row, role: access.value });
 }
 
-export async function findEvent(env: Env, eventId: EventId, ownerId: string): Promise<Result<EventDetail, CatalogError>> {
-  const owned = await requireOwnedEvent(env, eventId, ownerId);
-  if (!owned.ok) return owned;
-  return ok(await toEventDetail(env, owned.value));
+function toSummary(r: { id: string; title: string; status: EventStatus; question_count: number }, role: "owner" | "collaborator"): EventSummary {
+  return { id: r.id as EventId, title: r.title, status: r.status, questionCount: r.question_count, role };
+}
+
+/** 所有イベントに加え、受諾済みの共同運営イベントも合成して返す（要件3.1の前提: 共同運営者が招待元イベントへ辿り着けるようにする） */
+export async function listEvents(env: Env, userId: string): Promise<readonly EventSummary[]> {
+  const { results: ownedRows } = await env.DB.prepare(
+    "SELECT e.id, e.title, e.status, COUNT(q.id) as question_count FROM event e LEFT JOIN question q ON q.event_id = e.id WHERE e.owner_id = ? GROUP BY e.id ORDER BY e.created_at DESC",
+  )
+    .bind(userId)
+    .all<{ id: string; title: string; status: EventStatus; question_count: number }>();
+
+  const collaboratorEventIds = await listAccessibleEventIds(env, userId);
+  let collaboratorRows: readonly { id: string; title: string; status: EventStatus; question_count: number }[] = [];
+  if (collaboratorEventIds.length > 0) {
+    const placeholders = collaboratorEventIds.map(() => "?").join(",");
+    const { results } = await env.DB.prepare(
+      `SELECT e.id, e.title, e.status, COUNT(q.id) as question_count FROM event e LEFT JOIN question q ON q.event_id = e.id WHERE e.id IN (${placeholders}) GROUP BY e.id ORDER BY e.created_at DESC`,
+    )
+      .bind(...collaboratorEventIds)
+      .all<{ id: string; title: string; status: EventStatus; question_count: number }>();
+    collaboratorRows = results;
+  }
+
+  return [...ownedRows.map((r) => toSummary(r, "owner")), ...collaboratorRows.map((r) => toSummary(r, "collaborator"))];
+}
+
+export async function findEvent(env: Env, eventId: EventId, userId: string): Promise<Result<EventDetail, CatalogError>> {
+  const accessible = await requireAccessibleEvent(env, eventId, userId);
+  if (!accessible.ok) return accessible;
+  return ok(await toEventDetail(env, accessible.value.row, accessible.value.role));
 }
 
 export async function createEvent(env: Env, ownerId: string, input: CreateEventInput): Promise<EventDetail> {
@@ -288,29 +326,31 @@ export async function createEvent(env: Env, ownerId: string, input: CreateEventI
     createdAt,
     questions: [],
     theme: DEFAULT_THEME,
+    role: "owner",
   };
 }
 
 export async function updateEvent(
   env: Env,
   eventId: EventId,
-  ownerId: string,
+  userId: string,
   input: UpdateEventInput,
 ): Promise<Result<EventDetail, CatalogError>> {
-  const owned = await requireOwnedEvent(env, eventId, ownerId);
-  if (!owned.ok) return owned;
+  const accessible = await requireAccessibleEvent(env, eventId, userId);
+  if (!accessible.ok) return accessible;
+  const owned = accessible.value.row;
 
   await env.DB.prepare("UPDATE event SET title = ?, subtitle = ?, capacity = ? WHERE id = ?")
     .bind(
-      input.title ?? owned.value.title,
-      input.subtitle ?? owned.value.subtitle,
-      input.capacity !== undefined ? input.capacity : owned.value.capacity,
+      input.title ?? owned.title,
+      input.subtitle ?? owned.subtitle,
+      input.capacity !== undefined ? input.capacity : owned.capacity,
       eventId,
     )
     .run();
 
   const updated = await findEventRow(env, eventId);
-  return ok(await toEventDetail(env, updated!));
+  return ok(await toEventDetail(env, updated!, accessible.value.role));
 }
 
 export async function duplicateEvent(env: Env, eventId: EventId, ownerId: string): Promise<Result<EventDetail, CatalogError>> {
@@ -365,7 +405,7 @@ export async function duplicateEvent(env: Env, eventId: EventId, ownerId: string
   await env.DB.batch(statements);
 
   const created = await findEventRow(env, newEventId as EventId);
-  return ok(await toEventDetail(env, created!));
+  return ok(await toEventDetail(env, created!, "owner"));
 }
 
 export async function deleteEvent(env: Env, eventId: EventId, ownerId: string): Promise<Result<void, CatalogError>> {
@@ -407,12 +447,12 @@ function validateQuestionInput(input: QuestionInput): readonly string[] {
 export async function upsertQuestion(
   env: Env,
   eventId: EventId,
-  ownerId: string,
+  userId: string,
   input: QuestionInput,
 ): Promise<Result<Question, CatalogError>> {
-  const owned = await requireOwnedEvent(env, eventId, ownerId);
-  if (!owned.ok) return owned;
-  if (owned.value.status === "live") return err({ code: "EVENT_LIVE" });
+  const accessible = await requireAccessibleEvent(env, eventId, userId);
+  if (!accessible.ok) return accessible;
+  if (accessible.value.row.status === "live") return err({ code: "EVENT_LIVE" });
 
   const fields = validateQuestionInput(input);
   if (fields.length > 0) return err({ code: "VALIDATION", fields });
@@ -452,12 +492,12 @@ export async function upsertQuestion(
 export async function deleteQuestion(
   env: Env,
   eventId: EventId,
-  ownerId: string,
+  userId: string,
   questionId: QuestionId,
 ): Promise<Result<void, CatalogError>> {
-  const owned = await requireOwnedEvent(env, eventId, ownerId);
-  if (!owned.ok) return owned;
-  if (owned.value.status === "live") return err({ code: "EVENT_LIVE" });
+  const accessible = await requireAccessibleEvent(env, eventId, userId);
+  if (!accessible.ok) return accessible;
+  if (accessible.value.row.status === "live") return err({ code: "EVENT_LIVE" });
 
   await env.DB.prepare("DELETE FROM question WHERE id = ? AND event_id = ?").bind(questionId, eventId).run();
   return ok(undefined);
@@ -466,12 +506,12 @@ export async function deleteQuestion(
 export async function reorderQuestions(
   env: Env,
   eventId: EventId,
-  ownerId: string,
+  userId: string,
   order: readonly QuestionId[],
 ): Promise<Result<readonly Question[], CatalogError>> {
-  const owned = await requireOwnedEvent(env, eventId, ownerId);
-  if (!owned.ok) return owned;
-  if (owned.value.status === "live") return err({ code: "EVENT_LIVE" });
+  const accessible = await requireAccessibleEvent(env, eventId, userId);
+  if (!accessible.ok) return accessible;
+  if (accessible.value.row.status === "live") return err({ code: "EVENT_LIVE" });
 
   // (event_id, order_index) の UNIQUE 制約はバッチ内でも即時検証されるため、
   // 一旦負の値へ退避してから最終値を設定し、入れ替え時の一時的な衝突を避ける。
@@ -490,11 +530,11 @@ export async function reorderQuestions(
 export async function putTheme(
   env: Env,
   eventId: EventId,
-  ownerId: string,
+  userId: string,
   theme: ThemeSettings,
 ): Promise<Result<ThemeSettings, CatalogError>> {
-  const owned = await requireOwnedEvent(env, eventId, ownerId);
-  if (!owned.ok) return owned;
+  const accessible = await requireAccessibleEvent(env, eventId, userId);
+  if (!accessible.ok) return accessible;
 
   await env.DB.prepare(
     "INSERT INTO theme (event_id, primary_color, accent_color, background_color, text_color, logo_asset_id, background_asset_id) VALUES (?, ?, ?, ?, ?, ?, ?) " +
@@ -512,10 +552,11 @@ export interface PublishInfo {
   readonly stageToken: string | null;
 }
 
-export async function findPublishInfo(env: Env, eventId: EventId, ownerId: string): Promise<Result<PublishInfo, CatalogError>> {
-  const owned = await requireOwnedEvent(env, eventId, ownerId);
-  if (!owned.ok) return owned;
-  return ok({ status: owned.value.status, joinCode: owned.value.join_code, stageToken: owned.value.stage_token });
+export async function findPublishInfo(env: Env, eventId: EventId, userId: string): Promise<Result<PublishInfo, CatalogError>> {
+  const accessible = await requireAccessibleEvent(env, eventId, userId);
+  if (!accessible.ok) return accessible;
+  const owned = accessible.value.row;
+  return ok({ status: owned.status, joinCode: owned.join_code, stageToken: owned.stage_token });
 }
 
 export interface JoinCodeLookup {
@@ -571,13 +612,14 @@ function randomJoinCode(length: number): string {
   return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
 }
 
-export async function publish(env: Env, eventId: EventId, ownerId: string): Promise<Result<PublishResult, CatalogError>> {
-  const owned = await requireOwnedEvent(env, eventId, ownerId);
-  if (!owned.ok) return owned;
+export async function publish(env: Env, eventId: EventId, userId: string): Promise<Result<PublishResult, CatalogError>> {
+  const accessible = await requireAccessibleEvent(env, eventId, userId);
+  if (!accessible.ok) return accessible;
+  const owned = accessible.value.row;
 
   // 再実行は冪等: 既に公開済みなら発行済みの参加情報をそのまま返す
-  if (owned.value.status !== "draft") {
-    return ok({ joinCode: owned.value.join_code ?? "", stageToken: owned.value.stage_token ?? "" });
+  if (owned.status !== "draft") {
+    return ok({ joinCode: owned.join_code ?? "", stageToken: owned.stage_token ?? "" });
   }
 
   const questionCount = await countQuestions(env, eventId);

@@ -20,15 +20,36 @@ import {
   THEME_PRESETS,
   DEFAULT_THEME,
 } from "./repository";
+import { createInvite, acceptInvite } from "../collaborators/repository";
 
 beforeEach(async () => {
   await env.DB.exec(
-    "DELETE FROM result_answer; DELETE FROM result_entry; DELETE FROM result; DELETE FROM theme; DELETE FROM option; DELETE FROM question; DELETE FROM event;",
+    "DELETE FROM result_answer; DELETE FROM result_entry; DELETE FROM result; DELETE FROM theme; DELETE FROM option; DELETE FROM question; DELETE FROM event_collaborator; DELETE FROM event; DELETE FROM user;",
   );
 });
 
 const OWNER = "owner-1";
 const OTHER_OWNER = "owner-2";
+
+async function seedUser(id: string, email: string): Promise<void> {
+  await env.DB.prepare(
+    'INSERT INTO "user" (id, name, email, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, 1, 1, 1)',
+  )
+    .bind(id, id, email)
+    .run();
+}
+
+/** 指定イベントに対して受諾済みの共同運営者を1名作成し、そのuserIdを返す */
+async function addAcceptedCollaborator(eventId: EventId, ownerId: string): Promise<string> {
+  await seedUser(ownerId, `${ownerId}@example.com`);
+  const collaboratorId = "collaborator-1";
+  await seedUser(collaboratorId, "collaborator@example.com");
+  const invite = await createInvite(env, eventId, "collaborator@example.com");
+  if (!invite.ok) throw new Error(`setup failed: ${JSON.stringify(invite.error)}`);
+  const accepted = await acceptInvite(env, invite.value.inviteToken, collaboratorId, "collaborator@example.com");
+  if (!accepted.ok) throw new Error(`setup failed: ${JSON.stringify(accepted.error)}`);
+  return collaboratorId;
+}
 
 describe("createEvent / listEvents / findEvent", () => {
   it("creates a draft event owned by the caller", async () => {
@@ -52,7 +73,7 @@ describe("createEvent / listEvents / findEvent", () => {
 
     const events = await listEvents(env, OWNER);
 
-    expect(events).toEqual([{ id: e1.id, title: "Mine", status: "draft", questionCount: 1 }]);
+    expect(events).toEqual([{ id: e1.id, title: "Mine", status: "draft", questionCount: 1, role: "owner" }]);
   });
 
   it("returns NOT_FOUND for a missing event", async () => {
@@ -475,6 +496,53 @@ describe("publish", () => {
   it("rejects a non-owner with FORBIDDEN", async () => {
     const created = await createEvent(env, OWNER, { title: "Mine" });
     const result = await publish(env, created.id, OTHER_OWNER);
+    expect(result).toEqual({ ok: false, error: { code: "FORBIDDEN" } });
+  });
+});
+
+describe("collaborator access", () => {
+  it("shows the collaborator's own event list with role 'collaborator'", async () => {
+    const created = await createEvent(env, OWNER, { title: "Shared" });
+    const collaboratorId = await addAcceptedCollaborator(created.id, OWNER);
+
+    const events = await listEvents(env, collaboratorId);
+    expect(events).toEqual([{ id: created.id, title: "Shared", status: "draft", questionCount: 0, role: "collaborator" }]);
+  });
+
+  it("lets a collaborator add questions, change the theme, and publish", async () => {
+    const created = await createEvent(env, OWNER, { title: "Shared" });
+    const collaboratorId = await addAcceptedCollaborator(created.id, OWNER);
+
+    const question = await upsertQuestion(env, created.id, collaboratorId, {
+      body: "2+2?",
+      timeLimitSec: 30,
+      options: [
+        { label: "3", isCorrect: false },
+        { label: "4", isCorrect: true },
+      ],
+    });
+    expect(question.ok).toBe(true);
+
+    const theme = await putTheme(env, created.id, collaboratorId, { ...DEFAULT_THEME, primaryColor: "#abcdef" });
+    expect(theme.ok).toBe(true);
+
+    const published = await publish(env, created.id, collaboratorId);
+    expect(published.ok).toBe(true);
+  });
+
+  it("rejects a collaborator attempting to delete the event with FORBIDDEN", async () => {
+    const created = await createEvent(env, OWNER, { title: "Shared" });
+    const collaboratorId = await addAcceptedCollaborator(created.id, OWNER);
+
+    const result = await deleteEvent(env, created.id, collaboratorId);
+    expect(result).toEqual({ ok: false, error: { code: "FORBIDDEN" } });
+  });
+
+  it("rejects a collaborator attempting to duplicate the event with FORBIDDEN", async () => {
+    const created = await createEvent(env, OWNER, { title: "Shared" });
+    const collaboratorId = await addAcceptedCollaborator(created.id, OWNER);
+
+    const result = await duplicateEvent(env, created.id, collaboratorId);
     expect(result).toEqual({ ok: false, error: { code: "FORBIDDEN" } });
   });
 });
