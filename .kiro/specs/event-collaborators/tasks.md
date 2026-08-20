@@ -89,7 +89,7 @@
   - _Boundary: MediaRoutes_
   - _Depends: 3_
 
-- [ ] 5.4 (P) 進行画面WebSocket接続の共同運営者対応
+- [x] 5.4 (P) 進行画面WebSocket接続の共同運営者対応
   - `QuizSessionDO`のhostロール接続時の認可判定を、Auth Guardの新設判定へ差し替える
   - 観測可能な完了条件: 共同運営者のセッションでhostロール接続すると接続が確立し進行コマンドが受理されること、共同運営者から解除された利用者による接続は拒否されることを確認できる
   - _Requirements: 3.1, 3.5, 5.5_

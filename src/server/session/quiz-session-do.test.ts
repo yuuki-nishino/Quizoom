@@ -6,6 +6,8 @@ import { createLiveStore } from "./live-store";
 import { upsertQuestion } from "../catalog/repository";
 import { getSessionStub } from "./quiz-session-do";
 import type { QuizSessionDO } from "./quiz-session-do";
+import { createHostCookie } from "../../../test/auth-helpers";
+import { createInvite, acceptInvite, revokeCollaborator, listCollaborators } from "../collaborators/repository";
 
 const meta: EventMeta = {
   capacity: 2,
@@ -74,10 +76,11 @@ async function connectExpecting(
   stub: DurableObjectStub<QuizSessionDO>,
   params: Record<string, string>,
   status: number,
+  extraHeaders: Record<string, string> = {},
 ): Promise<Response> {
   const url = new URL("https://do/connect");
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await stub.fetch(url.toString(), { headers: { Upgrade: "websocket" } });
+  const res = await stub.fetch(url.toString(), { headers: { Upgrade: "websocket", ...extraHeaders } });
   if (!res.webSocket) await res.text();
   expect(res.status).toBe(status);
   return res;
@@ -132,6 +135,19 @@ async function sendHostCommand(
   return { rejected: sent.map((m) => JSON.parse(m)) };
 }
 
+/** イベントに受諾済みの共同運営者を1名作成し、そのCookieを返す */
+async function addAcceptedCollaborator(eventId: string, collaboratorId = "collaborator-1"): Promise<{ readonly cookie: string }> {
+  await createHostCookie(env, "owner-1"); // 招待発行元(owner_id)のuser行を用意する
+  const invite = await createInvite(env, eventId as EventId, `${collaboratorId}@example.com`);
+  if (!invite.ok) throw new Error(`setup failed: ${JSON.stringify(invite.error)}`);
+
+  const cookie = await createHostCookie(env, collaboratorId);
+  const accepted = await acceptInvite(env, invite.value.inviteToken, collaboratorId, `${collaboratorId}@example.com`);
+  if (!accepted.ok) throw new Error(`setup failed: ${JSON.stringify(accepted.error)}`);
+
+  return { cookie };
+}
+
 async function loadState(stub: DurableObjectStub<QuizSessionDO>) {
   return runInDurableObject(stub, (_instance, state) => createLiveStore(state.storage.sql).load());
 }
@@ -169,6 +185,21 @@ describe("QuizSessionDO connect", () => {
   it("rejects a host connection without an authenticated session as 401", async () => {
     const stub = newStub();
     await connectExpecting(stub, { eventId: "event-1", role: "host" }, 401);
+  });
+
+  it("accepts a host connection from an accepted collaborator, and rejects it once revoked", async () => {
+    const stub = newStub();
+    await seedEvent("event-1", { ownerId: "owner-1" });
+    await publish(stub, meta);
+    const { cookie } = await addAcceptedCollaborator("event-1");
+
+    await connectExpecting(stub, { eventId: "event-1", role: "host" }, 101, { Cookie: cookie });
+
+    const [entry] = await listCollaborators(env, "event-1" as EventId);
+    const revoked = await revokeCollaborator(env, "event-1" as EventId, entry!.id);
+    expect(revoked.ok).toBe(true);
+
+    await connectExpecting(stub, { eventId: "event-1", role: "host" }, 401, { Cookie: cookie });
   });
 
   it("rejects a stage connection with the wrong token as 401", async () => {
