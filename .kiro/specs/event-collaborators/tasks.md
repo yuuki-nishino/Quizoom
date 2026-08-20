@@ -82,7 +82,7 @@
   - _Boundary: ResultsArchive_
   - _Depends: 3_
 
-- [ ] 5.3 (P) メディア配信の共同運営者対応
+- [x] 5.3 (P) メディア配信の共同運営者対応
   - `media/routes.ts`の所有権チェックをAuth Guardの新設判定へ差し替える
   - 観測可能な完了条件: 共同運営者アカウントで画像のアップロードおよび取得が成功することを確認できる
   - _Requirements: 3.2_
