@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
 import type { EventId } from "../../shared/domain-types";
-import type { ArchivedResult, HostApiClient } from "./api-client";
+import type { ArchivedResult, EventRole, HostApiClient } from "./api-client";
 import { formatElapsedMs } from "../shared/format";
 import { ConfirmDialog } from "./confirm-dialog";
 
 export interface ResultsPanelProps {
   readonly apiClient: HostApiClient;
   readonly eventId: EventId;
+  readonly role: EventRole;
 }
 
-/** 結果閲覧・共有設定・参加者データ削除画面(要件8.11-8.13, 10.2, 10.3) */
-export function ResultsPanel({ apiClient, eventId }: ResultsPanelProps) {
+/** 結果閲覧・共有設定・参加者データ削除画面(要件8.11-8.13, 10.2, 10.3)。共有設定変更・参加者データ削除は所有者専用(要件4.2, 4.3) */
+export function ResultsPanel({ apiClient, eventId, role }: ResultsPanelProps) {
   const [result, setResult] = useState<ArchivedResult | null | "not-finalized">(null);
   const [error, setError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
@@ -111,32 +112,38 @@ export function ResultsPanel({ apiClient, eventId }: ResultsPanelProps) {
                     </>
                   )}
                 </p>
-                <button
-                  type="button"
-                  onClick={handleDisableSharing}
-                  className="mt-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  共有を無効にする
-                </button>
+                {role === "owner" && (
+                  <button
+                    type="button"
+                    onClick={handleDisableSharing}
+                    className="mt-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    共有を無効にする
+                  </button>
+                )}
               </>
             ) : (
-              <button
-                type="button"
-                onClick={handleEnableSharing}
-                className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-              >
-                共有を有効にする
-              </button>
+              role === "owner" && (
+                <button
+                  type="button"
+                  onClick={handleEnableSharing}
+                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                >
+                  共有を有効にする
+                </button>
+              )
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setConfirmingDelete(true)}
-            className="mt-4 rounded-md border border-red-300 px-4 py-2 text-sm text-red-700 hover:bg-red-50"
-          >
-            参加者データを削除する
-          </button>
+          {role === "owner" && (
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(true)}
+              className="mt-4 rounded-md border border-red-300 px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+            >
+              参加者データを削除する
+            </button>
+          )}
         </>
       )}
 

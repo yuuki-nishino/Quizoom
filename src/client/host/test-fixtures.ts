@@ -27,6 +27,13 @@ export function unimplementedApiClient(): HostApiClient {
     enableSharing: fail,
     disableSharing: fail,
     deleteParticipantData: fail,
+    inviteCollaborator: fail,
+    listCollaborators: fail,
+    revokeCollaborator: fail,
+    cancelInvite: fail,
+    leaveCollaboration: fail,
+    getInviteInfo: fail,
+    acceptInvite: fail,
   };
 }
 
@@ -63,6 +70,7 @@ export function sampleEvent(overrides: Partial<EventDetail> = {}): EventDetail {
       logoAssetId: null,
       backgroundAssetId: null,
     },
+    role: "owner",
     ...overrides,
   };
 }

@@ -5,6 +5,7 @@ import { EventList } from "./event-list";
 import { EventEditor } from "./event-editor";
 import { PreflightPanel } from "./preflight-panel";
 import { LiveConsole } from "./live-console";
+import { InviteAccept } from "./invite-accept";
 
 /** ホストコンソールのルート。主催者認証の確認と `/host` 以下の画面分岐を担う */
 export function HostApp() {
@@ -47,5 +48,6 @@ export function HostApp() {
   if (route.view === "list") return <EventList apiClient={apiClient} onOpenEvent={(eventId) => navigate({ view: "editor", eventId, tab: "questions" })} />;
   if (route.view === "editor") return <EventEditor apiClient={apiClient} eventId={route.eventId} tab={route.tab} onNavigate={navigate} />;
   if (route.view === "preflight") return <PreflightPanel apiClient={apiClient} eventId={route.eventId} />;
+  if (route.view === "invite") return <InviteAccept apiClient={apiClient} token={route.token} onNavigate={navigate} />;
   return <LiveConsole apiClient={apiClient} eventId={route.eventId} />;
 }

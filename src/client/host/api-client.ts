@@ -3,11 +3,26 @@ import type { AssetId, EventId, EventStatus, OptionId, QuestionId, ThemeSettings
 // CatalogRoutes / MediaRoutes / ResultArchive の HTTP 契約に対応するクライアント側の型。
 // client は server の型を直接 import しない（依存方向 shared → client / shared → server を維持するため）。
 
+export type EventRole = "owner" | "collaborator";
+
 export interface EventSummary {
   readonly id: EventId;
   readonly title: string;
   readonly status: EventStatus;
   readonly questionCount: number;
+  readonly role: EventRole;
+}
+
+export interface CollaboratorEntry {
+  readonly id: string;
+  readonly status: "pending" | "accepted";
+  readonly invitedEmail: string;
+  readonly acceptedAt: number | null;
+}
+
+export interface InviteInfo {
+  readonly eventTitle: string;
+  readonly emailMatches: boolean;
 }
 
 export interface QuestionOption {
@@ -36,6 +51,7 @@ export interface EventDetail {
   readonly createdAt: number;
   readonly questions: readonly Question[];
   readonly theme: ThemeSettings;
+  readonly role: EventRole;
 }
 
 export interface CreateEventInput {
@@ -207,6 +223,13 @@ export interface HostApiClient {
   enableSharing(eventId: EventId): Promise<ApiResult<{ readonly shareCode: string; readonly shareUrl: string }>>;
   disableSharing(eventId: EventId): Promise<ApiResult<void>>;
   deleteParticipantData(eventId: EventId): Promise<ApiResult<void>>;
+  inviteCollaborator(eventId: EventId, email: string): Promise<ApiResult<{ readonly inviteUrl: string }>>;
+  listCollaborators(eventId: EventId): Promise<ApiResult<readonly CollaboratorEntry[]>>;
+  revokeCollaborator(eventId: EventId, collaboratorId: string): Promise<ApiResult<void>>;
+  cancelInvite(eventId: EventId, inviteId: string): Promise<ApiResult<void>>;
+  leaveCollaboration(eventId: EventId): Promise<ApiResult<void>>;
+  getInviteInfo(token: string): Promise<ApiResult<InviteInfo>>;
+  acceptInvite(token: string): Promise<ApiResult<{ readonly eventId: EventId }>>;
 }
 
 export function createApiClient(fetcher: Fetcher = (input, init) => fetch(input, init)): HostApiClient {
@@ -247,5 +270,19 @@ export function createApiClient(fetcher: Fetcher = (input, init) => fetch(input,
     enableSharing: (eventId) => request(fetcher, `/api/events/${eventId}/share`, { method: "POST" }),
     disableSharing: (eventId) => request(fetcher, `/api/events/${eventId}/share`, { method: "DELETE" }),
     deleteParticipantData: (eventId) => request(fetcher, `/api/events/${eventId}/participant-data`, { method: "DELETE" }),
+
+    inviteCollaborator: (eventId, email) =>
+      request(fetcher, `/api/events/${eventId}/collaborators/invite`, { method: "POST", body: { email } }),
+    listCollaborators: async (eventId) => {
+      const result = await request<{ collaborators: readonly CollaboratorEntry[] }>(fetcher, `/api/events/${eventId}/collaborators`);
+      return result.ok ? { ok: true, value: result.value.collaborators } : result;
+    },
+    revokeCollaborator: (eventId, collaboratorId) =>
+      request(fetcher, `/api/events/${eventId}/collaborators/${collaboratorId}`, { method: "DELETE" }),
+    cancelInvite: (eventId, inviteId) =>
+      request(fetcher, `/api/events/${eventId}/collaborators/invites/${inviteId}`, { method: "DELETE" }),
+    leaveCollaboration: (eventId) => request(fetcher, `/api/events/${eventId}/collaborators/leave`, { method: "POST" }),
+    getInviteInfo: (token) => request(fetcher, `/api/collaborators/invites/${token}`),
+    acceptInvite: (token) => request(fetcher, `/api/collaborators/invites/${token}/accept`, { method: "POST" }),
   };
 }

@@ -109,23 +109,28 @@ export function EventList({ apiClient, onOpenEvent }: EventListProps) {
               <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
                 {eventStatusLabel(event.status)}
               </span>
+              <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
+                {event.role === "owner" ? "主催" : "共同運営"}
+              </span>
               <span className="text-sm text-slate-500">設問{event.questionCount}件</span>
-              <div className="ml-auto flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleDuplicate(event.id)}
-                  className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  複製
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPendingDelete(event)}
-                  className="rounded-md border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50"
-                >
-                  削除
-                </button>
-              </div>
+              {event.role === "owner" && (
+                <div className="ml-auto flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDuplicate(event.id)}
+                    className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    複製
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingDelete(event)}
+                    className="rounded-md border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50"
+                  >
+                    削除
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

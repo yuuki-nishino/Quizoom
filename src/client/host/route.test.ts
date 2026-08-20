@@ -28,6 +28,18 @@ describe("parseHostRoute", () => {
     expect(parseHostRoute("/host/events")).toEqual({ view: "list" });
     expect(parseHostRoute("/host/unknown/e1")).toEqual({ view: "list" });
   });
+
+  it("parses /host/events/:id/collaborators as an editor tab", () => {
+    expect(parseHostRoute("/host/events/e1/collaborators")).toEqual({ view: "editor", eventId: "e1", tab: "collaborators" });
+  });
+
+  it("parses /host/invite/:token as the invite view", () => {
+    expect(parseHostRoute("/host/invite/tok-123")).toEqual({ view: "invite", token: "tok-123" });
+  });
+
+  it("falls back to list for /host/invite with no token", () => {
+    expect(parseHostRoute("/host/invite")).toEqual({ view: "list" });
+  });
 });
 
 describe("hostRoutePath", () => {
@@ -38,8 +50,10 @@ describe("hostRoutePath", () => {
       { view: "editor", eventId: "e1" as EventId, tab: "theme" },
       { view: "editor", eventId: "e1" as EventId, tab: "publish" },
       { view: "editor", eventId: "e1" as EventId, tab: "results" },
+      { view: "editor", eventId: "e1" as EventId, tab: "collaborators" },
       { view: "live", eventId: "e1" as EventId },
       { view: "preflight", eventId: "e1" as EventId },
+      { view: "invite", token: "tok-123" },
     ];
 
     for (const route of routes) {
