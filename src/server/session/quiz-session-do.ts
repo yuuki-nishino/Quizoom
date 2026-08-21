@@ -2,7 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import type { Env } from "../env";
 import { createLiveStore, type LiveStore } from "./live-store";
 import { createParticipantTokenService } from "./participant-token";
-import { requireEventOwner } from "../auth/guard";
+import { requireEventAccess } from "../auth/guard";
 import { loadQuestionSnapshot, updateStatus } from "../catalog/repository";
 import { save as saveResult, type JudgedAnswer } from "../results/archive";
 import { judge, aggregate, rank } from "../../shared/scoring";
@@ -147,7 +147,7 @@ export class QuizSessionDO extends DurableObject<Env> {
     url: URL,
   ): Promise<Result<ConnectionRole, { readonly code: string }>> {
     if (role === "host") {
-      const auth = await requireEventOwner(request, this.env, eventId);
+      const auth = await requireEventAccess(request, this.env, eventId);
       return auth.ok ? ok({ role: "host", eventId }) : err({ code: auth.error.code });
     }
 

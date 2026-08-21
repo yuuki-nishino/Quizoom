@@ -6,12 +6,13 @@ import { QuestionEditor } from "./question-editor";
 import { ThemeEditor } from "./theme-editor";
 import { PublishPanel } from "./publish-panel";
 import { ResultsPanel } from "./results-panel";
+import { CollaboratorPanel } from "./collaborator-panel";
 import type { HostRoute } from "./route";
 
 export interface EventEditorProps {
   readonly apiClient: HostApiClient;
   readonly eventId: EventId;
-  readonly tab: "questions" | "theme" | "publish" | "results";
+  readonly tab: "questions" | "theme" | "publish" | "results" | "collaborators";
   readonly onNavigate: (route: HostRoute) => void;
 }
 
@@ -88,6 +89,14 @@ export function EventEditor({ apiClient, eventId, tab, onNavigate }: EventEditor
         >
           結果
         </button>
+        <button
+          type="button"
+          onClick={() => onNavigate({ view: "editor", eventId, tab: "collaborators" })}
+          aria-current={tab === "collaborators"}
+          className={tabClass(tab === "collaborators")}
+        >
+          共同運営者
+        </button>
         <button type="button" onClick={() => onNavigate({ view: "preflight", eventId })} className="ml-auto rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">
           事前確認
         </button>
@@ -104,7 +113,10 @@ export function EventEditor({ apiClient, eventId, tab, onNavigate }: EventEditor
         {tab === "questions" && <QuestionEditor apiClient={apiClient} eventId={eventId} event={event} onEventChange={setEvent} />}
         {tab === "theme" && <ThemeEditor apiClient={apiClient} eventId={eventId} event={event} onEventChange={setEvent} />}
         {tab === "publish" && <PublishPanel apiClient={apiClient} eventId={eventId} event={event} onEventChange={setEvent} />}
-        {tab === "results" && <ResultsPanel apiClient={apiClient} eventId={eventId} />}
+        {tab === "results" && <ResultsPanel apiClient={apiClient} eventId={eventId} role={event.role} />}
+        {tab === "collaborators" && (
+          <CollaboratorPanel apiClient={apiClient} eventId={eventId} role={event.role} onLeft={() => onNavigate({ view: "list" })} />
+        )}
       </div>
     </section>
   );

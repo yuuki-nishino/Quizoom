@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../env";
-import { requireHost, checkEventOwnership } from "../auth/guard";
+import { requireHost, checkEventAccess } from "../auth/guard";
 import { createParticipantTokenService } from "../session/participant-token";
 import { findEventByStageToken } from "../catalog/repository";
 import type { EventId } from "../../shared/domain-types";
@@ -19,8 +19,8 @@ mediaRoutes.post("/api/events/:id/media", async (c) => {
   const auth = await requireHost(c.req.raw, c.env);
   if (!auth.ok) return c.json({ error: auth.error.code }, auth.error.code === "UNAUTHENTICATED" ? 401 : 403);
 
-  const ownership = await checkEventOwnership(c.env, eventId, auth.value.userId);
-  if (!ownership.ok) return c.json({ error: ownership.error.code }, 403);
+  const access = await checkEventAccess(c.env, eventId, auth.value.userId);
+  if (!access.ok) return c.json({ error: access.error.code }, 403);
 
   let formData: FormData;
   try {
@@ -49,8 +49,8 @@ mediaRoutes.get("/api/events/:id/media/:assetId", async (c) => {
   const hostAuth = await requireHost(c.req.raw, c.env);
   let authorized = false;
   if (hostAuth.ok) {
-    const ownership = await checkEventOwnership(c.env, eventId, hostAuth.value.userId);
-    authorized = ownership.ok;
+    const access = await checkEventAccess(c.env, eventId, hostAuth.value.userId);
+    authorized = access.ok;
   }
 
   const token = c.req.query("token");

@@ -2,9 +2,12 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { env } from "cloudflare:test";
 import type { EventId, ParticipantId, QuestionId, RankingEntry } from "../../shared/domain-types";
 import { save, findForOwner, deleteParticipantData, enableSharing, disableSharing, findPublicByShareCode, type JudgedAnswer } from "./archive";
+import { createInvite, acceptInvite } from "../collaborators/repository";
 
 beforeEach(async () => {
-  await env.DB.exec("DELETE FROM result_answer; DELETE FROM result_entry; DELETE FROM result; DELETE FROM event;");
+  await env.DB.exec(
+    "DELETE FROM result_answer; DELETE FROM result_entry; DELETE FROM result; DELETE FROM event_collaborator; DELETE FROM event; DELETE FROM user;",
+  );
 });
 
 async function seedEvent(eventId: string, ownerId = "owner-1"): Promise<void> {
@@ -13,6 +16,26 @@ async function seedEvent(eventId: string, ownerId = "owner-1"): Promise<void> {
   )
     .bind(eventId, ownerId)
     .run();
+}
+
+async function seedUser(id: string, email: string): Promise<void> {
+  await env.DB.prepare(
+    'INSERT INTO "user" (id, name, email, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, 1, 1, 1)',
+  )
+    .bind(id, id, email)
+    .run();
+}
+
+/** 指定イベントに対して受諾済みの共同運営者を1名作成し、そのuserIdを返す */
+async function addAcceptedCollaborator(eventId: EventId, ownerId: string): Promise<string> {
+  await seedUser(ownerId, `${ownerId}@example.com`);
+  const collaboratorId = "collaborator-1";
+  await seedUser(collaboratorId, "collaborator@example.com");
+  const invite = await createInvite(env, eventId, "collaborator@example.com");
+  if (!invite.ok) throw new Error(`setup failed: ${JSON.stringify(invite.error)}`);
+  const accepted = await acceptInvite(env, invite.value.inviteToken, collaboratorId, "collaborator@example.com");
+  if (!accepted.ok) throw new Error(`setup failed: ${JSON.stringify(accepted.error)}`);
+  return collaboratorId;
 }
 
 const ranking: readonly RankingEntry[] = [
@@ -92,12 +115,32 @@ describe("ResultArchive.findForOwner", () => {
   });
 });
 
+describe("ResultArchive.findForOwner collaborator access", () => {
+  it("lets an accepted collaborator view the archived result", async () => {
+    await seedEvent("event-1");
+    await save(env, "event-1" as EventId, ranking, answers);
+    const collaboratorId = await addAcceptedCollaborator("event-1" as EventId, "owner-1");
+
+    const result = await findForOwner(env, "event-1" as EventId, collaboratorId);
+    expect(result.ok).toBe(true);
+  });
+});
+
 describe("ResultArchive.deleteParticipantData", () => {
   it("rejects a non-owner with FORBIDDEN", async () => {
     await seedEvent("event-1");
     await save(env, "event-1" as EventId, ranking, answers);
 
     const result = await deleteParticipantData(env, "event-1" as EventId, "someone-else");
+    expect(result).toEqual({ ok: false, error: { code: "FORBIDDEN" } });
+  });
+
+  it("rejects an accepted collaborator with FORBIDDEN", async () => {
+    await seedEvent("event-1");
+    await save(env, "event-1" as EventId, ranking, answers);
+    const collaboratorId = await addAcceptedCollaborator("event-1" as EventId, "owner-1");
+
+    const result = await deleteParticipantData(env, "event-1" as EventId, collaboratorId);
     expect(result).toEqual({ ok: false, error: { code: "FORBIDDEN" } });
   });
 
@@ -131,6 +174,15 @@ describe("ResultArchive sharing", () => {
 
     const result = await enableSharing(env, "event-1" as EventId, "someone-else");
     expect(result).toEqual({ ok: false, error: { code: "FORBIDDEN" } });
+  });
+
+  it("rejects enableSharing and disableSharing from an accepted collaborator with FORBIDDEN", async () => {
+    await seedEvent("event-1");
+    await save(env, "event-1" as EventId, ranking, answers);
+    const collaboratorId = await addAcceptedCollaborator("event-1" as EventId, "owner-1");
+
+    expect(await enableSharing(env, "event-1" as EventId, collaboratorId)).toEqual({ ok: false, error: { code: "FORBIDDEN" } });
+    expect(await disableSharing(env, "event-1" as EventId, collaboratorId)).toEqual({ ok: false, error: { code: "FORBIDDEN" } });
   });
 
   it("issues a share code independent of the join code, and findPublicByShareCode returns only public fields", async () => {

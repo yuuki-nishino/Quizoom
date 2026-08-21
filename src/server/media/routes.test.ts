@@ -6,7 +6,7 @@ import type { EventId, ParticipantId } from "../../shared/domain-types";
 
 beforeEach(async () => {
   await env.DB.exec(
-    "DELETE FROM result_answer; DELETE FROM result_entry; DELETE FROM result; DELETE FROM theme; DELETE FROM option; DELETE FROM question; DELETE FROM event; DELETE FROM session; DELETE FROM user;",
+    "DELETE FROM result_answer; DELETE FROM result_entry; DELETE FROM result; DELETE FROM theme; DELETE FROM option; DELETE FROM question; DELETE FROM event_collaborator; DELETE FROM event; DELETE FROM session; DELETE FROM user;",
   );
 });
 
@@ -21,6 +21,24 @@ async function createEventAs(cookie: string): Promise<{ id: string }> {
     body: JSON.stringify({ title: "My Event" }),
   });
   return res.json<{ id: string }>();
+}
+
+/** イベントに受諾済みの共同運営者を1名招待し、そのCookieを返す */
+async function addAcceptedCollaboratorCookie(ownerCookie: string, eventId: string): Promise<string> {
+  const inviteRes = await SELF.fetch(`https://example.com/api/events/${eventId}/collaborators/invite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: ownerCookie },
+    body: JSON.stringify({ email: "collaborator@example.com" }),
+  });
+  const { inviteUrl } = await inviteRes.json<{ inviteUrl: string }>();
+  const token = inviteUrl.split("/").pop()!;
+
+  const collaboratorCookie = await hostCookie("collaborator");
+  await SELF.fetch(`https://example.com/api/collaborators/invites/${token}/accept`, {
+    method: "POST",
+    headers: { Cookie: collaboratorCookie },
+  });
+  return collaboratorCookie;
 }
 
 function pngFile(bytes = 16): File {
@@ -90,6 +108,21 @@ describe("POST /api/events/:id/media", () => {
     expect(res.status).toBe(413);
   });
 
+  it("lets an accepted collaborator upload media", async () => {
+    const cookie = await hostCookie();
+    const created = await createEventAs(cookie);
+    const collaboratorCookie = await addAcceptedCollaboratorCookie(cookie, created.id);
+
+    const form = new FormData();
+    form.set("file", pngFile());
+    const res = await SELF.fetch(`https://example.com/api/events/${created.id}/media`, {
+      method: "POST",
+      headers: { Cookie: collaboratorCookie },
+      body: form,
+    });
+    expect(res.status).toBe(201);
+  });
+
   it("stores a valid image and returns an assetId", async () => {
     const cookie = await hostCookie();
     const created = await createEventAs(cookie);
@@ -149,6 +182,19 @@ describe("GET /api/events/:id/media/:assetId", () => {
       headers: { Cookie: cookie },
     });
     expect(res.status).toBe(404);
+  });
+
+  it("serves the image to an accepted collaborator", async () => {
+    const cookie = await hostCookie();
+    const created = await createEventAs(cookie);
+    const assetId = await uploadAsset(cookie, created.id);
+    const collaboratorCookie = await addAcceptedCollaboratorCookie(cookie, created.id);
+
+    const res = await SELF.fetch(`https://example.com/api/events/${created.id}/media/${assetId}`, {
+      headers: { Cookie: collaboratorCookie },
+    });
+    expect(res.status).toBe(200);
+    await res.arrayBuffer();
   });
 
   it("serves the image to the owning host with the correct content type", async () => {

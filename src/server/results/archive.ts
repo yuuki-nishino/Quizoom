@@ -2,6 +2,7 @@ import { err, ok } from "../../shared/domain-types";
 import type { EventId, ParticipantId, PublicResult, QuestionId, RankingEntry, Result, ResultId } from "../../shared/domain-types";
 import type { Env } from "../env";
 import { DEFAULT_THEME } from "../catalog/repository";
+import { checkEventAccess } from "../auth/guard";
 
 export type ArchiveError =
   | { readonly code: "NOT_FOUND" }
@@ -47,6 +48,16 @@ async function requireOwnedEvent(env: Env, eventId: EventId, ownerId: string): P
   return ok(true);
 }
 
+/** 所有者に加え、受諾済み共同運営者による確定結果の閲覧を許可する（要件3.4） */
+async function requireAccessibleEvent(env: Env, eventId: EventId, userId: string): Promise<Result<true, ArchiveError>> {
+  const row = await env.DB.prepare("SELECT owner_id FROM event WHERE id = ?").bind(eventId).first<{ owner_id: string }>();
+  if (!row) return err({ code: "NOT_FOUND" });
+
+  const access = await checkEventAccess(env, eventId, userId);
+  if (!access.ok) return err({ code: "FORBIDDEN" });
+  return ok(true);
+}
+
 export async function save(
   env: Env,
   eventId: EventId,
@@ -86,9 +97,9 @@ export async function save(
   return ok(resultId as ResultId);
 }
 
-export async function findForOwner(env: Env, eventId: EventId, ownerId: string): Promise<Result<ArchivedResult, ArchiveError>> {
-  const owned = await requireOwnedEvent(env, eventId, ownerId);
-  if (!owned.ok) return owned;
+export async function findForOwner(env: Env, eventId: EventId, userId: string): Promise<Result<ArchivedResult, ArchiveError>> {
+  const accessible = await requireAccessibleEvent(env, eventId, userId);
+  if (!accessible.ok) return accessible;
 
   const resultRow = await env.DB.prepare("SELECT id, finalized_at, share_code FROM result WHERE event_id = ?")
     .bind(eventId)
