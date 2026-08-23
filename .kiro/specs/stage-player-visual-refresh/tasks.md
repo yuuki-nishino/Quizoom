@@ -93,15 +93,15 @@
   - _Boundary: RankingView_
   - _Depends: 3.2, 4_
 
-- [ ] 7. Core: 参加者画面(player)フェーズ画面の刷新
-- [ ] 7.1 (P) NicknameForm/WaitingScreenの表示強化
+- [x] 7. Core: 参加者画面(player)フェーズ画面の刷新
+- [x] 7.1 (P) NicknameForm/WaitingScreenの表示強化
   - ニックネーム入力画面と開始待ち画面のタイポグラフィ・レイアウトを強化する
   - 既存の入力・エラー表示機能が変更後も動作することをテストで確認する
   - _Requirements: 2.1, 2.2, 6.3_
   - _Boundary: NicknameForm, WaitingScreen_
   - _Depends: 3.2_
 
-- [ ] 7.2 (P) AnswerScreenの回答フィードバック強化
+- [x] 7.2 (P) AnswerScreenの回答フィードバック強化
   - 選択肢ボタンのデザインを強化しつつ、拡大縮小操作なしで押下できるサイズを維持する
   - 回答送信時に受け付けられたことが直感的に伝わる視覚的フィードバックを追加する
   - 実装前にui-ux-pro-maxスキルの`ux`ドメイン(タップ操作のフィードバック、`transform`/`opacity`のみを使う)を参照する
@@ -110,7 +110,7 @@
   - _Boundary: AnswerScreen_
   - _Depends: 3.2_
 
-- [ ] 7.3 (P) ResultScreenの結果演出強化
+- [x] 7.3 (P) ResultScreenの結果演出強化
   - 正誤・現在の正解数・順位表示、および最終順位確定時の表示に、感情に訴える演出(Confetti等)を組み込む
   - 実装前にui-ux-pro-maxスキルの`icons`ドメインを参照し、正誤・達成を示すアイコン(使用する場合)を絵文字ではなくSVGアイコンから選定する
   - 正解時・不正解時で異なる演出になることをテストで確認する
@@ -118,7 +118,7 @@
   - _Boundary: ResultScreen_
   - _Depends: 3.2, 4_
 
-- [ ] 7.4 (P) LateJoinNoticeの視覚様式統一
+- [x] 7.4 (P) LateJoinNoticeの視覚様式統一
   - 途中参加の不利通知の内容を変えずに、他の刷新済み画面と一貫した視覚様式(配色トークン・タイポグラフィ)へ揃える
   - 既存の通知文言がそのまま表示され続けることをテストで確認する
   - _Requirements: 2.7, 6.3_
