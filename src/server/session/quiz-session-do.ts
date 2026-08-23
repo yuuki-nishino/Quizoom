@@ -23,6 +23,7 @@ import {
   type PersonalResult,
   type RankingUpdatedPayload,
   type PersonalRankPayload,
+  type ParticipantJoinedPayload,
 } from "../../shared/protocol";
 import type {
   AlarmIntent,
@@ -99,7 +100,16 @@ export class QuizSessionDO extends DurableObject<Env> {
       return Response.json({ ok: false, error: { code: "CAPACITY_REACHED" } });
     }
 
-    return Response.json(this.#store.addParticipant(nickname, Date.now()));
+    const result = this.#store.addParticipant(nickname, Date.now());
+    if (result.ok) {
+      // 進行画面・投影画面は接続中ずっとメッセージを購読しているため、参加のたびに人数を通知する（要件5.1, 6.9）
+      const payload: ParticipantJoinedPayload = {
+        participantCount: this.#store.listParticipants().length,
+        nickname: result.value.nickname,
+      };
+      this.#broadcast({ type: "participantJoined", payload }, (role) => role.role === "host" || role.role === "stage");
+    }
+    return Response.json(result);
   }
 
   async #handleThemeUpdate(request: Request): Promise<Response> {
@@ -482,6 +492,7 @@ export class QuizSessionDO extends DurableObject<Env> {
       theme: state.eventMeta.theme,
       serverNow: Date.now(),
       self: this.#buildSelfState(role),
+      participantCount: this.#store.listParticipants().length,
     };
     this.#sendTo(ws, { type: "stateSnapshot", payload });
   }

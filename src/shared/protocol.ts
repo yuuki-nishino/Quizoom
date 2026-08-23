@@ -71,6 +71,7 @@ export interface StateSnapshotPayload {
   readonly theme: ThemeSettings;
   readonly serverNow: number;
   readonly self: SelfState;
+  readonly participantCount: number;
 }
 
 export interface ParticipantJoinedPayload {

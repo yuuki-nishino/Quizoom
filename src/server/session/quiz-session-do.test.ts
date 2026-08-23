@@ -86,10 +86,14 @@ async function connectExpecting(
   return res;
 }
 
-async function connectReal(stub: DurableObjectStub<QuizSessionDO>, params: Record<string, string>): Promise<WebSocket> {
+async function connectReal(
+  stub: DurableObjectStub<QuizSessionDO>,
+  params: Record<string, string>,
+  extraHeaders: Record<string, string> = {},
+): Promise<WebSocket> {
   const url = new URL("https://do/connect");
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await stub.fetch(url.toString(), { headers: { Upgrade: "websocket" } });
+  const res = await stub.fetch(url.toString(), { headers: { Upgrade: "websocket", ...extraHeaders } });
   expect(res.status).toBe(101);
   const ws = res.webSocket!;
   ws.accept();
@@ -103,8 +107,12 @@ function nextMessage(ws: WebSocket): Promise<any> {
 }
 
 /** connectReal に加えて、接続直後に届く stateSnapshot を読み捨てる（7.8 のスナップショット自体を検証するテスト以外で使う） */
-async function connectAndDrain(stub: DurableObjectStub<QuizSessionDO>, params: Record<string, string>): Promise<WebSocket> {
-  const ws = await connectReal(stub, params);
+async function connectAndDrain(
+  stub: DurableObjectStub<QuizSessionDO>,
+  params: Record<string, string>,
+  extraHeaders: Record<string, string> = {},
+): Promise<WebSocket> {
+  const ws = await connectReal(stub, params, extraHeaders);
   await nextMessage(ws);
   return ws;
 }
@@ -335,6 +343,52 @@ describe("QuizSessionDO join", () => {
 
     expect(results.filter((r) => r.ok)).toHaveLength(1);
     expect(results.filter((r) => !r.ok)).toHaveLength(1);
+  });
+
+  it("broadcasts participantJoined with the running count to host and stage connections", async () => {
+    const stub = newStub();
+    await seedEvent("event-1", { stageToken: "tok" });
+    await publish(stub, meta);
+    const hostCookie = await createHostCookie(env, "owner-1");
+
+    const hostWs = await connectAndDrain(stub, { eventId: "event-1", role: "host" }, { Cookie: hostCookie });
+    const stageWs = await connectAndDrain(stub, { eventId: "event-1", role: "stage", token: "tok" });
+
+    const hostMsg1 = nextMessage(hostWs);
+    const stageMsg1 = nextMessage(stageWs);
+    await join(stub, "alice");
+    expect(await hostMsg1).toEqual({ type: "participantJoined", payload: { participantCount: 1, nickname: "alice" } });
+    expect(await stageMsg1).toEqual({ type: "participantJoined", payload: { participantCount: 1, nickname: "alice" } });
+
+    const hostMsg2 = nextMessage(hostWs);
+    await join(stub, "bob");
+    expect(await hostMsg2).toEqual({ type: "participantJoined", payload: { participantCount: 2, nickname: "bob" } });
+
+    hostWs.close();
+    stageWs.close();
+  });
+
+  it("does not broadcast participantJoined when the join is rejected", async () => {
+    const stub = newStub();
+    await seedEvent("event-1", { stageToken: "tok" });
+    await publish(stub, meta);
+    const hostCookie = await createHostCookie(env, "owner-1");
+    const hostWs = await connectAndDrain(stub, { eventId: "event-1", role: "host" }, { Cookie: hostCookie });
+
+    const aliceMsg = nextMessage(hostWs);
+    await join(stub, "alice");
+    await aliceMsg; // alice の参加通知を読み捨てる
+
+    const rejected = await join(stub, "alice"); // 同名での2回目は拒否される
+    expect(rejected).toEqual({ ok: false, error: { code: "NICKNAME_TAKEN" } });
+
+    // 拒否された join でメッセージが送られていれば、次に届くのはそれになってしまうはず。
+    // bob の参加通知だけが届くことで、拒否時に余分な broadcast がなかったことを確認する
+    const nextMsg = nextMessage(hostWs);
+    await join(stub, "bob");
+    expect(await nextMsg).toEqual({ type: "participantJoined", payload: { participantCount: 2, nickname: "bob" } });
+
+    hostWs.close();
   });
 });
 
@@ -778,6 +832,7 @@ describe("QuizSessionDO stateSnapshot on connect", () => {
         theme: meta.theme,
         serverNow: expect.any(Number),
         self: { role: "stage" },
+        participantCount: 0,
       },
     });
 

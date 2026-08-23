@@ -4,10 +4,11 @@ import { generateQrCodeSvg } from "../shared/qr";
 export interface WaitingRoomProps {
   readonly eventTitle: string;
   readonly joinUrl: string | null;
+  readonly participantCount: number;
 }
 
-/** 待機状態: イベントタイトルと参加用QRコードを表示する（要件6.1） */
-export function WaitingRoom({ eventTitle, joinUrl }: WaitingRoomProps) {
+/** 待機状態: イベントタイトルと参加用QRコード、現在の参加者数を表示する（要件6.1, 6.9） */
+export function WaitingRoom({ eventTitle, joinUrl, participantCount }: WaitingRoomProps) {
   const [qrSvg, setQrSvg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,6 +29,9 @@ export function WaitingRoom({ eventTitle, joinUrl }: WaitingRoomProps) {
     <div aria-label="待機状態" className="stage-waiting-room flex min-h-screen flex-col items-center justify-center gap-6 px-8 text-center">
       <h1 className="text-5xl font-extrabold text-brand-primary">{eventTitle}</h1>
       <p className="text-2xl text-brand-text/80">開始をお待ちください</p>
+      <p aria-label="現在の参加者数" className="text-xl text-brand-text/80">
+        現在の参加者数: <span className="font-bold text-brand-primary">{participantCount}</span>人
+      </p>
       {qrSvg && (
         <div aria-label="参加用QRコード" className="w-72 rounded-2xl bg-white p-6 shadow-xl [&_svg]:h-full [&_svg]:w-full" dangerouslySetInnerHTML={{ __html: qrSvg }} />
       )}

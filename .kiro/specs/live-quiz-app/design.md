@@ -305,7 +305,7 @@ flowchart TD
 | 4.3–4.8 | 参加登録・重複名・定員・復元 | JoinRoutes, ParticipantToken, QuizSessionDO | HTTP `/api/join/:joinCode` | — |
 | 4.9, 4.10 | 途中参加と不利の通知 | QuizSessionDO, AnswerScreen | `stateSnapshot` | 接続復帰フロー |
 | 5.1–5.13 | 進行操作全般・再開の制限 | QuizSessionDO, PhaseMachine, HostConsole | `ClientCommand`, `Transition` | 進行フロー / 状態機械 |
-| 6.1–6.8 | 投影画面の表示 | PresentationScreen, QuizSessionDO | `ServerEvent` | 進行フロー |
+| 6.1–6.9 | 投影画面の表示 | PresentationScreen, QuizSessionDO | `ServerEvent` | 進行フロー |
 | 7.1–7.9 | 回答画面の表示と送信 | AnswerScreen, QuizSessionDO | `submitAnswer` | 進行フロー |
 | 8.1–8.10 | 採点とランキング | ScoringModule, QuizSessionDO, ResultArchive | `RankingEntry` | 進行フロー |
 | 8.11–8.14 | 結果の共有と画像化 | ResultArchive, CatalogRoutes, HostConsole, ShareView | `PublicResult` | — |

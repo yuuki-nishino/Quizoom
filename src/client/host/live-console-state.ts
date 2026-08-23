@@ -36,7 +36,13 @@ export const initialHostConsoleState: HostConsoleState = {
 export function hostConsoleReducer(state: HostConsoleState, event: ServerEvent): HostConsoleState {
   switch (event.type) {
     case "stateSnapshot":
-      return { ...state, phase: event.payload.phase, theme: event.payload.theme, serverNow: event.payload.serverNow };
+      return {
+        ...state,
+        phase: event.payload.phase,
+        theme: event.payload.theme,
+        serverNow: event.payload.serverNow,
+        participantCount: event.payload.participantCount,
+      };
 
     case "participantJoined":
       return {
