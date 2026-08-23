@@ -14,7 +14,7 @@ export function ResultScreen({ personalResult, personalRank }: ResultScreenProps
     return (
       <section aria-label="最終結果" className="quiz-phase-enter relative flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <Confetti active={true} />
-        <h1 className="inline-flex items-center gap-2 text-3xl font-extrabold text-brand-primary">
+        <h1 className="font-display inline-flex items-center gap-2 text-3xl font-extrabold text-brand-primary">
           <StarIcon className="h-7 w-7 text-brand-accent" />
           最終結果
         </h1>

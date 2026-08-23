@@ -19,7 +19,7 @@ export function RankingView({ entries, isFinal, topN = 10 }: RankingViewProps) {
       className={`${isFinal ? "stage-ranking-final" : "stage-ranking-interim"} quiz-phase-enter relative flex min-h-screen flex-col items-center gap-6 px-12 py-10`}
     >
       {isFinal && <Confetti active={true} />}
-      <h1 className="inline-flex items-center gap-3 text-5xl font-extrabold">
+      <h1 className="font-display inline-flex items-center gap-3 text-5xl font-extrabold">
         {isFinal && <StarIcon className="h-10 w-10 text-brand-accent" />}
         {isFinal ? "最終結果" : "中間ランキング"}
         {isFinal && <StarIcon className="h-10 w-10 text-brand-accent" />}

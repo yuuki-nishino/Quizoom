@@ -21,6 +21,23 @@
 
   --font-sans:
     "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", system-ui, -apple-system, sans-serif;
+
+  /* 見出し専用フォント。テンプレート属性セレクタで上書きする(下記)。本文・設問文には使わない */
+  --font-display: "Zen Maru Gothic", var(--font-sans);
+}
+
+/*
+ * テンプレートごとの見出しフォント。--color-brand-* と同じ理由(二重参照回避)で、
+ * ThemeProviderが出力する data-design-template 属性を持つ要素自身にこのカスタム
+ * プロパティを定義し、子孫要素は継承した値を font-display ユーティリティ経由で参照する。
+ * Google Fonts の読み込みは index.html で行い、display=swap によりフォント読み込み中も
+ * テキストが不可視にならないようにしている。
+ */
+[data-design-template="elegant-wedding"] {
+  --font-display: "Shippori Mincho", serif;
+}
+[data-design-template="fancy-party"] {
+  --font-display: "Mochiy Pop One", var(--font-sans);
 }
 
 html,
