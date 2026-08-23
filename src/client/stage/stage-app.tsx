@@ -91,7 +91,7 @@ export function StageApp() {
           totalCount={state.totalCount}
         />
       ) : (
-        <WaitingRoom eventTitle={info.eventTitle} joinUrl={joinUrl} />
+        <WaitingRoom eventTitle={info.eventTitle} joinUrl={joinUrl} participantCount={state.participantCount} />
       )}
     </ThemeProvider>
   );

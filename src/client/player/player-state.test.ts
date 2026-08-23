@@ -23,6 +23,7 @@ describe("playerReducer", () => {
         theme,
         serverNow: 1000,
         self: { role: "participant", participantId: "p1" as never, nickname: "alice", answeredQuestionIds: ["q0" as QuestionId] },
+        participantCount: 1,
       },
     };
     const next = playerReducer(initialPlayerState, event);
@@ -34,11 +35,11 @@ describe("playerReducer", () => {
   it("captures initialPhaseKind only on the first stateSnapshot, never overwriting it on later ones", () => {
     const first: ServerEvent = {
       type: "stateSnapshot",
-      payload: { eventId: "e1" as never, phase: { kind: "questionOpen", questionId: "q1" as QuestionId, openedAt: 0, deadlineAt: 1000 }, theme, serverNow: 500, self: { role: "host" } },
+      payload: { eventId: "e1" as never, phase: { kind: "questionOpen", questionId: "q1" as QuestionId, openedAt: 0, deadlineAt: 1000 }, theme, serverNow: 500, self: { role: "host" }, participantCount: 0 },
     };
     const second: ServerEvent = {
       type: "stateSnapshot",
-      payload: { eventId: "e1" as never, phase: { kind: "lobby" }, theme, serverNow: 2000, self: { role: "host" } },
+      payload: { eventId: "e1" as never, phase: { kind: "lobby" }, theme, serverNow: 2000, self: { role: "host" }, participantCount: 0 },
     };
     const s1 = playerReducer(initialPlayerState, first);
     expect(s1.initialPhaseKind).toBe("questionOpen");

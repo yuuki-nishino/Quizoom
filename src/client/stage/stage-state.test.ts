@@ -14,14 +14,21 @@ const theme: ThemeSettings = {
 };
 
 describe("stageReducer", () => {
-  it("applies a stateSnapshot by replacing phase, theme, and serverNow", () => {
+  it("applies a stateSnapshot by replacing phase, theme, serverNow, and participantCount", () => {
     const event: ServerEvent = {
       type: "stateSnapshot",
-      payload: { eventId: "e1" as never, phase: { kind: "lobby" }, theme, serverNow: 1000, self: { role: "stage" } },
+      payload: { eventId: "e1" as never, phase: { kind: "lobby" }, theme, serverNow: 1000, self: { role: "stage" }, participantCount: 2 },
     };
     const next = stageReducer(initialStageState, event);
     expect(next.phase).toEqual({ kind: "lobby" });
     expect(next.theme).toEqual(theme);
+    expect(next.participantCount).toBe(2);
+  });
+
+  it("updates participantCount on participantJoined", () => {
+    const event: ServerEvent = { type: "participantJoined", payload: { participantCount: 5, nickname: "alice" } };
+    const next = stageReducer(initialStageState, event);
+    expect(next.participantCount).toBe(5);
   });
 
   it("synthesizes a questionOpen phase and resets progress/closedQuestion/ranking when a question opens", () => {

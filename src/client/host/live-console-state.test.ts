@@ -30,15 +30,16 @@ const theme: ThemeSettings = {
 };
 
 describe("hostConsoleReducer", () => {
-  it("applies a stateSnapshot by replacing phase, theme, and serverNow", () => {
+  it("applies a stateSnapshot by replacing phase, theme, serverNow, and participantCount", () => {
     const event: ServerEvent = {
       type: "stateSnapshot",
-      payload: { eventId: "e1" as never, phase: { kind: "lobby" }, theme, serverNow: 1000, self: { role: "host" } },
+      payload: { eventId: "e1" as never, phase: { kind: "lobby" }, theme, serverNow: 1000, self: { role: "host" }, participantCount: 4 },
     };
     const next = hostConsoleReducer(initialHostConsoleState, event);
     expect(next.phase).toEqual({ kind: "lobby" });
     expect(next.theme).toEqual(theme);
     expect(next.serverNow).toBe(1000);
+    expect(next.participantCount).toBe(4);
   });
 
   it("accumulates participant nicknames as participantJoined events arrive", () => {
