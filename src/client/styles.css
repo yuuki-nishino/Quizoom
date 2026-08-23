@@ -1,16 +1,23 @@
 @import "tailwindcss";
 
 /*
- * ThemeProvider(src/client/shared/theme.tsx)がイベントごとに --quizoom-color-* を
- * ラップする<div>へ設定する。ここではそれを Tailwind のテーマ色として再公開し、
- * bg-brand-primary のようなユーティリティで参照できるようにする。
- * デフォルト値は ThemeProvider の外側(未適用時)でも壊れないためのフォールバック。
+ * ThemeProvider(src/client/shared/theme.tsx)がイベントごとに --color-brand-* を
+ * ラップする<div>へ直接設定する。ここでの値は ThemeProvider の外側(未適用時)でも
+ * 壊れないためのデフォルトに過ぎない。
+ *
+ * 注意: 以前は --color-brand-primary: var(--quizoom-color-primary, #4338ca) という
+ * 二重参照(indirection)にしていたが、これはCSSカスタムプロパティの継承モデル上
+ * 機能しない。--color-brand-primary の「定義」は :root(このブロック)にしか存在しない
+ * ため、ネストした<div>で --quizoom-color-primary を上書きしても、--color-brand-primary
+ * 自体は再評価されず :root で一度だけ解決された値(フォールバック)がそのまま継承され
+ * 続けてしまう(Tailwindのトークンをテーマ色が一切上書きできない不具合の原因だった)。
+ * ThemeProvider が --color-brand-* を直接設定することで、この間接参照を解消している。
  */
 @theme {
-  --color-brand-primary: var(--quizoom-color-primary, #4338ca);
-  --color-brand-accent: var(--quizoom-color-accent, #f59e0b);
-  --color-brand-bg: var(--quizoom-color-background, #ffffff);
-  --color-brand-text: var(--quizoom-color-text, #111827);
+  --color-brand-primary: #4338ca;
+  --color-brand-accent: #f59e0b;
+  --color-brand-bg: #ffffff;
+  --color-brand-text: #111827;
 
   --font-sans:
     "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", system-ui, -apple-system, sans-serif;

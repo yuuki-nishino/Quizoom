@@ -2,8 +2,9 @@ import { useState } from "react";
 import type { EventId } from "../../shared/domain-types";
 import type { ThemeSettings } from "../../shared/domain-types";
 import type { EventDetail, HostApiClient } from "./api-client";
-import { ThemeProvider, isLowContrast } from "../shared/theme";
+import { isLowContrast } from "../shared/theme";
 import { THEME_PRESETS } from "./theme-presets";
+import { hostRoutePath } from "./route";
 
 export interface ThemeEditorProps {
   readonly apiClient: HostApiClient;
@@ -139,27 +140,25 @@ export function ThemeEditor({ apiClient, eventId, event, onEventChange }: ThemeE
         {uploadingBackground && <p className="text-sm text-slate-500">アップロード中…</p>}
       </div>
 
-      <button
-        type="button"
-        disabled={saving}
-        onClick={handleSave}
-        className="mt-4 rounded-md bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-      >
-        保存する
-      </button>
-
-      <div aria-label="プレビュー" className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <ThemeProvider theme={theme}>
-          <div data-preview="stage" className="rounded-lg border border-slate-200 p-6 text-center font-bold">
-            投影用プレビュー: {event.title}
-          </div>
-        </ThemeProvider>
-        <ThemeProvider theme={theme}>
-          <div data-preview="player" className="rounded-lg border border-slate-200 p-6 text-center">
-            回答用プレビュー: {event.title}
-          </div>
-        </ThemeProvider>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={handleSave}
+          className="rounded-md bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+        >
+          保存する
+        </button>
+        <a
+          href={hostRoutePath({ view: "theme-preview", eventId })}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-md border border-slate-300 px-4 py-2 font-medium text-slate-700 hover:bg-slate-50"
+        >
+          プレビューを開く（別タブ）
+        </a>
       </div>
+      <p className="mt-2 text-xs text-slate-500">プレビューには保存済みの内容が表示されます。変更後は「保存する」を押してから開いてください。</p>
     </section>
   );
 }

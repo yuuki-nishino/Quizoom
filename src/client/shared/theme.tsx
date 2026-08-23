@@ -1,11 +1,16 @@
 import { useMemo, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import type { ThemeSettings } from "../../shared/domain-types";
 
+// Tailwind の @theme トークン名(--color-brand-*)へ直接書き込む。
+// 別名の変数(--quizoom-color-*)を経由する二重参照にすると、CSSカスタムプロパティは
+// 「定義された要素」でしか var() を再評価しないため、ネストした<div>でこの変数を
+// 上書きしても :root 側の --color-brand-* には反映されず、常にフォールバック値の
+// ままになってしまう(実際に発生していた不具合)
 export const THEME_CSS_VARIABLES = {
-  primaryColor: "--quizoom-color-primary",
-  accentColor: "--quizoom-color-accent",
-  backgroundColor: "--quizoom-color-background",
-  textColor: "--quizoom-color-text",
+  primaryColor: "--color-brand-primary",
+  accentColor: "--color-brand-accent",
+  backgroundColor: "--color-brand-bg",
+  textColor: "--color-brand-text",
 } as const;
 
 export const MIN_CONTRAST_RATIO = 4.5;
@@ -68,13 +73,25 @@ export function isLowContrast(theme: ThemeColors): boolean {
 export interface ThemeProviderProps {
   readonly theme: ThemeColors;
   readonly children: ReactNode;
+  /** 呼び出し側で解決済みのロゴ画像URL。未指定時は描画しない（要件3.4） */
+  readonly logoImageUrl?: string | null;
+  /** 呼び出し側で解決済みの背景画像URL。未指定時は背景色のみを適用する（要件3.4） */
+  readonly backgroundImageUrl?: string | null;
 }
 
-/** 外観設定を CSS カスタムプロパティとして子要素に適用する */
-export function ThemeProvider({ theme, children }: ThemeProviderProps): ReactElement {
-  const style = useMemo(() => themeToCssProperties(theme), [theme]);
+/** 外観設定を CSS カスタムプロパティとして子要素に適用する。ロゴ・背景画像のURL解決は呼び出し側の責務とする */
+export function ThemeProvider({ theme, children, logoImageUrl, backgroundImageUrl }: ThemeProviderProps): ReactElement {
+  const style = useMemo(() => {
+    const base = themeToCssProperties(theme);
+    if (!backgroundImageUrl) return base;
+    return { ...base, backgroundImage: `url(${backgroundImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" };
+  }, [theme, backgroundImageUrl]);
+
   return (
-    <div style={style} className="min-h-full bg-brand-bg text-brand-text">
+    <div style={style} className="relative min-h-full bg-brand-bg text-brand-text">
+      {logoImageUrl && (
+        <img src={logoImageUrl} alt="" className="absolute left-4 top-4 z-20 max-h-16 max-w-[40vw] object-contain" />
+      )}
       {children}
     </div>
   );

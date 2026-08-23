@@ -65,9 +65,11 @@ export function StageApp() {
 
   const theme = state.theme ?? info.theme;
   const joinUrl = info.joinCode ? `${window.location.origin}/join/${info.joinCode}` : null;
+  const logoUrl = theme.logoAssetId ? buildStageMediaUrl(route.eventId, theme.logoAssetId, route.token) : null;
+  const backgroundUrl = theme.backgroundAssetId ? buildStageMediaUrl(route.eventId, theme.backgroundAssetId, route.token) : null;
 
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={theme} logoImageUrl={logoUrl} backgroundImageUrl={backgroundUrl}>
       <div className="fixed top-4 right-4 z-10">
         <ConnectionBadge status={status} />
       </div>

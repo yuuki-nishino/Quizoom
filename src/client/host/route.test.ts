@@ -40,6 +40,10 @@ describe("parseHostRoute", () => {
   it("falls back to list for /host/invite with no token", () => {
     expect(parseHostRoute("/host/invite")).toEqual({ view: "list" });
   });
+
+  it("parses /host/events/:id/theme-preview as the theme-preview view", () => {
+    expect(parseHostRoute("/host/events/e1/theme-preview")).toEqual({ view: "theme-preview", eventId: "e1" });
+  });
 });
 
 describe("hostRoutePath", () => {
@@ -54,6 +58,7 @@ describe("hostRoutePath", () => {
       { view: "live", eventId: "e1" as EventId },
       { view: "preflight", eventId: "e1" as EventId },
       { view: "invite", token: "tok-123" },
+      { view: "theme-preview", eventId: "e1" as EventId },
     ];
 
     for (const route of routes) {
