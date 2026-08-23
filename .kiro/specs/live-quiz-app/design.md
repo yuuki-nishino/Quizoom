@@ -299,7 +299,7 @@ flowchart TD
 | 1.1, 1.2 | 主催者認証とログイン強制 | AuthFactory, HostGuard | HTTP `/api/auth/*` | — |
 | 1.3–1.8 | イベント CRUD・複製・削除・開催中の編集禁止 | CatalogRoutes, CatalogRepository, HostConsole | `EventCatalogService` | — |
 | 2.1–2.10 | 設問の作成・検証・並び替え | CatalogRoutes, CatalogRepository, HostConsole | `QuestionCatalogService` | — |
-| 3.1–3.6 | 外観カスタマイズとコントラスト警告 | CatalogRoutes, ThemeProvider, HostConsole | `ThemeSettings` | — |
+| 3.1–3.8 | 外観カスタマイズ・コントラスト警告・全画面ウォークスルー | CatalogRoutes, ThemeProvider, HostConsole, PresentationScreen, AnswerScreen | `ThemeSettings` | — |
 | 3.7 | 開催中の外観反映 | QuizSessionDO, ThemeProvider | `themeUpdated` イベント | — |
 | 4.1, 4.2 | 参加用 URL と QR コード発行 | CatalogRoutes, HostConsole | `EventCatalogService` | — |
 | 4.3–4.8 | 参加登録・重複名・定員・復元 | JoinRoutes, ParticipantToken, QuizSessionDO | HTTP `/api/join/:joinCode` | — |
@@ -377,7 +377,7 @@ interface PublicResult {
 | ShareView | UI | 共有結果ページの描画と画像化 | 8.12, 8.14, 10.8 | — | State |
 | LiveChannel | UI | WebSocket 接続・再接続・状態復元 | 9.2–9.6 | protocol (P0) | State |
 | ServerClock | UI | サーバー基準の残り時間算出 | 9.8, 6.2, 7.2 | なし | Service |
-| HostConsole | UI | 準備画面（イベント一覧・作成・編集、設問エディタ、外観エディタ、公開・QR/参加URL取得、結果閲覧・共有設定）と進行画面（出題操作・正解発表・結果発表）の描画 | 1.3–1.8, 2.1–2.10, 3.1–3.6, 4.1, 4.2, 5.1–5.13, 8.11, 8.13, 10.2, 10.3, 11.6, 12.3, 12.4 | CatalogRoutes (P0), LiveChannel (P0), ThemeProvider (P1) | State |
+| HostConsole | UI | 準備画面（イベント一覧・作成・編集、設問エディタ、外観エディタ、公開・QR/参加URL取得、結果閲覧・共有設定）と進行画面（出題操作・正解発表・結果発表）の描画 | 1.3–1.8, 2.1–2.10, 3.1–3.8, 4.1, 4.2, 5.1–5.13, 8.11, 8.13, 10.2, 10.3, 11.6, 12.3, 12.4 | CatalogRoutes (P0), LiveChannel (P0), ThemeProvider (P1), PresentationScreen (P2), AnswerScreen (P2) | State |
 | PresentationScreen / AnswerScreen | UI | 投影画面・回答画面の描画 | 6, 7 | LiveChannel (P0), ThemeProvider (P1) | State |
 
 ### Domain 層
@@ -1072,7 +1072,8 @@ interface ServerClock {
 - イベント一覧・作成・編集・複製・削除の各操作を `CatalogRoutes` の HTTP API 経由で行う（要件1.3–1.8）。開催中イベントに対しては設問編集系のUI操作を無効化し、`CatalogRoutes` からの409応答時にも同等の表示で禁止を伝える（要件1.6, 1.7）
 - 設問エディタは、二択／四択の形式選択に応じて選択肢入力欄の数を切り替え、正解をちょうど1つだけ選択できるUIとする。画像添付は `MediaRoutes` へのアップロードと連動する（要件2.1–2.9）
 - 公開操作は設問が1件も無い場合にクライアント側でも送信前に抑止し、`CatalogRoutes` の422応答をエラー表示として提示する（要件2.10）
-- 外観エディタは基調色・アクセント色・背景色・文字色の指定とプリセットテーマ選択、ロゴ／背景画像アップロードを提供し、`ThemeProvider` を用いて投影用・回答用双方のプレビューを表示する（要件3.1–3.5）。プレビューは単なる色見本ではなく、投影画面の待機状態（タイトル・待機メッセージ）と回答画面の回答ボタン（選択済み/未選択の塗り分け）を模した縮小レイアウトとし、`bg-brand-primary` のような塗り面積の大きい要素を含めることで、基調色・アクセント色の変更が一目で分かるようにする。ロゴ・背景画像は、ホスト自身のセッションCookieで完結する`/api/events/:id/media/:assetId`から解決したURLをプレビューにも適用する。コントラスト比警告は保存をブロックしない（要件3.6）
+- 外観エディタは基調色・アクセント色・背景色・文字色の指定とプリセットテーマ選択、ロゴ／背景画像アップロードを提供する（要件3.1–3.4）。ロゴ・背景画像は、ホスト自身のセッションCookieで完結する`/api/events/:id/media/:assetId`から解決したURLをプレビューにも適用する。コントラスト比警告は保存をブロックしない（要件3.6）
+- プレビューは独自のミニレイアウトではなく、`PresentationScreen`（`WaitingRoom`/`QuestionView`/`RevealView`/`RankingView`）と`AnswerScreen`側の実コンポーネント（`NicknameForm`/`WaitingScreen`/`AnswerScreen`/`ResultScreen`）をサンプルデータで直接描画する「プレビューウォークスルー」として実装し、実画面との見た目の乖離を構造的に排除する。編集中の`theme`状態を`ThemeProvider`経由でそのまま各コンポーネントへ流し込むため、色を変更すると保存前でも即座にプレビューへ反映される。「次へ／前へ」操作で投影5状態・回答4状態、計9ステップを順に切り替えられるようにする（要件3.5, 3.8）
 - 公開完了後に参加用URL・QRコード（印刷用・投影用）とステージURLを表示する（要件4.1, 4.2）
 - 結果閲覧・共有設定画面は `CatalogRoutes` の `GET /api/events/:id/results`（設問別正誤を含む確定結果、要件10.2）と `POST/DELETE /api/events/:id/share`（共有の有効化・無効化、要件8.11, 8.13）を呼び出す。参加者データ削除操作もこの画面から提供する（要件10.3）
 

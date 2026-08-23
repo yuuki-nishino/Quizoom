@@ -90,6 +90,7 @@
 5. When 主催者が外観設定を変更した, the Quiz Management Service shall 変更内容を反映したプレビューを、投影用と回答用のそれぞれについて表示する。
 6. If 主催者が指定した文字色と背景色の組み合わせがコントラスト比4.5:1を下回った, then the Quiz Management Service shall 視認性が低い旨を警告する。
 7. While イベントの状態が「開催中」である, the Quiz Management Service shall 外観設定の変更を、進行を中断させることなく各画面へ反映する。
+8. When 主催者がプレビューの画面送り操作を行った, the Quiz Management Service shall 投影画面(待機・出題・正解発表・中間ランキング・最終ランキング)と回答画面(ニックネーム入力・開始待ち・出題・結果)の代表的な状態を、順に切り替えて表示する。
 
 ### Requirement 4: QRコード発行と参加登録
 
