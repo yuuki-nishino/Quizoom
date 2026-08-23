@@ -69,15 +69,15 @@
   - _Boundary: ThemeEditor_
   - _Depends: 1.1, 2.2, 2.3_
 
-- [ ] 6. Core: 投影画面(stage)フェーズ画面の刷新
-- [ ] 6.1 (P) WaitingRoom/QuestionViewの表示強化
+- [x] 6. Core: 投影画面(stage)フェーズ画面の刷新
+- [x] 6.1 (P) WaitingRoom/QuestionViewの表示強化
   - 待機状態(イベントタイトル・QRコード・参加者数)と出題状態(問題文・選択肢・残り時間)のタイポグラフィ・レイアウトを強化する
   - 既存の情報(参加者数・残り時間カウントダウン等)が引き続き表示されることをテストで確認する
   - _Requirements: 1.1, 1.2, 1.5, 6.3_
   - _Boundary: WaitingRoom, QuestionView_
   - _Depends: 3.2_
 
-- [ ] 6.2 (P) RevealViewの正解発表演出強化
+- [x] 6.2 (P) RevealViewの正解発表演出強化
   - 正解選択肢の強調表示に、正解発表であることが直感的に伝わる演出(Confetti等)を組み込む
   - 実装前にui-ux-pro-maxスキルの`icons`ドメインを参照し、正誤を示すアイコン(使用する場合)を絵文字ではなくSVGアイコンから選定する
   - 正解発表時に演出が表示され、`prefers-reduced-motion`環境では抑制されることをテストで確認する
@@ -85,7 +85,7 @@
   - _Boundary: RevealView_
   - _Depends: 3.2, 4_
 
-- [ ] 6.3 (P) RankingViewの最終ランキング演出強化
+- [x] 6.3 (P) RankingViewの最終ランキング演出強化
   - 最終ランキング確定時、上位者発表に華やかさを強調した演出(Confetti等)を組み込む
   - 実装前にui-ux-pro-maxスキルの`icons`ドメインを参照し、上位者を示すアイコン(トロフィー・王冠等、使用する場合)を絵文字ではなくSVGアイコンから選定する
   - 最終ランキング確定時にのみ演出が表示され、中間ランキングでは表示されないことをテストで確認する

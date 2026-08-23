@@ -25,6 +25,14 @@ describe("RankingView", () => {
     expect(markup).toContain("stage-ranking-final");
   });
 
+  it("plays the celebratory effect only for the final ranking, not the interim one", () => {
+    const interim = renderToStaticMarkup(<RankingView entries={entries()} isFinal={false} />);
+    expect(interim).not.toContain("quiz-confetti");
+
+    const final = renderToStaticMarkup(<RankingView entries={entries()} isFinal={true} />);
+    expect(final).toContain("quiz-confetti");
+  });
+
   it("limits the display to the top N entries", () => {
     const many = Array.from({ length: 15 }, (_, i) => ({
       participantId: `p${i}` as ParticipantId,
