@@ -3,7 +3,8 @@ import type { EventId } from "../../shared/domain-types";
 import type { ThemeSettings } from "../../shared/domain-types";
 import type { EventDetail, HostApiClient } from "./api-client";
 import { isLowContrast } from "../shared/theme";
-import { THEME_PRESETS } from "./theme-presets";
+import { DESIGN_TEMPLATES } from "../../shared/design-templates";
+import { applyDesignTemplate, updateThemeColor } from "./theme-editor-state";
 import { hostRoutePath } from "./route";
 
 export interface ThemeEditorProps {
@@ -22,17 +23,11 @@ export function ThemeEditor({ apiClient, eventId, event, onEventChange }: ThemeE
   const [uploadingBackground, setUploadingBackground] = useState(false);
 
   function updateColor(key: keyof Pick<ThemeSettings, "primaryColor" | "accentColor" | "backgroundColor" | "textColor">, value: string) {
-    setTheme((prev) => ({ ...prev, [key]: value }));
+    setTheme((prev) => updateThemeColor(prev, key, value));
   }
 
-  function applyPreset(preset: ThemeSettings) {
-    setTheme((prev) => ({
-      ...prev,
-      primaryColor: preset.primaryColor,
-      accentColor: preset.accentColor,
-      backgroundColor: preset.backgroundColor,
-      textColor: preset.textColor,
-    }));
+  function applyTemplate(template: (typeof DESIGN_TEMPLATES)[number]) {
+    setTheme((prev) => applyDesignTemplate(prev, template));
   }
 
   async function handleUpload(kind: "logo" | "background", file: File | undefined) {
@@ -75,19 +70,31 @@ export function ThemeEditor({ apiClient, eventId, event, onEventChange }: ThemeE
       )}
 
       <fieldset className="mt-4">
-        <legend className="text-sm font-medium text-slate-700">プリセットテーマ</legend>
-        <div className="mt-1 flex flex-wrap gap-2">
-          {THEME_PRESETS.map((preset, index) => (
-            <button
-              key={index}
-              type="button"
-              onClick={() => applyPreset(preset)}
-              style={{ background: preset.primaryColor }}
-              className="rounded-md px-3 py-1.5 text-sm font-medium text-white shadow-sm"
-            >
-              プリセット{index + 1}
-            </button>
-          ))}
+        <legend className="text-sm font-medium text-slate-700">デザインテンプレート</legend>
+        <p className="mt-1 text-xs text-slate-500">配色と装飾モチーフを1セットで切り替えます。選択後に下の配色を個別調整しても、テンプレートの装飾は維持されます。</p>
+        <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {DESIGN_TEMPLATES.map((template) => {
+            const selected = theme.templateId === template.id;
+            return (
+              <button
+                key={template.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => applyTemplate(template)}
+                className={`rounded-lg border-2 p-3 text-left shadow-sm transition-colors ${
+                  selected ? "border-indigo-500 ring-2 ring-indigo-200" : "border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="block h-10 w-full rounded-md"
+                  style={{ background: `linear-gradient(135deg, ${template.colors.primaryColor}, ${template.colors.accentColor})` }}
+                />
+                <span className="mt-2 block text-sm font-semibold text-slate-900">{template.name}</span>
+                <span className="mt-0.5 block text-xs text-slate-500">{template.targetScene}</span>
+              </button>
+            );
+          })}
         </div>
       </fieldset>
 

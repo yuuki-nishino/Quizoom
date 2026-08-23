@@ -47,7 +47,8 @@ export const themeSettingsRequestSchema = z.object({
   textColor: z.string().min(1),
   logoAssetId: assetId().nullable(),
   backgroundAssetId: assetId().nullable(),
-  templateId: z.enum(DESIGN_TEMPLATE_IDS).nullable(),
+  // 後方互換のため省略可能とし、未送信の場合は未選択(null)として扱う（既存クライアントの回帰防止）
+  templateId: z.enum(DESIGN_TEMPLATE_IDS).nullable().default(null),
 });
 export type ThemeSettingsRequest = z.infer<typeof themeSettingsRequestSchema>;
 

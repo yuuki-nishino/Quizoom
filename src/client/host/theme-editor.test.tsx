@@ -2,8 +2,30 @@ import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ThemeEditor } from "./theme-editor";
 import { unimplementedApiClient, sampleEvent } from "./test-fixtures";
+import { DESIGN_TEMPLATES } from "../../shared/design-templates";
 
 describe("ThemeEditor", () => {
+  it("presents every catalog design template as a named, scene-labeled card", () => {
+    const event = sampleEvent();
+    const markup = renderToStaticMarkup(
+      <ThemeEditor apiClient={unimplementedApiClient()} eventId={event.id} event={event} onEventChange={() => {}} />,
+    );
+    for (const template of DESIGN_TEMPLATES) {
+      expect(markup).toContain(template.name);
+      expect(markup).toContain(template.targetScene);
+    }
+  });
+
+  it("marks the event's currently selected template as pressed", () => {
+    const event = sampleEvent({ theme: { ...sampleEvent().theme, templateId: "fancy-party" } });
+    const markup = renderToStaticMarkup(
+      <ThemeEditor apiClient={unimplementedApiClient()} eventId={event.id} event={event} onEventChange={() => {}} />,
+    );
+    const fancyIndex = markup.indexOf("ファンシー");
+    const beforeFancyCard = markup.lastIndexOf("<button", fancyIndex);
+    expect(markup.slice(beforeFancyCard, fancyIndex)).toContain('aria-pressed="true"');
+  });
+
   it("links the preview button to the theme-preview route for this event, opening in a new tab", () => {
     const event = sampleEvent();
     const markup = renderToStaticMarkup(
