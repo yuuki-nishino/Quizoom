@@ -1085,6 +1085,7 @@ interface ServerClock {
 - `AnswerScreen` は縦画面での単一カラム配置とし、選択肢のタップ領域を十分に確保する（要件7.8）。**選択は単一選択**であり、複数選択の UI を持たない（要件2.4）
 - 途中参加者には、出題済み設問へ回答できず不利になる旨を参加直後に表示する（要件4.10）
 - `ThemeProvider`（`client/shared/theme.tsx`）は任意の`logoImageUrl`/`backgroundImageUrl`（呼び出し側が解決済みのURL文字列）を受け取り、背景画像はラッパーへのcover適用、ロゴは固定位置バッジとして`children`の外側に描画する。`stage-app.tsx`/`player-app.tsx`は既存の`buildStageMediaUrl`/`buildPlayerMediaUrl`（設問添付画像で使用中の認可URLパターン）で`ThemeSettings.logoAssetId`/`backgroundAssetId`をURLへ解決してから渡す（要件3.4）。`share-app.tsx`はこれらのpropsを渡さず、要件10.6の非公開方針を維持する
+- `ThemeProvider`は4色をTailwindの`@theme`トークン名（`--color-brand-primary`等）へ**直接**インライン設定する。以前は`--quizoom-color-*`という別名を経由し、`styles.css`の`@theme`ブロック側で`var(--quizoom-color-primary, #4338ca)`のように解決する二重参照になっていたが、これはCSSカスタムプロパティの継承モデル上機能しない（`--color-brand-primary`の「定義」は`:root`にしか存在しないため、ネストした要素で別名を上書きしても再評価されず、常に`:root`で解決済みのフォールバック値が継承され続ける）。この不具合により、外観プレビュー・投影画面・回答画面のいずれでもカスタム配色が一切反映されていなかった（Issue #7で複数回報告された「保存しても色が変わらない」の真因）。修正後は二重参照を排し、`ThemeProvider`が`--color-brand-*`を直接上書きする
 
 ## Data Models
 

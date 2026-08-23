@@ -22,7 +22,7 @@ describe("ThemePreviewWalkthrough", () => {
     );
     expect(markup).toContain("Quiz Night");
     expect(markup).toContain("開始をお待ちください");
-    expect(markup).toContain("--quizoom-color-primary:#abcdef");
+    expect(markup).toContain("--color-brand-primary:#abcdef");
     expect(markup).toContain("投影画面: 待機");
     expect(markup).toContain("1/9");
   });

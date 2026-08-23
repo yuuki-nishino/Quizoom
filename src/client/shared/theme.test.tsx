@@ -18,10 +18,10 @@ function theme(overrides: Partial<ThemeSettings> = {}): ThemeSettings {
 describe("themeToCssProperties", () => {
   it("maps the four theme colors to CSS custom properties", () => {
     expect(themeToCssProperties(theme())).toEqual({
-      "--quizoom-color-primary": "#112233",
-      "--quizoom-color-accent": "#445566",
-      "--quizoom-color-background": "#ffffff",
-      "--quizoom-color-text": "#000000",
+      "--color-brand-primary": "#112233",
+      "--color-brand-accent": "#445566",
+      "--color-brand-bg": "#ffffff",
+      "--color-brand-text": "#000000",
     });
   });
 });
@@ -66,7 +66,7 @@ describe("ThemeProvider", () => {
       </ThemeProvider>,
     );
 
-    expect(markup).toContain("--quizoom-color-primary:#abcdef");
+    expect(markup).toContain("--color-brand-primary:#abcdef");
     expect(markup).toContain("content");
   });
 

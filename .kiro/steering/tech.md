@@ -22,7 +22,7 @@ Cloudflare Workers上に構築された、単一Workerスクリプト(Hono)に�
 - **better-auth**: 主催者認証(Google OAuthのみ)。`Env`を引数に取るファクトリ関数として構成する(Workersのリクエストスコープ制約のため、モジュールスコープでシングルトン化しない)
 - **zod**: HTTP境界・WebSocketコマンドのランタイム検証
 - **hono**: HTTPルーティング。`app.route()`で機能ごとにルートを分割(`catalogRoutes`/`joinRoutes`/`mediaRoutes`)
-- **tailwindcss v4**(`@tailwindcss/vite`): クライアント側スタイリング。`src/client/styles.css`の`@theme`で`--quizoom-color-*`(ThemeProviderが設定するCSSカスタムプロパティ)を`brand-*`トークンとして再公開し、イベントごとの配色カスタマイズをTailwindユーティリティ(`bg-brand-primary`等)から参照できるようにしている
+- **tailwindcss v4**(`@tailwindcss/vite`): クライアント側スタイリング。`ThemeProvider`(`src/client/shared/theme.tsx`)がイベントごとの配色を`--color-brand-*`というTailwindの`@theme`トークン名へ**直接**インライン設定し、`bg-brand-primary`等のユーティリティから参照する。**別名の変数(例: `--quizoom-color-*`)を経由する二重参照にしてはいけない** — CSSカスタムプロパティは「定義された要素」でしか`var()`を再評価しないため、`:root`の`@theme`ブロック側でしか別名を解決していないと、ネストした要素でその別名を上書きしても`:root`側のトークンには反映されず、常にフォールバック値のままになる(実際に発生し、Issue #7で複数回「プレビューの色が変わらない」として報告された不具合の真因)
 - **qrcode**: 参加用QRコードのSVG生成
 
 ## Development Standards

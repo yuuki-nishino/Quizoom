@@ -1,11 +1,16 @@
 import { useMemo, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import type { ThemeSettings } from "../../shared/domain-types";
 
+// Tailwind の @theme トークン名(--color-brand-*)へ直接書き込む。
+// 別名の変数(--quizoom-color-*)を経由する二重参照にすると、CSSカスタムプロパティは
+// 「定義された要素」でしか var() を再評価しないため、ネストした<div>でこの変数を
+// 上書きしても :root 側の --color-brand-* には反映されず、常にフォールバック値の
+// ままになってしまう(実際に発生していた不具合)
 export const THEME_CSS_VARIABLES = {
-  primaryColor: "--quizoom-color-primary",
-  accentColor: "--quizoom-color-accent",
-  backgroundColor: "--quizoom-color-background",
-  textColor: "--quizoom-color-text",
+  primaryColor: "--color-brand-primary",
+  accentColor: "--color-brand-accent",
+  backgroundColor: "--color-brand-bg",
+  textColor: "--color-brand-text",
 } as const;
 
 export const MIN_CONTRAST_RATIO = 4.5;
