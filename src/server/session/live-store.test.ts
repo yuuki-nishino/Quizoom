@@ -26,6 +26,7 @@ const meta: EventMeta = {
     textColor: "#000000",
     logoAssetId: null,
     backgroundAssetId: "asset-1" as AssetId,
+    templateId: null,
   },
 };
 

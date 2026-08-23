@@ -69,6 +69,7 @@ export function sampleEvent(overrides: Partial<EventDetail> = {}): EventDetail {
       textColor: "#111827",
       logoAssetId: null,
       backgroundAssetId: null,
+      templateId: null,
     },
     role: "owner",
     ...overrides,

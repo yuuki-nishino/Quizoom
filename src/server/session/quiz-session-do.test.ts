@@ -19,6 +19,7 @@ const meta: EventMeta = {
     textColor: "#000000",
     logoAssetId: null,
     backgroundAssetId: null,
+    templateId: null,
   },
 };
 

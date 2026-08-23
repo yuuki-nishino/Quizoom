@@ -11,6 +11,7 @@ function theme(overrides: Partial<ThemeSettings> = {}): ThemeSettings {
     textColor: "#111827",
     logoAssetId: null,
     backgroundAssetId: null,
+    templateId: null,
     ...overrides,
   };
 }

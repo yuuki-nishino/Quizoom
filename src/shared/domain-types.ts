@@ -20,6 +20,10 @@ export type AssetId = Brand<string, "AssetId">;
 
 export type EventStatus = "draft" | "published" | "live" | "finished";
 
+/** デザインテンプレート(配色+装飾モチーフ)の識別子。定義本体は design-templates.ts のカタログが持つ */
+export const DESIGN_TEMPLATE_IDS = ["standard", "elegant-wedding", "fancy-party"] as const;
+export type DesignTemplateId = (typeof DESIGN_TEMPLATE_IDS)[number];
+
 export interface ThemeSettings {
   readonly primaryColor: string;
   readonly accentColor: string;
@@ -27,6 +31,8 @@ export interface ThemeSettings {
   readonly textColor: string;
   readonly logoAssetId: AssetId | null;
   readonly backgroundAssetId: AssetId | null;
+  /** 選択中のデザインテンプレート(配色+装飾モチーフ)。未選択のイベントは null（要件3.5, 4.3） */
+  readonly templateId: DesignTemplateId | null;
 }
 
 /** 共有ページ専用の配色型。画像参照を持たせないことで要件10.6の緩和を実装上不可能にする */
