@@ -14,6 +14,22 @@ describe("ThemeEditor preview", () => {
     expect(markup).toContain("text-brand-accent");
   });
 
+  it("mimics the stage waiting room so the projection screen's look is recognizable", () => {
+    const event = sampleEvent();
+    const markup = renderToStaticMarkup(
+      <ThemeEditor apiClient={unimplementedApiClient()} eventId={event.id} event={event} onEventChange={() => {}} />,
+    );
+    expect(markup).toContain("開始をお待ちください");
+  });
+
+  it("mimics the answer screen's option buttons with a large bg-brand-primary fill so color changes are unmistakable", () => {
+    const event = sampleEvent();
+    const markup = renderToStaticMarkup(
+      <ThemeEditor apiClient={unimplementedApiClient()} eventId={event.id} event={event} onEventChange={() => {}} />,
+    );
+    expect(markup).toContain("bg-brand-primary");
+  });
+
   it("shows the uploaded logo and background images in the preview", () => {
     const event = sampleEvent({
       theme: {

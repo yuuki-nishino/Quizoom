@@ -153,16 +153,31 @@ export function ThemeEditor({ apiClient, eventId, event, onEventChange }: ThemeE
       </button>
 
       <div aria-label="プレビュー" className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {/* 投影画面の待機状態(WaitingRoom)を模したミニレイアウト */}
         <ThemeProvider theme={theme} logoImageUrl={logoPreviewUrl} backgroundImageUrl={backgroundPreviewUrl}>
-          <div data-preview="stage" className="rounded-lg border border-slate-200 p-6 text-center">
-            <p className="text-xs font-bold text-brand-accent">投影用プレビュー</p>
-            <p className="mt-1 text-lg font-extrabold text-brand-primary">{event.title}</p>
+          <div data-preview="stage" className="overflow-hidden rounded-lg border border-slate-200">
+            <p className="border-b border-slate-200/50 px-3 py-1 text-xs font-bold text-brand-accent">投影用プレビュー</p>
+            <div className="flex flex-col items-center gap-1 px-4 py-8 text-center">
+              <p className="text-xl font-extrabold text-brand-primary">{event.title}</p>
+              <p className="text-sm text-brand-text/80">開始をお待ちください</p>
+            </div>
           </div>
         </ThemeProvider>
+        {/* 回答画面の選択肢ボタン(AnswerScreen)を模したミニレイアウト。塗り面積の大きい選択済みボタンで色変更を分かりやすくする */}
         <ThemeProvider theme={theme} logoImageUrl={logoPreviewUrl} backgroundImageUrl={backgroundPreviewUrl}>
-          <div data-preview="player" className="rounded-lg border border-slate-200 p-6 text-center">
-            <p className="text-xs font-bold text-brand-accent">回答用プレビュー</p>
-            <p className="mt-1 text-lg font-extrabold text-brand-primary">{event.title}</p>
+          <div data-preview="player" className="overflow-hidden rounded-lg border border-slate-200">
+            <p className="border-b border-slate-200/50 px-3 py-1 text-xs font-bold text-brand-accent">回答用プレビュー</p>
+            <div className="flex flex-col gap-2 px-4 py-6">
+              <p className="text-center text-sm font-bold text-brand-primary">{event.title}</p>
+              <div className="flex flex-col gap-2" role="group" aria-hidden="true">
+                <span className="rounded-lg border-2 border-brand-primary bg-brand-primary px-3 py-2 text-center text-sm font-semibold text-white">
+                  選択肢A
+                </span>
+                <span className="rounded-lg border-2 border-slate-300 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800">
+                  選択肢B
+                </span>
+              </div>
+            </div>
           </div>
         </ThemeProvider>
       </div>
