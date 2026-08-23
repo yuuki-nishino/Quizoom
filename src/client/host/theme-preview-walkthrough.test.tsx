@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ThemePreviewWalkthrough } from "./theme-preview-walkthrough";
-import type { ThemeSettings } from "../../shared/domain-types";
+import type { OptionId, QuestionId, ThemeSettings } from "../../shared/domain-types";
 
 function theme(overrides: Partial<ThemeSettings> = {}): ThemeSettings {
   return {
@@ -46,5 +46,31 @@ describe("ThemePreviewWalkthrough", () => {
     );
     expect(markup).toContain('src="https://example.test/logo.png"');
     expect(markup).toContain("background-image:url(https://example.test/bg.png)");
+  });
+
+  it("accepts a real host question in place of the sample question without crashing", () => {
+    const markup = renderToStaticMarkup(
+      <ThemePreviewWalkthrough
+        eventTitle="Quiz Night"
+        theme={theme()}
+        logoImageUrl={null}
+        backgroundImageUrl={null}
+        question={{
+          question: {
+            id: "q1" as QuestionId,
+            orderIndex: 0,
+            body: "自作の設問",
+            imageAssetId: null,
+            options: [
+              { id: "o1" as OptionId, label: "A", orderIndex: 0 },
+              { id: "o2" as OptionId, label: "B", orderIndex: 1 },
+            ],
+          },
+          correctOptionId: "o2" as OptionId,
+          imageUrl: "https://example.test/question.png",
+        }}
+      />,
+    );
+    expect(markup).toContain("投影画面: 待機");
   });
 });

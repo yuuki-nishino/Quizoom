@@ -11,11 +11,19 @@ import { WaitingScreen } from "../player/waiting-screen";
 import { AnswerScreen } from "../player/answer-screen";
 import { ResultScreen } from "../player/result-screen";
 
+/** 主催者自身の設問(実データ)をプレビューへ差し込むための入力。無い場合はサンプル設問にフォールバックする */
+export interface PreviewQuestion {
+  readonly question: QuestionPublicView;
+  readonly correctOptionId: OptionId;
+  readonly imageUrl: string | null;
+}
+
 export interface ThemePreviewWalkthroughProps {
   readonly eventTitle: string;
   readonly theme: ThemeSettings;
   readonly logoImageUrl: string | null;
   readonly backgroundImageUrl: string | null;
+  readonly question?: PreviewQuestion | null;
 }
 
 const SAMPLE_QUESTION: QuestionPublicView = {
@@ -29,6 +37,12 @@ const SAMPLE_QUESTION: QuestionPublicView = {
   ],
 };
 
+const SAMPLE_QUESTION_PREVIEW: PreviewQuestion = {
+  question: SAMPLE_QUESTION,
+  correctOptionId: SAMPLE_QUESTION.options[1]!.id,
+  imageUrl: null,
+};
+
 const SAMPLE_RANKING = [
   { participantId: "preview-p1" as ParticipantId, nickname: "たろう", correctCount: 3, totalElapsedMs: 12000, joinedSeq: 0, rank: 1 },
   { participantId: "preview-p2" as ParticipantId, nickname: "はなこ", correctCount: 2, totalElapsedMs: 15400, joinedSeq: 1, rank: 2 },
@@ -40,7 +54,10 @@ interface WalkthroughStep {
   readonly render: () => ReactNode;
 }
 
-function buildSteps(eventTitle: string): readonly WalkthroughStep[] {
+function buildSteps(eventTitle: string, preview: PreviewQuestion): readonly WalkthroughStep[] {
+  const { question, correctOptionId, imageUrl } = preview;
+  const distribution = question.options.map((option) => ({ optionId: option.id, count: option.id === correctOptionId ? 2 : 1 }));
+
   return [
     {
       group: "投影画面",
@@ -50,22 +67,19 @@ function buildSteps(eventTitle: string): readonly WalkthroughStep[] {
     {
       group: "投影画面",
       label: "出題",
-      render: () => <QuestionView question={SAMPLE_QUESTION} imageUrl={null} remainingMs={18000} paused={false} answeredCount={2} totalCount={3} />,
+      render: () => <QuestionView question={question} imageUrl={imageUrl} remainingMs={18000} paused={false} answeredCount={2} totalCount={3} />,
     },
     {
       group: "投影画面",
       label: "正解発表",
       render: () => (
         <RevealView
-          question={SAMPLE_QUESTION}
+          question={question}
           closed={{
-            questionId: SAMPLE_QUESTION.id,
-            correctOptionId: SAMPLE_QUESTION.options[1]!.id,
-            distribution: [
-              { optionId: SAMPLE_QUESTION.options[0]!.id, count: 1 },
-              { optionId: SAMPLE_QUESTION.options[1]!.id, count: 2 },
-            ],
-            explanation: "東京都は1943年に東京府と東京市が統合されて成立しました。",
+            questionId: question.id,
+            correctOptionId,
+            distribution,
+            explanation: "解説文はここに表示されます。",
             personalResult: null,
           }}
         />
@@ -84,12 +98,12 @@ function buildSteps(eventTitle: string): readonly WalkthroughStep[] {
       label: "出題",
       render: () => (
         <AnswerScreen
-          question={SAMPLE_QUESTION}
-          imageUrl={null}
+          question={question}
+          imageUrl={imageUrl}
           remainingMs={18000}
           paused={false}
           alreadyAnswered={false}
-          submission={{ status: "accepted", questionId: SAMPLE_QUESTION.id, optionId: SAMPLE_QUESTION.options[1]!.id }}
+          submission={{ status: "accepted", questionId: question.id, optionId: correctOptionId }}
           onSelect={() => {}}
           onRetry={() => {}}
         />
@@ -109,12 +123,12 @@ function buildSteps(eventTitle: string): readonly WalkthroughStep[] {
 }
 
 /**
- * 投影画面・回答画面それぞれの実コンポーネントをサンプルデータで描画し、
+ * 投影画面・回答画面それぞれの実コンポーネントを、主催者自身の設問(画像を含む)で描画し、
  * 「次へ／前へ」で全状態を順に確認できるプレビュー（要件3.5, 3.8）。
  * 独自のミニレイアウトを持たないため、実画面との見た目の乖離が構造的に発生しない
  */
-export function ThemePreviewWalkthrough({ eventTitle, theme, logoImageUrl, backgroundImageUrl }: ThemePreviewWalkthroughProps) {
-  const steps = buildSteps(eventTitle);
+export function ThemePreviewWalkthrough({ eventTitle, theme, logoImageUrl, backgroundImageUrl, question }: ThemePreviewWalkthroughProps) {
+  const steps = buildSteps(eventTitle, question ?? SAMPLE_QUESTION_PREVIEW);
   const [index, setIndex] = useState(0);
   const step = steps[index]!;
 

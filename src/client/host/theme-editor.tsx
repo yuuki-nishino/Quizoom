@@ -4,7 +4,7 @@ import type { ThemeSettings } from "../../shared/domain-types";
 import type { EventDetail, HostApiClient } from "./api-client";
 import { isLowContrast } from "../shared/theme";
 import { THEME_PRESETS } from "./theme-presets";
-import { ThemePreviewWalkthrough } from "./theme-preview-walkthrough";
+import { hostRoutePath } from "./route";
 
 export interface ThemeEditorProps {
   readonly apiClient: HostApiClient;
@@ -61,10 +61,6 @@ export function ThemeEditor({ apiClient, eventId, event, onEventChange }: ThemeE
   }
 
   const lowContrast = isLowContrast(theme);
-
-  // ホスト自身のセッションCookieで完結するため、投影/回答用のトークン付きURLと異なりトークンは不要
-  const logoPreviewUrl = theme.logoAssetId ? `/api/events/${eventId}/media/${theme.logoAssetId}` : null;
-  const backgroundPreviewUrl = theme.backgroundAssetId ? `/api/events/${eventId}/media/${theme.backgroundAssetId}` : null;
 
   const colorFieldClass = "flex flex-col gap-1 text-sm font-medium text-slate-700";
   const colorInputClass = "h-10 w-16 cursor-pointer rounded border border-slate-300";
@@ -144,21 +140,25 @@ export function ThemeEditor({ apiClient, eventId, event, onEventChange }: ThemeE
         {uploadingBackground && <p className="text-sm text-slate-500">アップロード中…</p>}
       </div>
 
-      <button
-        type="button"
-        disabled={saving}
-        onClick={handleSave}
-        className="mt-4 rounded-md bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-      >
-        保存する
-      </button>
-
-      <ThemePreviewWalkthrough
-        eventTitle={event.title}
-        theme={theme}
-        logoImageUrl={logoPreviewUrl}
-        backgroundImageUrl={backgroundPreviewUrl}
-      />
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={handleSave}
+          className="rounded-md bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+        >
+          保存する
+        </button>
+        <a
+          href={hostRoutePath({ view: "theme-preview", eventId })}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-md border border-slate-300 px-4 py-2 font-medium text-slate-700 hover:bg-slate-50"
+        >
+          プレビューを開く（別タブ）
+        </a>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">プレビューには保存済みの内容が表示されます。変更後は「保存する」を押してから開いてください。</p>
     </section>
   );
 }
