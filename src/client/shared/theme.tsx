@@ -1,5 +1,5 @@
 import { useMemo, type CSSProperties, type ReactElement, type ReactNode } from "react";
-import type { ThemeSettings } from "../../shared/domain-types";
+import type { DesignTemplateId, ThemeSettings } from "../../shared/domain-types";
 
 // Tailwind の @theme トークン名(--color-brand-*)へ直接書き込む。
 // 別名の変数(--quizoom-color-*)を経由する二重参照にすると、CSSカスタムプロパティは
@@ -77,10 +77,16 @@ export interface ThemeProviderProps {
   readonly logoImageUrl?: string | null;
   /** 呼び出し側で解決済みの背景画像URL。未指定時は背景色のみを適用する（要件3.4） */
   readonly backgroundImageUrl?: string | null;
+  /** 選択中のデザインテンプレート。未指定時は既定テンプレート(standard)の装飾を適用する（要件4.3, 4.6） */
+  readonly templateId?: DesignTemplateId | null;
 }
 
-/** 外観設定を CSS カスタムプロパティとして子要素に適用する。ロゴ・背景画像のURL解決は呼び出し側の責務とする */
-export function ThemeProvider({ theme, children, logoImageUrl, backgroundImageUrl }: ThemeProviderProps): ReactElement {
+/**
+ * 外観設定を CSS カスタムプロパティとして子要素に適用する。ロゴ・背景画像のURL解決は呼び出し側の責務とする。
+ * `data-design-template` 属性を出力するのみで、装飾の実体(グラデーション・アニメーション)は styles.css 側の
+ * 属性セレクタが持つ。子コンポーネントはテンプレートの存在を意識しない（design.md「装飾スロット + CSS属性セレクタ」）
+ */
+export function ThemeProvider({ theme, children, logoImageUrl, backgroundImageUrl, templateId }: ThemeProviderProps): ReactElement {
   const style = useMemo(() => {
     const base = themeToCssProperties(theme);
     if (!backgroundImageUrl) return base;
@@ -88,11 +94,12 @@ export function ThemeProvider({ theme, children, logoImageUrl, backgroundImageUr
   }, [theme, backgroundImageUrl]);
 
   return (
-    <div style={style} className="relative min-h-full bg-brand-bg text-brand-text">
+    <div style={style} data-design-template={templateId ?? "standard"} className="relative min-h-full bg-brand-bg text-brand-text">
+      <div aria-hidden="true" className="quiz-motif-layer pointer-events-none absolute inset-0 z-0 overflow-hidden" />
       {logoImageUrl && (
         <img src={logoImageUrl} alt="" className="absolute left-4 top-4 z-20 max-h-16 max-w-[40vw] object-contain" />
       )}
-      {children}
+      <div className="relative z-10">{children}</div>
     </div>
   );
 }

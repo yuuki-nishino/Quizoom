@@ -101,4 +101,45 @@ describe("ThemeProvider", () => {
 
     expect(markup).toContain('src="https://example.test/logo.png"');
   });
+
+  it("falls back to the standard template attribute when templateId is omitted", () => {
+    const markup = renderToStaticMarkup(
+      <ThemeProvider theme={theme()}>
+        <span>content</span>
+      </ThemeProvider>,
+    );
+
+    expect(markup).toContain('data-design-template="standard"');
+  });
+
+  it("falls back to the standard template attribute when templateId is null", () => {
+    const markup = renderToStaticMarkup(
+      <ThemeProvider theme={theme()} templateId={null}>
+        <span>content</span>
+      </ThemeProvider>,
+    );
+
+    expect(markup).toContain('data-design-template="standard"');
+  });
+
+  it("reflects the selected template as a data attribute", () => {
+    const markup = renderToStaticMarkup(
+      <ThemeProvider theme={theme()} templateId="elegant-wedding">
+        <span>content</span>
+      </ThemeProvider>,
+    );
+
+    expect(markup).toContain('data-design-template="elegant-wedding"');
+  });
+
+  it("sets the brand color tokens directly on the wrapper without an indirection variable (regression for Issue #7)", () => {
+    const markup = renderToStaticMarkup(
+      <ThemeProvider theme={theme({ primaryColor: "#abcdef" })}>
+        <span>content</span>
+      </ThemeProvider>,
+    );
+
+    // 二重参照(--color-brand-primary: var(--quizoom-color-primary, ...))を再度持ち込んでいないことを保証する
+    expect(markup).not.toContain("var(--quizoom-color");
+  });
 });
