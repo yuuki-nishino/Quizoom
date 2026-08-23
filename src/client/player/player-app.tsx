@@ -89,7 +89,7 @@ export function PlayerApp() {
 
   if (!token) {
     return (
-      <ThemeProvider theme={joinInfo.theme}>
+      <ThemeProvider theme={joinInfo.theme} templateId={joinInfo.theme.templateId}>
         <NicknameForm eventTitle={joinInfo.eventTitle} submitting={submitting} errorCode={submitError} onSubmit={handleNicknameSubmit} />
       </ThemeProvider>
     );
@@ -103,7 +103,7 @@ export function PlayerApp() {
   const backgroundUrl = theme.backgroundAssetId ? buildPlayerMediaUrl(joinInfo.eventId, theme.backgroundAssetId, token) : null;
 
   return (
-    <ThemeProvider theme={theme} logoImageUrl={logoUrl} backgroundImageUrl={backgroundUrl}>
+    <ThemeProvider theme={theme} templateId={theme.templateId} logoImageUrl={logoUrl} backgroundImageUrl={backgroundUrl}>
       <div className="fixed top-3 right-3 z-10">
         <ConnectionBadge status={status} />
       </div>

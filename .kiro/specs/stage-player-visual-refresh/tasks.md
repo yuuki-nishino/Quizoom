@@ -125,7 +125,7 @@
   - _Boundary: LateJoinNotice_
   - _Depends: 3.2_
 
-- [ ] 8. Integration: StageApp・PlayerApp・主催者プレビューへのtemplateId配線
+- [x] 8. Integration: StageApp・PlayerApp・主催者プレビューへのtemplateId配線
   - 投影画面アプリ・回答画面アプリ・主催者向けテーマプレビューの3箇所で、保存済みテーマのテンプレートIDをThemeProviderへ渡すよう配線する
   - 開催中にテンプレートを変更した場合、投影画面・回答画面の両方で装飾が切り替わることを確認する(既存のthemeUpdated配信を利用)
   - 主催者プレビューが、選択中テンプレートを反映した状態で全フェーズを順に確認できることをテストで確認する

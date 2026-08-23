@@ -157,7 +157,7 @@ export function ThemePreviewWalkthrough({ eventTitle, theme, logoImageUrl, backg
       </div>
 
       <div className="mt-3 h-[30rem] overflow-auto rounded-lg border border-slate-200">
-        <ThemeProvider theme={theme} logoImageUrl={logoImageUrl} backgroundImageUrl={backgroundImageUrl}>
+        <ThemeProvider theme={theme} templateId={theme.templateId} logoImageUrl={logoImageUrl} backgroundImageUrl={backgroundImageUrl}>
           {step.render()}
         </ThemeProvider>
       </div>
