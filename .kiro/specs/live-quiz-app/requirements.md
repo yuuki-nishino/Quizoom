@@ -142,6 +142,7 @@
 6. When 最終ランキングが確定した, the Presentation Screen shall 上位者を演出付きで発表する。
 7. The Presentation Screen shall 表示内容をプロジェクター投影に耐える文字サイズとコントラストで描画する。
 8. The Presentation Screen shall 個々の参加者の回答内容を、回答受付が終了するまで表示しない。
+9. While イベントが開始前の待機状態である, the Presentation Screen shall 現在の参加者数を表示する。
 
 ### Requirement 7: 回答画面
 
