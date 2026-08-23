@@ -61,6 +61,10 @@ export function ThemeEditor({ apiClient, eventId, event, onEventChange }: ThemeE
 
   const lowContrast = isLowContrast(theme);
 
+  // ホスト自身のセッションCookieで完結するため、投影/回答用のトークン付きURLと異なりトークンは不要
+  const logoPreviewUrl = theme.logoAssetId ? `/api/events/${eventId}/media/${theme.logoAssetId}` : null;
+  const backgroundPreviewUrl = theme.backgroundAssetId ? `/api/events/${eventId}/media/${theme.backgroundAssetId}` : null;
+
   const colorFieldClass = "flex flex-col gap-1 text-sm font-medium text-slate-700";
   const colorInputClass = "h-10 w-16 cursor-pointer rounded border border-slate-300";
 
@@ -149,14 +153,16 @@ export function ThemeEditor({ apiClient, eventId, event, onEventChange }: ThemeE
       </button>
 
       <div aria-label="プレビュー" className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <ThemeProvider theme={theme}>
-          <div data-preview="stage" className="rounded-lg border border-slate-200 p-6 text-center font-bold">
-            投影用プレビュー: {event.title}
+        <ThemeProvider theme={theme} logoImageUrl={logoPreviewUrl} backgroundImageUrl={backgroundPreviewUrl}>
+          <div data-preview="stage" className="rounded-lg border border-slate-200 p-6 text-center">
+            <p className="text-xs font-bold text-brand-accent">投影用プレビュー</p>
+            <p className="mt-1 text-lg font-extrabold text-brand-primary">{event.title}</p>
           </div>
         </ThemeProvider>
-        <ThemeProvider theme={theme}>
+        <ThemeProvider theme={theme} logoImageUrl={logoPreviewUrl} backgroundImageUrl={backgroundPreviewUrl}>
           <div data-preview="player" className="rounded-lg border border-slate-200 p-6 text-center">
-            回答用プレビュー: {event.title}
+            <p className="text-xs font-bold text-brand-accent">回答用プレビュー</p>
+            <p className="mt-1 text-lg font-extrabold text-brand-primary">{event.title}</p>
           </div>
         </ThemeProvider>
       </div>

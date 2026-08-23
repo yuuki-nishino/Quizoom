@@ -69,4 +69,35 @@ describe("ThemeProvider", () => {
     expect(markup).toContain("--quizoom-color-primary:#abcdef");
     expect(markup).toContain("content");
   });
+
+  it("renders neither a background image nor a logo when the URLs are omitted", () => {
+    const markup = renderToStaticMarkup(
+      <ThemeProvider theme={theme()}>
+        <span>content</span>
+      </ThemeProvider>,
+    );
+
+    expect(markup).not.toContain("background-image");
+    expect(markup).not.toContain("<img");
+  });
+
+  it("applies a cover background image when backgroundImageUrl is provided", () => {
+    const markup = renderToStaticMarkup(
+      <ThemeProvider theme={theme()} backgroundImageUrl="https://example.test/bg.png">
+        <span>content</span>
+      </ThemeProvider>,
+    );
+
+    expect(markup).toContain("background-image:url(https://example.test/bg.png)");
+  });
+
+  it("renders a logo image when logoImageUrl is provided", () => {
+    const markup = renderToStaticMarkup(
+      <ThemeProvider theme={theme()} logoImageUrl="https://example.test/logo.png">
+        <span>content</span>
+      </ThemeProvider>,
+    );
+
+    expect(markup).toContain('src="https://example.test/logo.png"');
+  });
 });

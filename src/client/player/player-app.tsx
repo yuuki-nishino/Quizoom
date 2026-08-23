@@ -99,9 +99,11 @@ export function PlayerApp() {
   const nickname = state.nickname ?? pendingNickname ?? "";
   const showLateJoinNotice = isLateJoin(state.initialPhaseKind) && !lateJoinDismissed;
   const alreadyAnswered = hasAnsweredCurrentQuestion(state);
+  const logoUrl = theme.logoAssetId ? buildPlayerMediaUrl(joinInfo.eventId, theme.logoAssetId, token) : null;
+  const backgroundUrl = theme.backgroundAssetId ? buildPlayerMediaUrl(joinInfo.eventId, theme.backgroundAssetId, token) : null;
 
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={theme} logoImageUrl={logoUrl} backgroundImageUrl={backgroundUrl}>
       <div className="fixed top-3 right-3 z-10">
         <ConnectionBadge status={status} />
       </div>
