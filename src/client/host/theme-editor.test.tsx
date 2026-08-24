@@ -42,4 +42,22 @@ describe("ThemeEditor", () => {
     );
     expect(markup).not.toContain("開始をお待ちください");
   });
+
+  it("does not show a remove option for logo/background when neither image is set", () => {
+    const event = sampleEvent();
+    const markup = renderToStaticMarkup(
+      <ThemeEditor apiClient={unimplementedApiClient()} eventId={event.id} event={event} onEventChange={() => {}} />,
+    );
+    expect(markup).not.toContain("削除");
+    expect(markup).not.toContain("設定済み");
+  });
+
+  it("shows a remove option only for the image kind that is currently set (要件3.10)", () => {
+    const event = sampleEvent({ theme: { ...sampleEvent().theme, logoAssetId: "logo-1" as never } });
+    const markup = renderToStaticMarkup(
+      <ThemeEditor apiClient={unimplementedApiClient()} eventId={event.id} event={event} onEventChange={() => {}} />,
+    );
+    expect(markup.match(/設定済み/g)?.length).toBe(1);
+    expect(markup.match(/削除/g)?.length).toBe(1);
+  });
 });

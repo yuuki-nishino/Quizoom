@@ -19,3 +19,10 @@ export function applyDesignTemplate(theme: ThemeSettings, template: DesignTempla
 export function updateThemeColor(theme: ThemeSettings, key: ThemeColorKey, value: string): ThemeSettings {
   return { ...theme, [key]: value };
 }
+
+export type ThemeImageKind = "logo" | "background";
+
+/** ロゴまたは背景画像の参照をクリアする。対象以外のフィールド(配色・テンプレートID・もう一方の画像)には触れない（要件3.10） */
+export function clearThemeImage(theme: ThemeSettings, kind: ThemeImageKind): ThemeSettings {
+  return kind === "logo" ? { ...theme, logoAssetId: null } : { ...theme, backgroundAssetId: null };
+}

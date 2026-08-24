@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyDesignTemplate, updateThemeColor } from "./theme-editor-state";
+import { applyDesignTemplate, updateThemeColor, clearThemeImage } from "./theme-editor-state";
 import { DESIGN_TEMPLATES } from "../../shared/design-templates";
 import type { ThemeSettings } from "../../shared/domain-types";
 
@@ -53,5 +53,34 @@ describe("updateThemeColor", () => {
 
     expect(tweaked.templateId).toBe("fancy-party");
     expect(tweaked.primaryColor).toBe("#123123");
+  });
+});
+
+describe("clearThemeImage", () => {
+  it("clears only the logo asset id, leaving the background asset id and other fields untouched", () => {
+    const theme = baseTheme({ logoAssetId: "logo-1" as never, backgroundAssetId: "bg-1" as never, primaryColor: "#abcdef" });
+    const next = clearThemeImage(theme, "logo");
+
+    expect(next.logoAssetId).toBeNull();
+    expect(next.backgroundAssetId).toBe("bg-1");
+    expect(next.primaryColor).toBe("#abcdef");
+  });
+
+  it("clears only the background asset id, leaving the logo asset id and other fields untouched", () => {
+    const theme = baseTheme({ logoAssetId: "logo-1" as never, backgroundAssetId: "bg-1" as never });
+    const next = clearThemeImage(theme, "background");
+
+    expect(next.backgroundAssetId).toBeNull();
+    expect(next.logoAssetId).toBe("logo-1");
+  });
+
+  it("keeps the selected template id when clearing an image", () => {
+    const template = DESIGN_TEMPLATES.find((t) => t.id === "fancy-party")!;
+    const themed = applyDesignTemplate(baseTheme({ logoAssetId: "logo-1" as never }), template);
+
+    const next = clearThemeImage(themed, "logo");
+
+    expect(next.templateId).toBe("fancy-party");
+    expect(next.logoAssetId).toBeNull();
   });
 });

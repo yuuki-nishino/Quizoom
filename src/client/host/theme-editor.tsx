@@ -4,7 +4,7 @@ import type { ThemeSettings } from "../../shared/domain-types";
 import type { EventDetail, HostApiClient } from "./api-client";
 import { isLowContrast } from "../shared/theme";
 import { DESIGN_TEMPLATES } from "../../shared/design-templates";
-import { applyDesignTemplate, updateThemeColor } from "./theme-editor-state";
+import { applyDesignTemplate, updateThemeColor, clearThemeImage, type ThemeImageKind } from "./theme-editor-state";
 import { hostRoutePath } from "./route";
 
 export interface ThemeEditorProps {
@@ -41,6 +41,10 @@ export function ThemeEditor({ apiClient, eventId, event, onEventChange }: ThemeE
     } else {
       setError(result.code);
     }
+  }
+
+  function handleClearImage(kind: ThemeImageKind) {
+    setTheme((prev) => clearThemeImage(prev, kind));
   }
 
   async function handleSave() {
@@ -124,27 +128,47 @@ export function ThemeEditor({ apiClient, eventId, event, onEventChange }: ThemeE
       )}
 
       <div className="mt-4 space-y-3">
-        <label className="block text-sm font-medium text-slate-700">
-          ロゴ画像
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => handleUpload("logo", e.target.files?.[0])}
-            className="mt-1 block text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
-          />
-        </label>
-        {uploadingLogo && <p className="text-sm text-slate-500">アップロード中…</p>}
+        <div>
+          <label className="block text-sm font-medium text-slate-700">
+            ロゴ画像
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => handleUpload("logo", e.target.files?.[0])}
+              className="mt-1 block text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
+            />
+          </label>
+          {uploadingLogo && <p className="text-sm text-slate-500">アップロード中…</p>}
+          {theme.logoAssetId && (
+            <p className="mt-1 flex items-center gap-2 text-sm text-slate-600">
+              設定済み
+              <button type="button" onClick={() => handleClearImage("logo")} className="text-sm font-medium text-red-600 hover:text-red-700">
+                削除
+              </button>
+            </p>
+          )}
+        </div>
 
-        <label className="block text-sm font-medium text-slate-700">
-          背景画像
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => handleUpload("background", e.target.files?.[0])}
-            className="mt-1 block text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
-          />
-        </label>
-        {uploadingBackground && <p className="text-sm text-slate-500">アップロード中…</p>}
+        <div>
+          <label className="block text-sm font-medium text-slate-700">
+            背景画像
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => handleUpload("background", e.target.files?.[0])}
+              className="mt-1 block text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
+            />
+          </label>
+          {uploadingBackground && <p className="text-sm text-slate-500">アップロード中…</p>}
+          {theme.backgroundAssetId && (
+            <p className="mt-1 flex items-center gap-2 text-sm text-slate-600">
+              設定済み
+              <button type="button" onClick={() => handleClearImage("background")} className="text-sm font-medium text-red-600 hover:text-red-700">
+                削除
+              </button>
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
