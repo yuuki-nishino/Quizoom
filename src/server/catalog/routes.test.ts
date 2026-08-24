@@ -394,4 +394,44 @@ describe("PUT /api/events/:id/theme", () => {
     });
     expect(res.status).toBe(200);
   });
+
+  it("defaults templateId to null when the request omits it (older client compatibility)", async () => {
+    const cookie = await hostCookie();
+    const created = await createEventAs(cookie);
+
+    const { templateId: _templateId, ...themeWithoutTemplateId } = DEFAULT_THEME;
+    const res = await SELF.fetch(`https://example.com/api/events/${created.id}/theme`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify(themeWithoutTemplateId),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json<{ templateId: unknown }>()).templateId).toBeNull();
+  });
+
+  it("saves a selected design template id and round-trips it", async () => {
+    const cookie = await hostCookie();
+    const created = await createEventAs(cookie);
+
+    const theme = { ...DEFAULT_THEME, templateId: "fancy-party" };
+    const res = await SELF.fetch(`https://example.com/api/events/${created.id}/theme`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify(theme),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(theme);
+  });
+
+  it("rejects an unknown design template id", async () => {
+    const cookie = await hostCookie();
+    const created = await createEventAs(cookie);
+
+    const res = await SELF.fetch(`https://example.com/api/events/${created.id}/theme`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({ ...DEFAULT_THEME, templateId: "not-a-real-template" }),
+    });
+    expect(res.status).toBe(400);
+  });
 });

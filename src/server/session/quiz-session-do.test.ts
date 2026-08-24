@@ -19,6 +19,7 @@ const meta: EventMeta = {
     textColor: "#000000",
     logoAssetId: null,
     backgroundAssetId: null,
+    templateId: null,
   },
 };
 
@@ -809,6 +810,30 @@ describe("QuizSessionDO theme update", () => {
     const loaded = await loadState(stub);
     expect(loaded?.phase).toEqual({ kind: "lobby" });
     expect(loaded?.eventMeta.theme).toEqual(newTheme);
+
+    stageWs.close();
+    aliceWs.close();
+  });
+
+  it("broadcasts a changed design template id to stage and participant connections while live (要件4.6)", async () => {
+    await seedEvent("event-1", { stageToken: "tok" });
+    const stub = newStub();
+    await publish(stub, meta);
+
+    const stageWs = await connectAndDrain(stub, { eventId: "event-1", role: "stage", token: "tok" });
+    const alice = await joinParticipant(stub, "event-1", "alice");
+    const aliceWs = await connectAndDrain(stub, { eventId: "event-1", role: "participant", token: alice.token });
+
+    const stageMsg = nextMessage(stageWs);
+    const aliceMsg = nextMessage(aliceWs);
+
+    const templatedTheme = { ...meta.theme, templateId: "fancy-party" as const };
+    const res = await stub.fetch("https://do/internal/theme", { method: "POST", body: JSON.stringify(templatedTheme) });
+    await res.text();
+    expect(res.status).toBe(204);
+
+    expect(await stageMsg).toEqual({ type: "themeUpdated", payload: templatedTheme });
+    expect(await aliceMsg).toEqual({ type: "themeUpdated", payload: templatedTheme });
 
     stageWs.close();
     aliceWs.close();

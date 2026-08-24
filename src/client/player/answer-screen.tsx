@@ -2,6 +2,7 @@ import type { OptionId } from "../../shared/domain-types";
 import type { QuestionPublicView } from "../../shared/protocol";
 import { formatRemainingSeconds } from "../shared/format";
 import type { AnswerSubmissionState } from "./answer-submission";
+import { CheckCircleIcon } from "../shared/icons";
 
 export interface AnswerScreenProps {
   readonly question: QuestionPublicView;
@@ -27,7 +28,7 @@ export function AnswerScreen({ question, imageUrl, remainingMs, paused, alreadyA
   const selectedLabel = selectedOptionId ? question.options.find((o) => o.id === selectedOptionId)?.label : undefined;
 
   return (
-    <section aria-label="出題中" className="player-answer-screen flex min-h-screen flex-col gap-4 px-4 py-6">
+    <section aria-label="出題中" className="player-answer-screen quiz-phase-enter flex min-h-screen flex-col gap-4 px-4 py-6">
       <h1 className="text-xl font-bold leading-snug">{question.body}</h1>
       {imageUrl && <img src={imageUrl} alt="" className="max-h-48 w-full rounded-lg object-contain" />}
 
@@ -43,7 +44,7 @@ export function AnswerScreen({ question, imageUrl, remainingMs, paused, alreadyA
             disabled={locked || submission.status === "failed"}
             aria-pressed={option.id === selectedOptionId}
             onClick={() => onSelect(option.id)}
-            className={`min-h-16 rounded-xl border-2 px-4 py-4 text-lg font-semibold shadow-sm transition-colors disabled:opacity-60 ${
+            className={`min-h-16 rounded-2xl border-2 px-4 py-4 text-lg font-semibold shadow-md transition-[background-color,border-color,transform] active:scale-95 disabled:opacity-60 ${
               option.id === selectedOptionId
                 ? "border-brand-primary bg-brand-primary text-white"
                 : "border-slate-300 bg-white text-slate-800 active:bg-slate-100"
@@ -57,7 +58,11 @@ export function AnswerScreen({ question, imageUrl, remainingMs, paused, alreadyA
       {submission.status === "pending" && <p role="status" className="text-center text-sm text-slate-500">送信中…</p>}
 
       {accepted && (
-        <p role="status" className="rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-center text-sm text-emerald-800">
+        <p
+          role="status"
+          className="inline-flex items-center justify-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-center text-sm text-emerald-800"
+        >
+          <CheckCircleIcon className="h-4 w-4 shrink-0 text-emerald-600" />
           回答を受け付けました{selectedLabel ? `（${selectedLabel}）` : ""}
         </p>
       )}

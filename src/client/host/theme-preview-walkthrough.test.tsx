@@ -11,6 +11,7 @@ function theme(overrides: Partial<ThemeSettings> = {}): ThemeSettings {
     textColor: "#111827",
     logoAssetId: null,
     backgroundAssetId: null,
+    templateId: null,
     ...overrides,
   };
 }
@@ -25,6 +26,18 @@ describe("ThemePreviewWalkthrough", () => {
     expect(markup).toContain("--color-brand-primary:#abcdef");
     expect(markup).toContain("投影画面: 待機");
     expect(markup).toContain("1/9");
+  });
+
+  it("reflects the event's selected design template on the previewed screen (要件4.6)", () => {
+    const markup = renderToStaticMarkup(
+      <ThemePreviewWalkthrough
+        eventTitle="Quiz Night"
+        theme={theme({ templateId: "elegant-wedding" })}
+        logoImageUrl={null}
+        backgroundImageUrl={null}
+      />,
+    );
+    expect(markup).toContain('data-design-template="elegant-wedding"');
   });
 
   it("disables the previous button and enables the next button on the first step", () => {

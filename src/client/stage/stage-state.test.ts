@@ -11,6 +11,7 @@ const theme: ThemeSettings = {
   textColor: "#000",
   logoAssetId: null,
   backgroundAssetId: null,
+  templateId: null,
 };
 
 describe("stageReducer", () => {

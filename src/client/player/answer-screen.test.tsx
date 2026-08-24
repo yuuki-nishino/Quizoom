@@ -51,6 +51,7 @@ describe("AnswerScreen", () => {
       <AnswerScreen question={question} imageUrl={null} remainingMs={5000} paused={false} alreadyAnswered={false} submission={accepted} onSelect={() => {}} onRetry={() => {}} />,
     );
     expect(markup).toContain("回答を受け付けました（東京）");
+    expect(markup).toContain("<svg");
   });
 
   it("locks the options and shows a generic accepted message when already answered from a prior connection", () => {

@@ -69,7 +69,7 @@ export function StageApp() {
   const backgroundUrl = theme.backgroundAssetId ? buildStageMediaUrl(route.eventId, theme.backgroundAssetId, route.token) : null;
 
   return (
-    <ThemeProvider theme={theme} logoImageUrl={logoUrl} backgroundImageUrl={backgroundUrl}>
+    <ThemeProvider theme={theme} templateId={theme.templateId} logoImageUrl={logoUrl} backgroundImageUrl={backgroundUrl}>
       <div className="fixed top-4 right-4 z-10">
         <ConnectionBadge status={status} />
       </div>

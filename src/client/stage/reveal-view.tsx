@@ -1,4 +1,6 @@
 import type { QuestionPublicView, QuestionClosedPayload } from "../../shared/protocol";
+import { Confetti } from "../shared/confetti";
+import { CheckCircleIcon } from "../shared/icons";
 
 export interface RevealViewProps {
   readonly question: QuestionPublicView;
@@ -10,7 +12,11 @@ export function RevealView({ question, closed }: RevealViewProps) {
   const totalAnswers = closed.distribution.reduce((sum, d) => sum + d.count, 0);
 
   return (
-    <div aria-label="正解発表" className="stage-reveal-view flex min-h-screen flex-col items-center gap-6 px-12 py-10 text-center">
+    <div
+      aria-label="正解発表"
+      className="stage-reveal-view quiz-phase-enter relative flex min-h-screen flex-col items-center gap-6 px-12 py-10 text-center"
+    >
+      <Confetti active={true} />
       <h1 className="max-w-5xl text-4xl font-extrabold leading-snug sm:text-5xl">{question.body}</h1>
       <ul className="stage-options grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
         {question.options.map((option) => {
@@ -24,12 +30,19 @@ export function RevealView({ question, closed }: RevealViewProps) {
               data-correct={isCorrect}
               className={
                 isCorrect
-                  ? "stage-option-correct rounded-xl border-2 border-emerald-500 bg-emerald-50 px-6 py-5 text-left text-2xl font-bold text-emerald-900 shadow"
-                  : "rounded-xl border-2 border-slate-200 bg-white/80 px-6 py-5 text-left text-2xl text-slate-500 shadow"
+                  ? "stage-option-correct rounded-2xl border-2 border-emerald-500 bg-emerald-50 px-6 py-5 text-left text-2xl font-bold text-emerald-900 shadow-lg"
+                  : "rounded-2xl border-2 border-slate-200 bg-white/80 px-6 py-5 text-left text-2xl text-slate-500 shadow"
               }
             >
-              <span>{option.label}</span>
-              {isCorrect && <span className="ml-2">◎正解</span>}
+              <span className="inline-flex items-center gap-1.5">
+                {option.label}
+                {isCorrect && (
+                  <>
+                    <CheckCircleIcon className="h-6 w-6 text-emerald-600" />
+                    <span>正解</span>
+                  </>
+                )}
+              </span>
               <span className="mt-1 block text-base font-normal">
                 {count}人（{pct}%）
               </span>

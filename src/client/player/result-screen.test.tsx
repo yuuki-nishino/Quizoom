@@ -23,6 +23,16 @@ describe("ResultScreen", () => {
     expect(markup).toContain("不正解でした");
   });
 
+  it("plays a celebratory effect only when the interim answer was correct", () => {
+    const correctMarkup = renderToStaticMarkup(<ResultScreen personalResult={personalResult} personalRank={null} />);
+    expect(correctMarkup).toContain("quiz-confetti");
+
+    const incorrectMarkup = renderToStaticMarkup(
+      <ResultScreen personalResult={{ ...personalResult, isCorrect: false }} personalRank={null} />,
+    );
+    expect(incorrectMarkup).not.toContain("quiz-confetti");
+  });
+
   it("prioritizes the final ranking over the interim personal result once isFinal is true", () => {
     const markup = renderToStaticMarkup(
       <ResultScreen personalResult={personalResult} personalRank={{ rank: 1, correctCount: 5, totalElapsedMs: 12_300, isFinal: true }} />,
@@ -32,6 +42,7 @@ describe("ResultScreen", () => {
     expect(markup).toContain("正解数: 5");
     expect(markup).toContain("12.3秒");
     expect(markup).not.toContain("現在の順位");
+    expect(markup).toContain("quiz-confetti");
   });
 
   it("shows the interim personal result when a non-final personal rank is present", () => {

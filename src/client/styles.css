@@ -21,6 +21,23 @@
 
   --font-sans:
     "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", system-ui, -apple-system, sans-serif;
+
+  /* 見出し専用フォント。テンプレート属性セレクタで上書きする(下記)。本文・設問文には使わない */
+  --font-display: "Zen Maru Gothic", var(--font-sans);
+}
+
+/*
+ * テンプレートごとの見出しフォント。--color-brand-* と同じ理由(二重参照回避)で、
+ * ThemeProviderが出力する data-design-template 属性を持つ要素自身にこのカスタム
+ * プロパティを定義し、子孫要素は継承した値を font-display ユーティリティ経由で参照する。
+ * Google Fonts の読み込みは index.html で行い、display=swap によりフォント読み込み中も
+ * テキストが不可視にならないようにしている。
+ */
+[data-design-template="elegant-wedding"] {
+  --font-display: "Shippori Mincho", serif;
+}
+[data-design-template="fancy-party"] {
+  --font-display: "Mochiy Pop One", var(--font-sans);
 }
 
 html,
@@ -34,4 +51,182 @@ body {
 
 #root {
   min-height: 100%;
+}
+
+/*
+ * デザインテンプレートの装飾層。ThemeProvider(src/client/shared/theme.tsx)が出力する
+ * data-design-template 属性をセレクタとして、テンプレートごとの雰囲気を .quiz-motif-layer
+ * (常時マウントされる空のdiv)の疑似要素として描画する。フェーズ画面コンポーネントは
+ * このクラス名を持つ要素を意識する必要がなく、テンプレート追加・変更はこのファイルのみで完結する。
+ *
+ * アニメーションは transform と opacity のみを用い、レイアウトプロパティ(background-position 等)は
+ * 動かさない(要件1.6: 進行操作の同期反映を遅延させない、ux知見: 装飾アニメーションはリフローを伴わない)。
+ */
+.quiz-motif-layer::before,
+.quiz-motif-layer::after {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(48px);
+}
+
+/* standard: 控えめな2色のグラデーションブロブ */
+[data-design-template="standard"] .quiz-motif-layer::before {
+  top: -10%;
+  left: -10%;
+  width: 50%;
+  height: 50%;
+  background: var(--color-brand-primary);
+  opacity: 0.16;
+  animation: quiz-motif-drift 18s ease-in-out infinite;
+}
+[data-design-template="standard"] .quiz-motif-layer::after {
+  bottom: -15%;
+  right: -10%;
+  width: 45%;
+  height: 45%;
+  background: var(--color-brand-accent);
+  opacity: 0.16;
+  animation: quiz-motif-drift 22s ease-in-out infinite reverse;
+}
+
+/* elegant-wedding: 白地にピンク×ゴールドが柔らかく滲む華やかさ(明るい背景向けに調整) */
+[data-design-template="elegant-wedding"] .quiz-motif-layer::before {
+  top: 5%;
+  left: 55%;
+  width: 42%;
+  height: 42%;
+  background: var(--color-brand-accent);
+  opacity: 0.28;
+  animation: quiz-motif-shimmer 6s ease-in-out infinite;
+}
+[data-design-template="elegant-wedding"] .quiz-motif-layer::after {
+  bottom: -5%;
+  left: 5%;
+  width: 35%;
+  height: 35%;
+  background: var(--color-brand-primary);
+  opacity: 0.18;
+  animation: quiz-motif-drift 24s ease-in-out infinite;
+}
+
+/* fancy-party: ポップな2色ブロブが軽やかに浮遊する賑やかさ */
+[data-design-template="fancy-party"] .quiz-motif-layer::before {
+  top: -8%;
+  right: -8%;
+  width: 55%;
+  height: 55%;
+  background: var(--color-brand-accent);
+  opacity: 0.22;
+  animation: quiz-motif-float 9s ease-in-out infinite;
+}
+[data-design-template="fancy-party"] .quiz-motif-layer::after {
+  bottom: -12%;
+  left: -6%;
+  width: 50%;
+  height: 50%;
+  background: var(--color-brand-primary);
+  opacity: 0.22;
+  animation: quiz-motif-float 11s ease-in-out infinite reverse;
+}
+
+@keyframes quiz-motif-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(4%, 3%) scale(1.05);
+  }
+}
+
+@keyframes quiz-motif-shimmer {
+  0%,
+  100% {
+    opacity: 0.08;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.24;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes quiz-motif-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-3%) rotate(3deg);
+  }
+}
+
+/* フェーズ画面の入場演出。フェーズ切り替え時に画面全体が唐突に切り替わらないよう、各フェーズの
+   ルート要素にこのクラスを付与して使う（task 6/7 で適用、要件1.6/2.1-2.3等） */
+.quiz-phase-enter {
+  animation: quiz-phase-fade-in 420ms ease-out both;
+}
+
+@keyframes quiz-phase-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/*
+ * 一過性の祝福演出(Confetti, src/client/shared/confetti.tsx)。正解発表・最終ランキング確定・
+ * 好結果表示のマウント時に1回だけ再生し、ループしない(ux知見: 継続アニメーションは避ける)。
+ * 配色は --color-brand-* トークンを参照し、テンプレートごとの分岐は持たない。
+ */
+.quiz-confetti-piece {
+  position: absolute;
+  top: -10%;
+  left: calc(var(--quiz-confetti-index) * 6.25%);
+  width: 10px;
+  height: 16px;
+  background: var(--color-brand-accent);
+  opacity: 0.9;
+  animation: quiz-confetti-fall 1.6s ease-in forwards;
+  animation-delay: calc(var(--quiz-confetti-index) * 60ms);
+}
+.quiz-confetti-piece:nth-child(odd) {
+  background: var(--color-brand-primary);
+}
+.quiz-confetti-piece:nth-child(3n) {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+}
+
+@keyframes quiz-confetti-fall {
+  0% {
+    transform: translateY(-20%) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(420%) rotate(280deg);
+    opacity: 0;
+  }
+}
+
+/* 非本質的な装飾アニメーションは prefers-reduced-motion で必ず抑制する（要件5.2） */
+@media (prefers-reduced-motion: reduce) {
+  .quiz-motif-layer::before,
+  .quiz-motif-layer::after,
+  .quiz-phase-enter {
+    animation: none !important;
+  }
+
+  .quiz-confetti {
+    display: none;
+  }
 }

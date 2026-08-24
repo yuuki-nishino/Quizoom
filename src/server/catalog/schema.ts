@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AssetId } from "../../shared/domain-types";
+import { DESIGN_TEMPLATE_IDS } from "../../shared/domain-types";
 
 // 選択肢数（2〜4）・正解ちょうど1件・制限時間（5〜300秒）の業務ルールは
 // repository.ts の validateQuestionInput が唯一の実装を持つ（VALIDATION エラーの fields もそこで確定する）。
@@ -46,6 +47,8 @@ export const themeSettingsRequestSchema = z.object({
   textColor: z.string().min(1),
   logoAssetId: assetId().nullable(),
   backgroundAssetId: assetId().nullable(),
+  // 後方互換のため省略可能とし、未送信の場合は未選択(null)として扱う（既存クライアントの回帰防止）
+  templateId: z.enum(DESIGN_TEMPLATE_IDS).nullable().default(null),
 });
 export type ThemeSettingsRequest = z.infer<typeof themeSettingsRequestSchema>;
 

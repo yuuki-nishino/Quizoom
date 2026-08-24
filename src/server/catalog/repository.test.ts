@@ -17,10 +17,10 @@ import {
   loadQuestionSnapshot,
   publish,
   findPublishInfo,
-  THEME_PRESETS,
   DEFAULT_THEME,
 } from "./repository";
 import { createInvite, acceptInvite } from "../collaborators/repository";
+import { DESIGN_TEMPLATES } from "../../shared/design-templates";
 
 beforeEach(async () => {
   await env.DB.exec(
@@ -145,7 +145,7 @@ describe("duplicateEvent", () => {
         { label: "4", isCorrect: true },
       ],
     });
-    await putTheme(env, created.id, OWNER, { ...DEFAULT_THEME, primaryColor: "#123456" });
+    await putTheme(env, created.id, OWNER, { ...DEFAULT_THEME, primaryColor: "#123456", templateId: "elegant-wedding" });
     await env.DB.prepare("INSERT INTO result (id, event_id, finalized_at) VALUES ('r1', ?, 1000)").bind(created.id).run();
 
     const result = await duplicateEvent(env, created.id, OWNER);
@@ -157,6 +157,7 @@ describe("duplicateEvent", () => {
     expect(result.value.questions).toHaveLength(1);
     expect(result.value.questions[0]?.body).toBe("2+2?");
     expect(result.value.theme.primaryColor).toBe("#123456");
+    expect(result.value.theme.templateId).toBe("elegant-wedding");
 
     const results = await env.DB.prepare("SELECT count(*) as n FROM result WHERE event_id = ?").bind(result.value.id).first<{ n: number }>();
     expect(results?.n).toBe(0);
@@ -393,15 +394,34 @@ describe("putTheme", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("overwrites all four custom colors when a preset is applied", async () => {
+  it("overwrites all four custom colors and the template id when a design template is applied", async () => {
     const created = await createEvent(env, OWNER, { title: "Mine" });
     await putTheme(env, created.id, OWNER, { ...DEFAULT_THEME, primaryColor: "#111111", accentColor: "#222222" });
 
-    const preset = THEME_PRESETS[0]!;
-    await putTheme(env, created.id, OWNER, preset);
+    const template = DESIGN_TEMPLATES.find((t) => t.id === "fancy-party")!;
+    const themeFromTemplate = { ...template.colors, logoAssetId: null, backgroundAssetId: null, templateId: template.id };
+    await putTheme(env, created.id, OWNER, themeFromTemplate);
 
     const found = await findEvent(env, created.id, OWNER);
-    expect(found.ok && found.value.theme).toEqual(preset);
+    expect(found.ok && found.value.theme).toEqual(themeFromTemplate);
+  });
+
+  it("keeps the selected design template id independent from later manual color tweaks", async () => {
+    const created = await createEvent(env, OWNER, { title: "Mine" });
+    const template = DESIGN_TEMPLATES.find((t) => t.id === "elegant-wedding")!;
+    await putTheme(env, created.id, OWNER, { ...template.colors, logoAssetId: null, backgroundAssetId: null, templateId: template.id });
+
+    await putTheme(env, created.id, OWNER, {
+      ...template.colors,
+      primaryColor: "#123123",
+      logoAssetId: null,
+      backgroundAssetId: null,
+      templateId: template.id,
+    });
+
+    const found = await findEvent(env, created.id, OWNER);
+    expect(found.ok && found.value.theme.templateId).toBe(template.id);
+    expect(found.ok && found.value.theme.primaryColor).toBe("#123123");
   });
 });
 

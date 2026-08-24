@@ -1,6 +1,7 @@
 import { err, ok } from "../../shared/domain-types";
 import type {
   AssetId,
+  DesignTemplateId,
   EventId,
   EventStatus,
   OptionId,
@@ -94,34 +95,9 @@ export const DEFAULT_THEME: ThemeSettings = {
   textColor: "#111827",
   logoAssetId: null,
   backgroundAssetId: null,
+  // 新規イベントは主催者が明示的にテンプレートを選択するまで未選択(null)のまま保存する（要件4.3）
+  templateId: null,
 };
-
-export const THEME_PRESETS: readonly ThemeSettings[] = [
-  {
-    primaryColor: "#be123c",
-    accentColor: "#fbbf24",
-    backgroundColor: "#fff1f2",
-    textColor: "#1f2937",
-    logoAssetId: null,
-    backgroundAssetId: null,
-  },
-  {
-    primaryColor: "#065f46",
-    accentColor: "#d97706",
-    backgroundColor: "#ecfdf5",
-    textColor: "#111827",
-    logoAssetId: null,
-    backgroundAssetId: null,
-  },
-  {
-    primaryColor: "#1e3a8a",
-    accentColor: "#38bdf8",
-    backgroundColor: "#eff6ff",
-    textColor: "#0f172a",
-    logoAssetId: null,
-    backgroundAssetId: null,
-  },
-];
 
 function newId(): string {
   return crypto.randomUUID();
@@ -163,6 +139,7 @@ interface ThemeRow {
   readonly text_color: string;
   readonly logo_asset_id: string | null;
   readonly background_asset_id: string | null;
+  readonly template_id: string | null;
 }
 
 function toTheme(row: ThemeRow | null): ThemeSettings {
@@ -174,6 +151,7 @@ function toTheme(row: ThemeRow | null): ThemeSettings {
     textColor: row.text_color,
     logoAssetId: (row.logo_asset_id as AssetId) ?? null,
     backgroundAssetId: (row.background_asset_id as AssetId) ?? null,
+    templateId: (row.template_id as DesignTemplateId) ?? null,
   };
 }
 
@@ -389,7 +367,7 @@ export async function duplicateEvent(env: Env, eventId: EventId, ownerId: string
   if (themeRow) {
     statements.push(
       env.DB.prepare(
-        "INSERT INTO theme (event_id, primary_color, accent_color, background_color, text_color, logo_asset_id, background_asset_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO theme (event_id, primary_color, accent_color, background_color, text_color, logo_asset_id, background_asset_id, template_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       ).bind(
         newEventId,
         themeRow.primary_color,
@@ -398,6 +376,7 @@ export async function duplicateEvent(env: Env, eventId: EventId, ownerId: string
         themeRow.text_color,
         themeRow.logo_asset_id,
         themeRow.background_asset_id,
+        themeRow.template_id,
       ),
     );
   }
@@ -537,10 +516,19 @@ export async function putTheme(
   if (!accessible.ok) return accessible;
 
   await env.DB.prepare(
-    "INSERT INTO theme (event_id, primary_color, accent_color, background_color, text_color, logo_asset_id, background_asset_id) VALUES (?, ?, ?, ?, ?, ?, ?) " +
-      "ON CONFLICT(event_id) DO UPDATE SET primary_color = excluded.primary_color, accent_color = excluded.accent_color, background_color = excluded.background_color, text_color = excluded.text_color, logo_asset_id = excluded.logo_asset_id, background_asset_id = excluded.background_asset_id",
+    "INSERT INTO theme (event_id, primary_color, accent_color, background_color, text_color, logo_asset_id, background_asset_id, template_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) " +
+      "ON CONFLICT(event_id) DO UPDATE SET primary_color = excluded.primary_color, accent_color = excluded.accent_color, background_color = excluded.background_color, text_color = excluded.text_color, logo_asset_id = excluded.logo_asset_id, background_asset_id = excluded.background_asset_id, template_id = excluded.template_id",
   )
-    .bind(eventId, theme.primaryColor, theme.accentColor, theme.backgroundColor, theme.textColor, theme.logoAssetId, theme.backgroundAssetId)
+    .bind(
+      eventId,
+      theme.primaryColor,
+      theme.accentColor,
+      theme.backgroundColor,
+      theme.textColor,
+      theme.logoAssetId,
+      theme.backgroundAssetId,
+      theme.templateId,
+    )
     .run();
 
   return ok(theme);

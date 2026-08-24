@@ -30,9 +30,15 @@ describe("RevealView", () => {
   it("highlights the correct option and shows distribution percentages and the explanation", () => {
     const markup = renderToStaticMarkup(<RevealView question={question} closed={closed} />);
     expect(markup).toContain("2+2=4です");
-    expect(markup).toContain("◎正解");
+    expect(markup).toContain("正解");
+    expect(markup).toContain("<svg");
     expect(markup).toMatch(/data-correct="true" class="stage-option-correct[^"]*"/);
     expect(markup).toContain("1人（25%）");
     expect(markup).toContain("3人（75%）");
+  });
+
+  it("plays a one-shot celebratory effect when the correct answer is revealed", () => {
+    const markup = renderToStaticMarkup(<RevealView question={question} closed={closed} />);
+    expect(markup).toContain("quiz-confetti");
   });
 });
