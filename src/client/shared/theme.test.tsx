@@ -102,6 +102,19 @@ describe("ThemeProvider", () => {
     expect(markup).toContain('src="https://example.test/logo.png"');
   });
 
+  it("keeps the logo behind the main content stacking-wise so it never obscures top-left aligned text", () => {
+    const markup = renderToStaticMarkup(
+      <ThemeProvider theme={theme()} logoImageUrl="https://example.test/logo.png">
+        <span>content</span>
+      </ThemeProvider>,
+    );
+
+    const imgIndex = markup.indexOf("<img");
+    expect(markup.slice(imgIndex, imgIndex + 200)).not.toContain("z-20");
+    // ロゴがコンテンツより先(=背面)にレンダリングされることで、視覚的な重なりが起きても文言側が手前になる
+    expect(markup.indexOf("<img")).toBeLessThan(markup.indexOf('class="relative z-10"'));
+  });
+
   it("falls back to the standard template attribute when templateId is omitted", () => {
     const markup = renderToStaticMarkup(
       <ThemeProvider theme={theme()}>

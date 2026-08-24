@@ -97,7 +97,9 @@ export function ThemeProvider({ theme, children, logoImageUrl, backgroundImageUr
     <div style={style} data-design-template={templateId ?? "standard"} className="relative min-h-full bg-brand-bg text-brand-text">
       <div aria-hidden="true" className="quiz-motif-layer pointer-events-none absolute inset-0 z-0 overflow-hidden" />
       {logoImageUrl && (
-        <img src={logoImageUrl} alt="" className="absolute left-4 top-4 z-20 max-h-16 max-w-[40vw] object-contain" />
+        // z-0(コンテンツのz-10より背面)に置くことで、AnswerScreen等の左上寄せの文言と空間的に重なっても
+        // 文言が常にロゴの手前に描画され、ロゴが内容を隠して読みにくくすることを防ぐ
+        <img src={logoImageUrl} alt="" className="absolute left-4 top-4 z-0 max-h-14 max-w-28 object-contain opacity-90" />
       )}
       <div className="relative z-10">{children}</div>
     </div>
