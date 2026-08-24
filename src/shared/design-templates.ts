@@ -29,10 +29,10 @@ const ELEGANT_WEDDING_TEMPLATE: DesignTemplateDefinition = {
   name: "エレガント",
   targetScene: "結婚式・二次会などフォーマルで華やかな場向け",
   colors: {
-    primaryColor: "#9f1d46",
-    accentColor: "#d4af6a",
-    backgroundColor: "#241019",
-    textColor: "#f8efe3",
+    primaryColor: "#db2777",
+    accentColor: "#a16207",
+    backgroundColor: "#fdf2f8",
+    textColor: "#831843",
   },
 };
 

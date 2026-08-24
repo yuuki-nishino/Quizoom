@@ -90,14 +90,14 @@ body {
   animation: quiz-motif-drift 22s ease-in-out infinite reverse;
 }
 
-/* elegant-wedding: シャンパンゴールドのきらめきを基調にした華やかさ */
+/* elegant-wedding: 白地にピンク×ゴールドが柔らかく滲む華やかさ(明るい背景向けに調整) */
 [data-design-template="elegant-wedding"] .quiz-motif-layer::before {
   top: 5%;
   left: 55%;
   width: 42%;
   height: 42%;
   background: var(--color-brand-accent);
-  opacity: 0.16;
+  opacity: 0.28;
   animation: quiz-motif-shimmer 6s ease-in-out infinite;
 }
 [data-design-template="elegant-wedding"] .quiz-motif-layer::after {
@@ -106,7 +106,7 @@ body {
   width: 35%;
   height: 35%;
   background: var(--color-brand-primary);
-  opacity: 0.22;
+  opacity: 0.18;
   animation: quiz-motif-drift 24s ease-in-out infinite;
 }
 
