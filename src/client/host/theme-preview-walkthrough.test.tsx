@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ThemePreviewWalkthrough } from "./theme-preview-walkthrough";
+import { ThemePreviewWalkthrough, previewFrameClassName } from "./theme-preview-walkthrough";
 import type { OptionId, QuestionId, ThemeSettings } from "../../shared/domain-types";
 
 function theme(overrides: Partial<ThemeSettings> = {}): ThemeSettings {
@@ -26,6 +26,20 @@ describe("ThemePreviewWalkthrough", () => {
     expect(markup).toContain("--color-brand-primary:#abcdef");
     expect(markup).toContain("投影画面: 待機");
     expect(markup).toContain("1/9");
+  });
+
+  it("displays the first (投影画面) step inside a 16:9 aspect-ratio frame, matching projector proportions (要件3.11)", () => {
+    const markup = renderToStaticMarkup(
+      <ThemePreviewWalkthrough eventTitle="Quiz Night" theme={theme()} logoImageUrl={null} backgroundImageUrl={null} />,
+    );
+    expect(markup).toMatch(/class="[^"]*aspect-video[^"]*"/);
+  });
+
+  it("applies the projector safety-zone margin (StageSafeArea) around 投影画面 steps (要件3.13)", () => {
+    const markup = renderToStaticMarkup(
+      <ThemePreviewWalkthrough eventTitle="Quiz Night" theme={theme()} logoImageUrl={null} backgroundImageUrl={null} />,
+    );
+    expect(markup).toMatch(/class="[^"]*p-\[8%\][^"]*"/);
   });
 
   it("reflects the event's selected design template on the previewed screen (要件4.6)", () => {
@@ -85,5 +99,17 @@ describe("ThemePreviewWalkthrough", () => {
       />,
     );
     expect(markup).toContain("投影画面: 待機");
+  });
+});
+
+describe("previewFrameClassName", () => {
+  it("frames 投影画面 steps at a 16:9 aspect ratio (要件3.11)", () => {
+    expect(previewFrameClassName("投影画面")).toContain("aspect-video");
+  });
+
+  it("frames 回答画面 steps at a tall, smartphone-like aspect ratio (要件3.12)", () => {
+    const className = previewFrameClassName("回答画面");
+    expect(className).toContain("aspect-[9/19.5]");
+    expect(className).not.toContain("aspect-video");
   });
 });

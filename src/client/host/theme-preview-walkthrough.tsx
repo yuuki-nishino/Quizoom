@@ -6,6 +6,7 @@ import { WaitingRoom } from "../stage/waiting-room";
 import { QuestionView } from "../stage/question-view";
 import { RevealView } from "../stage/reveal-view";
 import { RankingView } from "../stage/ranking-view";
+import { StageSafeArea } from "../stage/safe-area";
 import { NicknameForm } from "../player/nickname-form";
 import { WaitingScreen } from "../player/waiting-screen";
 import { AnswerScreen } from "../player/answer-screen";
@@ -48,10 +49,19 @@ const SAMPLE_RANKING = [
   { participantId: "preview-p2" as ParticipantId, nickname: "はなこ", correctCount: 2, totalElapsedMs: 15400, joinedSeq: 1, rank: 2 },
 ];
 
+export type WalkthroughStepGroup = "投影画面" | "回答画面";
+
 interface WalkthroughStep {
-  readonly group: "投影画面" | "回答画面";
+  readonly group: WalkthroughStepGroup;
   readonly label: string;
   readonly render: () => ReactNode;
+}
+
+/** 投影画面は16:9、回答画面はスマートフォンを模した縦長比の表示枠クラスを返す純粋関数（要件3.11, 3.12） */
+export function previewFrameClassName(group: WalkthroughStepGroup): string {
+  return group === "投影画面"
+    ? "mx-auto mt-3 aspect-video w-full max-w-3xl overflow-hidden rounded-lg border border-slate-200"
+    : "mx-auto mt-3 aspect-[9/19.5] w-72 overflow-hidden rounded-[2rem] border-8 border-slate-800";
 }
 
 function buildSteps(eventTitle: string, preview: PreviewQuestion): readonly WalkthroughStep[] {
@@ -62,31 +72,57 @@ function buildSteps(eventTitle: string, preview: PreviewQuestion): readonly Walk
     {
       group: "投影画面",
       label: "待機",
-      render: () => <WaitingRoom eventTitle={eventTitle} joinUrl="https://example.com/join/PREVIEW" participantCount={3} />,
+      render: () => (
+        <StageSafeArea>
+          <WaitingRoom eventTitle={eventTitle} joinUrl="https://example.com/join/PREVIEW" participantCount={3} />
+        </StageSafeArea>
+      ),
     },
     {
       group: "投影画面",
       label: "出題",
-      render: () => <QuestionView question={question} imageUrl={imageUrl} remainingMs={18000} paused={false} answeredCount={2} totalCount={3} />,
+      render: () => (
+        <StageSafeArea>
+          <QuestionView question={question} imageUrl={imageUrl} remainingMs={18000} paused={false} answeredCount={2} totalCount={3} />
+        </StageSafeArea>
+      ),
     },
     {
       group: "投影画面",
       label: "正解発表",
       render: () => (
-        <RevealView
-          question={question}
-          closed={{
-            questionId: question.id,
-            correctOptionId,
-            distribution,
-            explanation: "解説文はここに表示されます。",
-            personalResult: null,
-          }}
-        />
+        <StageSafeArea>
+          <RevealView
+            question={question}
+            closed={{
+              questionId: question.id,
+              correctOptionId,
+              distribution,
+              explanation: "解説文はここに表示されます。",
+              personalResult: null,
+            }}
+          />
+        </StageSafeArea>
       ),
     },
-    { group: "投影画面", label: "中間ランキング", render: () => <RankingView entries={SAMPLE_RANKING} isFinal={false} /> },
-    { group: "投影画面", label: "最終ランキング", render: () => <RankingView entries={SAMPLE_RANKING} isFinal={true} /> },
+    {
+      group: "投影画面",
+      label: "中間ランキング",
+      render: () => (
+        <StageSafeArea>
+          <RankingView entries={SAMPLE_RANKING} isFinal={false} />
+        </StageSafeArea>
+      ),
+    },
+    {
+      group: "投影画面",
+      label: "最終ランキング",
+      render: () => (
+        <StageSafeArea>
+          <RankingView entries={SAMPLE_RANKING} isFinal={true} />
+        </StageSafeArea>
+      ),
+    },
     {
       group: "回答画面",
       label: "ニックネーム入力",
@@ -156,7 +192,9 @@ export function ThemePreviewWalkthrough({ eventTitle, theme, logoImageUrl, backg
         </button>
       </div>
 
-      <div className="mt-3 h-[30rem] overflow-auto rounded-lg border border-slate-200">
+      {/* 投影画面は実際のプロジェクター投影(16:9)を、回答画面はスマートフォン(縦長)を模した枠で表示する（要件3.11, 3.12）。
+          内容全体はフェーズ画面コンポーネント自身の内部スクロールに委ね、この枠自体はスクロールさせない */}
+      <div className={previewFrameClassName(step.group)}>
         <ThemeProvider theme={theme} templateId={theme.templateId} logoImageUrl={logoImageUrl} backgroundImageUrl={backgroundImageUrl}>
           {step.render()}
         </ThemeProvider>
