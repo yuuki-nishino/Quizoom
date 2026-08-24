@@ -96,3 +96,53 @@
 ## Research Needed
 
 - なし
+
+---
+
+# ギャップ分析: Issue #13(プレビュー機能のアスペクト比微調整)
+
+> 本分析はIssue #13で要望された、Requirement 3.11〜3.14(新設)に対する実装ギャップに限定してスコープする。spec全体の再分析ではない。
+
+## 対象要件
+
+- **Requirement 3.11(新設)**: 投影画面プレビューを16:9のアスペクト比の枠内に表示する
+- **Requirement 3.12(新設)**: 回答画面プレビューをスマートフォンを模した縦長の枠内に、スクロールなしで表示する
+- **Requirement 3.13(新設)**: 投影画面(実画面)がプロジェクターのセーフティゾーンを考慮した既定の余白を持つ
+- **Requirement 3.14(新設)**: プレビューで主催者が任意の設問を選んで表示を切り替えられる
+
+## Requirement-to-Asset Map
+
+| 要件 | 既存アセット | ギャップ |
+|---|---|---|
+| 3.11/3.12(アスペクト比) | `ThemePreviewWalkthrough`の表示枠(`<div className="mt-3 h-[30rem] overflow-auto ...">`)。投影画面・回答画面いずれのステップでも同一の固定高さボックスを使い回している | **Missing**: 投影画面ステップと回答画面ステップを区別し、それぞれ16:9/縦長スマホ比の枠として描画する仕組みがない。`ThemeProvider`自体は`min-h-full`で親要素いっぱいに広がる設計のため、親側のアスペクト比を変えるだけで両画面とも追従できる見込み |
+| 3.13(セーフティゾーン余白) | 各投影画面フェーズコンポーネント(`WaitingRoom`/`QuestionView`/`RevealView`/`RankingView`)は`px-12 py-10`等の内側余白を個別に持つのみ | **Missing**: プロジェクターのセーフティゾーン(例: 80%)を意図した、画面端からの一律の外側余白を与える共通の仕組みがない。実画面(`stage-app.tsx`)とプレビュー(`theme-preview-walkthrough.tsx`)の両方に同じ余白を適用する必要があり、片方だけに実装すると見た目が乖離する(既存の設計原則「実画面との見た目の乖離が構造的に発生しない」に反する) |
+| 3.14(全設問プレビュー) | `theme-preview-page.tsx`の`toPreviewQuestion`は`event.questions[0]`のみをマッピングし、`ThemePreviewWalkthrough`は単一の`question`propしか受け取らない | **Missing**: 複数設問をマッピングして渡す経路、および主催者が選択中の設問を切り替えるUI(セレクタ等)が存在しない |
+
+## 実装アプローチ選択肢
+
+### Option A: `ThemePreviewWalkthrough`をステップ種別で分岐させ、共有の`StageSafeArea`コンポーネントを新設(推奨)
+- 表示枠を`step.group`(投影画面/回答画面)で分岐し、投影画面は`aspect-video`(16:9)、回答画面はスマートフォンを模した縦長比(例: `aspect-[9/19.5]`)+ 端末風の丸角・ボーダーで描画する。両者とも`overflow-hidden`とし、内部のフェーズ画面コンポーネント自身が持つ`overflow-y-auto`(直近のvisual refresh作業で実装済み)に処理を委ねることでスクロールなしの全体表示を実現する
+- セーフティゾーン余白は`src/client/stage/`配下に`StageSafeArea`という薄いラッパーコンポーネント(`flex min-h-0 flex-1 flex-col p-[8%]`程度)として新設し、実画面の`stage-app.tsx`とプレビューの`theme-preview-walkthrough.tsx`の投影画面ステップの双方から共有して使う。1箇所に定義することで見た目の乖離を構造的に防ぐ
+- 全設問プレビューは、`theme-preview-page.tsx`に`toPreviewQuestions`(複数形、全設問をマッピング)を追加し、`ThemePreviewWalkthrough`のprops`question`を`questions`(配列)へ拡張。コンポーネント内部で選択中の設問インデックスをstateとして持ち、設問選択用のセレクタUIを追加する。既存の`toPreviewQuestion`(単数形)は後方互換のため残し、内部の設問→PreviewQuestion変換ロジックのみ共通化する
+
+**トレードオフ**:
+- ✅ 実画面とプレビューが同じ`StageSafeArea`コンポーネントを共有するため、見た目の乖離が構造的に発生しない(既存設計原則を維持)
+- ✅ 新規ライブラリ・APIエンドポイントは不要。CSSのアスペクト比ユーティリティと既存コンポーネントの組み合わせで完結する
+- ❌ `ThemePreviewWalkthrough`のprops変更(`question`→`questions`)により、呼び出し元(`theme-preview-page.tsx`)とテストの更新が必要
+
+### Option B: プレビューのみ調整し、実画面(セーフティゾーン)には手を入れない
+- Requirement 3.13(実画面の余白)を見送り、プレビューのアスペクト比調整(3.11, 3.12)と全設問プレビュー(3.14)のみ対応する
+- **不採用の理由**: Issue #13の主目的は「事前確認したものが実際の投影と一致すること」であり、プレビューだけ余白があっても実画面に反映されなければ「セーフティゾーンで見切れる」という当初の課題が解決しない。プレビューと実画面の一致を保つ既存の設計原則にも反する
+
+## 推奨
+
+**Option A**を推奨。
+
+## Effort / Risk
+
+- **Effort**: M(2〜4日相当) — アスペクト比調整自体は小さいが、`StageSafeArea`の新設と実画面・プレビュー双方への適用、`questions`複数化によるprops変更とテスト更新を含む
+- **Risk**: Low〜Medium — `stage-app.tsx`(実際に開催中のイベントで使われる投影画面)への変更を伴うため、既存の投影画面レイアウト・統合テストへの影響確認が必要
+
+## Research Needed
+
+- なし(Tailwindの`aspect-*`ユーティリティ・`overflow-hidden`など既存技術のみで完結する)

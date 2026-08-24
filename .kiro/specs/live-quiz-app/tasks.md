@@ -592,3 +592,40 @@
   - 観測可能な完了条件: 既存テストスイートの実行結果に失敗がないことを確認できる
   - _Requirements: 3.10_
   - _Depends: 19.2_
+
+- [x] 20. 追加: プレビュー機能のアスペクト比・セーフティゾーン余白・全設問プレビュー(Issue #13・要件3.11〜3.14を新設)
+- [x] 20.1 投影画面のセーフティゾーン余白: StageSafeAreaの新設と実画面への適用
+  - `src/client/stage/`配下に、プロジェクターのセーフティゾーンを想定した既定の余白を持つ薄いラッパーコンポーネント`StageSafeArea`を新設する
+  - `stage-app.tsx`のフェーズ画面切り替え部分を`StageSafeArea`でラップし、実際の投影画面に余白が反映されるようにする
+  - 観測可能な完了条件: `StageSafeArea`配下に描画した内容が画面端から一定の余白を持って表示されること、`stage-app.tsx`の既存の画面切り替えロジック(参加者数・残り時間表示等)が変更後も動作することをテストで確認できる
+  - _Requirements: 3.13_
+  - _Boundary: StageSafeArea, stage-app.tsx_
+
+- [x] 20.2 プレビュー表示枠のアスペクト比調整とセーフティゾーン適用
+  - `ThemePreviewWalkthrough`の表示枠を、ステップ種別(投影画面/回答画面)で分岐させ、投影画面は16:9、回答画面はスマートフォンを模した縦長比の枠として描画するよう変更する
+  - 投影画面ステップの描画を20.1の`StageSafeArea`でラップし、実画面と同じ余白がプレビューにも反映されるようにする
+  - 観測可能な完了条件: 投影画面ステップの表示枠が16:9相当のアスペクト比になっていること、回答画面ステップの表示枠が縦長のスマートフォン比になっていること、いずれもスクロール操作なしで内容全体を確認できることをテストで確認できる
+  - _Requirements: 3.11, 3.12_
+  - _Boundary: ThemePreviewWalkthrough_
+  - _Depends: 20.1_
+
+- [x] 20.3 全設問プレビュー: データ層の拡張
+  - `theme-preview-page.tsx`に、イベントの全設問を`PreviewQuestion`の配列へマッピングする`toPreviewQuestions`(複数形)を追加する。既存の`toPreviewQuestion`(単数形)はそのまま残す
+  - `ThemePreviewWalkthrough`のprops`question`(単一)を`questions`(配列)へ拡張する
+  - 観測可能な完了条件: `toPreviewQuestions`がイベントの全設問を順序どおりマッピングすること、設問が0件のイベントでは空配列を返すことをテストで確認できる
+  - _Requirements: 3.14_
+  - _Boundary: theme-preview-page.tsx_
+
+- [x] 20.4 全設問プレビュー: 設問選択UIの追加
+  - `ThemePreviewWalkthrough`に、選択中の設問インデックスを保持するstateと、設問を選択するUI(セレクタ等)を追加する
+  - 出題・正解発表の各ステップが、選択中の設問の内容を表示するようにする
+  - 観測可能な完了条件: 設問を切り替えると出題・正解発表ステップの表示内容(問題文・選択肢)が切り替わること、設問が1件も登録されていないイベントではサンプル設問にフォールバックすることをテストで確認できる
+  - _Requirements: 3.14_
+  - _Boundary: ThemePreviewWalkthrough_
+  - _Depends: 20.3_
+
+- [x] 20.5 検証: 回帰確認
+  - 投影画面・外観プレビュー関連の既存テストスイート(`stage-app`配下の統合的なフェーズ画面テスト、`theme-preview-walkthrough.test.tsx`, `theme-preview-page.test.tsx`)が、今回の変更後も引き続き成功することを確認する
+  - 観測可能な完了条件: 既存テストスイートの実行結果に失敗がないことを確認できる
+  - _Requirements: 3.11, 3.12, 3.13, 3.14_
+  - _Depends: 20.2, 20.4_

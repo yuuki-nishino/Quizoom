@@ -13,6 +13,7 @@ import { WaitingRoom } from "./waiting-room";
 import { QuestionView } from "./question-view";
 import { RevealView } from "./reveal-view";
 import { RankingView } from "./ranking-view";
+import { StageSafeArea } from "./safe-area";
 
 /** 投影画面のルート。stage_token の検証・接続・フェーズに応じた画面切り替えを担う */
 export function StageApp() {
@@ -77,24 +78,26 @@ export function StageApp() {
         <RecoveryBanner status={status} />
       </div>
 
-      {state.ranking !== null ? (
-        <RankingView entries={state.ranking} isFinal={state.isFinalRanking} />
-      ) : state.closedQuestion !== null && state.currentQuestion !== null ? (
-        <RevealView question={state.currentQuestion} closed={state.closedQuestion} />
-      ) : state.currentQuestion !== null ? (
-        <QuestionView
-          question={state.currentQuestion}
-          imageUrl={
-            state.currentQuestion.imageAssetId ? buildStageMediaUrl(route.eventId, state.currentQuestion.imageAssetId, route.token) : null
-          }
-          remainingMs={state.phase?.kind === "paused" ? (frozenRemainingMs ?? 0) : (remainingMs ?? 0)}
-          paused={state.phase?.kind === "paused"}
-          answeredCount={state.answeredCount}
-          totalCount={state.totalCount}
-        />
-      ) : (
-        <WaitingRoom eventTitle={info.eventTitle} joinUrl={joinUrl} participantCount={state.participantCount} />
-      )}
+      <StageSafeArea>
+        {state.ranking !== null ? (
+          <RankingView entries={state.ranking} isFinal={state.isFinalRanking} />
+        ) : state.closedQuestion !== null && state.currentQuestion !== null ? (
+          <RevealView question={state.currentQuestion} closed={state.closedQuestion} />
+        ) : state.currentQuestion !== null ? (
+          <QuestionView
+            question={state.currentQuestion}
+            imageUrl={
+              state.currentQuestion.imageAssetId ? buildStageMediaUrl(route.eventId, state.currentQuestion.imageAssetId, route.token) : null
+            }
+            remainingMs={state.phase?.kind === "paused" ? (frozenRemainingMs ?? 0) : (remainingMs ?? 0)}
+            paused={state.phase?.kind === "paused"}
+            answeredCount={state.answeredCount}
+            totalCount={state.totalCount}
+          />
+        ) : (
+          <WaitingRoom eventTitle={info.eventTitle} joinUrl={joinUrl} participantCount={state.participantCount} />
+        )}
+      </StageSafeArea>
     </ThemeProvider>
   );
 }
