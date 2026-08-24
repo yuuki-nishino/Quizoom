@@ -113,11 +113,11 @@ export function PlayerApp() {
       {showLateJoinNotice && <LateJoinNotice onDismiss={() => setLateJoinDismissed(true)} />}
 
       {state.phase === null ? (
-        <p className="flex min-h-screen items-center justify-center text-slate-500">読み込み中…</p>
+        <p className="flex min-h-0 flex-1 items-center justify-center text-slate-500">読み込み中…</p>
       ) : state.closedQuestion !== null ? (
         <ResultScreen personalResult={state.closedQuestion.personalResult} personalRank={state.personalRank} />
       ) : state.phase.kind === "questionClosed" ? (
-        <p role="status" className="flex min-h-screen items-center justify-center px-6 text-center text-lg text-brand-text/80">
+        <p role="status" className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-lg text-brand-text/80">
           回答受付を終了しました。正解発表をお待ちください。
         </p>
       ) : state.currentQuestion !== null && (state.phase.kind === "questionOpen" || state.phase.kind === "paused") ? (

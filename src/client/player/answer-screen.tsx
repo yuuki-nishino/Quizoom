@@ -28,7 +28,7 @@ export function AnswerScreen({ question, imageUrl, remainingMs, paused, alreadyA
   const selectedLabel = selectedOptionId ? question.options.find((o) => o.id === selectedOptionId)?.label : undefined;
 
   return (
-    <section aria-label="出題中" className="player-answer-screen quiz-phase-enter flex min-h-screen flex-col gap-4 px-4 py-6">
+    <section aria-label="出題中" className="player-answer-screen quiz-phase-enter flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-6">
       <h1 className="text-xl font-bold leading-snug">{question.body}</h1>
       {imageUrl && <img src={imageUrl} alt="" className="max-h-48 w-full rounded-lg object-contain" />}
 

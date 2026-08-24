@@ -16,7 +16,7 @@ export function RankingView({ entries, isFinal, topN = 10 }: RankingViewProps) {
   return (
     <div
       aria-label={isFinal ? "最終ランキング" : "中間ランキング"}
-      className={`${isFinal ? "stage-ranking-final" : "stage-ranking-interim"} quiz-phase-enter relative flex min-h-screen flex-col items-center gap-6 px-12 py-10`}
+      className={`${isFinal ? "stage-ranking-final" : "stage-ranking-interim"} quiz-phase-enter relative flex min-h-0 flex-1 flex-col items-center gap-6 overflow-y-auto px-12 py-10`}
     >
       {isFinal && <Confetti active={true} />}
       <h1 className="font-display inline-flex items-center gap-3 text-5xl font-extrabold">

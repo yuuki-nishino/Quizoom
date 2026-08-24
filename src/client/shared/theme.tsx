@@ -94,12 +94,18 @@ export function ThemeProvider({ theme, children, logoImageUrl, backgroundImageUr
   }, [theme, backgroundImageUrl]);
 
   return (
-    <div style={style} data-design-template={templateId ?? "standard"} className="relative min-h-full bg-brand-bg text-brand-text">
+    <div style={style} data-design-template={templateId ?? "standard"} className="relative flex min-h-full flex-col bg-brand-bg text-brand-text">
       <div aria-hidden="true" className="quiz-motif-layer pointer-events-none absolute inset-0 z-0 overflow-hidden" />
+      {/* ロゴは絶対配置でコンテンツに重ねず、専用の帯として通常のレイアウトに含める。
+          これによりコンテンツ側(flex-1)は常にロゴの分だけ縮小され、空間的な重なりが起きない */}
       {logoImageUrl && (
-        <img src={logoImageUrl} alt="" className="absolute left-4 top-4 z-20 max-h-16 max-w-[40vw] object-contain" />
+        <div className="relative z-10 shrink-0 p-4">
+          <img src={logoImageUrl} alt="" className="max-h-14 max-w-28 object-contain" />
+        </div>
       )}
-      <div className="relative z-10">{children}</div>
+      {/* flex-col化することで、ConnectionBadge等の非fixedな兄弟要素(RecoveryBanner, LateJoinNotice)が
+          先に自然な高さを占め、フェーズ画面コンポーネント(flex-1)が残り領域を正しく埋められるようにする */}
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col">{children}</div>
     </div>
   );
 }

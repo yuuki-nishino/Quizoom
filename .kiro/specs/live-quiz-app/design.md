@@ -299,7 +299,7 @@ flowchart TD
 | 1.1, 1.2 | 主催者認証とログイン強制 | AuthFactory, HostGuard | HTTP `/api/auth/*` | — |
 | 1.3–1.8 | イベント CRUD・複製・削除・開催中の編集禁止 | CatalogRoutes, CatalogRepository, HostConsole | `EventCatalogService` | — |
 | 2.1–2.10 | 設問の作成・検証・並び替え | CatalogRoutes, CatalogRepository, HostConsole | `QuestionCatalogService` | — |
-| 3.1–3.9 | 外観カスタマイズ・コントラスト警告・全画面ウォークスルー | CatalogRoutes, ThemeProvider, HostConsole, PresentationScreen, AnswerScreen | `ThemeSettings` | — |
+| 3.1–3.10 | 外観カスタマイズ・コントラスト警告・全画面ウォークスルー | CatalogRoutes, ThemeProvider, HostConsole, PresentationScreen, AnswerScreen | `ThemeSettings` | — |
 | 3.7 | 開催中の外観反映 | QuizSessionDO, ThemeProvider | `themeUpdated` イベント | — |
 | 4.1, 4.2 | 参加用 URL と QR コード発行 | CatalogRoutes, HostConsole | `EventCatalogService` | — |
 | 4.3–4.8 | 参加登録・重複名・定員・復元 | JoinRoutes, ParticipantToken, QuizSessionDO | HTTP `/api/join/:joinCode` | — |
@@ -377,7 +377,7 @@ interface PublicResult {
 | ShareView | UI | 共有結果ページの描画と画像化 | 8.12, 8.14, 10.8 | — | State |
 | LiveChannel | UI | WebSocket 接続・再接続・状態復元 | 9.2–9.6 | protocol (P0) | State |
 | ServerClock | UI | サーバー基準の残り時間算出 | 9.8, 6.2, 7.2 | なし | Service |
-| HostConsole | UI | 準備画面（イベント一覧・作成・編集、設問エディタ、外観エディタ、公開・QR/参加URL取得、結果閲覧・共有設定）と進行画面（出題操作・正解発表・結果発表）の描画 | 1.3–1.8, 2.1–2.10, 3.1–3.9, 4.1, 4.2, 5.1–5.13, 8.11, 8.13, 10.2, 10.3, 11.6, 12.3, 12.4 | CatalogRoutes (P0), LiveChannel (P0), ThemeProvider (P1), PresentationScreen (P2), AnswerScreen (P2) | State |
+| HostConsole | UI | 準備画面（イベント一覧・作成・編集、設問エディタ、外観エディタ、公開・QR/参加URL取得、結果閲覧・共有設定）と進行画面（出題操作・正解発表・結果発表）の描画 | 1.3–1.8, 2.1–2.10, 3.1–3.10, 4.1, 4.2, 5.1–5.13, 8.11, 8.13, 10.2, 10.3, 11.6, 12.3, 12.4 | CatalogRoutes (P0), LiveChannel (P0), ThemeProvider (P1), PresentationScreen (P2), AnswerScreen (P2) | State |
 | PresentationScreen / AnswerScreen | UI | 投影画面・回答画面の描画 | 6, 7 | LiveChannel (P0), ThemeProvider (P1) | State |
 
 ### Domain 層
@@ -1086,6 +1086,7 @@ interface ServerClock {
 - 途中参加者には、出題済み設問へ回答できず不利になる旨を参加直後に表示する（要件4.10）
 - `ThemeProvider`（`client/shared/theme.tsx`）は任意の`logoImageUrl`/`backgroundImageUrl`（呼び出し側が解決済みのURL文字列）を受け取り、背景画像はラッパーへのcover適用、ロゴは固定位置バッジとして`children`の外側に描画する。`stage-app.tsx`/`player-app.tsx`は既存の`buildStageMediaUrl`/`buildPlayerMediaUrl`（設問添付画像で使用中の認可URLパターン）で`ThemeSettings.logoAssetId`/`backgroundAssetId`をURLへ解決してから渡す（要件3.4）。`share-app.tsx`はこれらのpropsを渡さず、要件10.6の非公開方針を維持する
 - `ThemeProvider`は4色をTailwindの`@theme`トークン名（`--color-brand-primary`等）へ**直接**インライン設定する。以前は`--quizoom-color-*`という別名を経由し、`styles.css`の`@theme`ブロック側で`var(--quizoom-color-primary, #4338ca)`のように解決する二重参照になっていたが、これはCSSカスタムプロパティの継承モデル上機能しない（`--color-brand-primary`の「定義」は`:root`にしか存在しないため、ネストした要素で別名を上書きしても再評価されず、常に`:root`で解決済みのフォールバック値が継承され続ける）。この不具合により、外観プレビュー・投影画面・回答画面のいずれでもカスタム配色が一切反映されていなかった（Issue #7で複数回報告された「保存しても色が変わらない」の真因）。修正後は二重参照を排し、`ThemeProvider`が`--color-brand-*`を直接上書きする
+- `ThemeEditor`はロゴ・背景画像が設定されている場合のみ「削除」操作を提示し、選択すると編集中の`theme`ローカルstateの該当`logoAssetId`/`backgroundAssetId`を`null`に戻す。サーバーへの反映は既存の「保存する」操作（`PUT /api/events/:id/theme`）を通じて行い、削除専用のAPIエンドポイントは設けない（`themeSettingsRequestSchema`は元々`nullable()`で受理可能）。R2上の既存オブジェクトの物理削除は行わず、画像差し替え時と同じくオーファン化を許容する（要件3.10）
 
 ## Data Models
 

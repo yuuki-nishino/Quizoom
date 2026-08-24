@@ -14,7 +14,7 @@ export function RevealView({ question, closed }: RevealViewProps) {
   return (
     <div
       aria-label="正解発表"
-      className="stage-reveal-view quiz-phase-enter relative flex min-h-screen flex-col items-center gap-6 px-12 py-10 text-center"
+      className="stage-reveal-view quiz-phase-enter relative flex min-h-0 flex-1 flex-col items-center gap-6 overflow-y-auto px-12 py-10 text-center"
     >
       <Confetti active={true} />
       <h1 className="max-w-5xl text-4xl font-extrabold leading-snug sm:text-5xl">{question.body}</h1>

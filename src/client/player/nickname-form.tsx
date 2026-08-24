@@ -26,7 +26,7 @@ export function NicknameForm({ eventTitle, submitting, errorCode, onSubmit }: Ni
   }
 
   return (
-    <section aria-label="参加登録" className="quiz-phase-enter flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
+    <section aria-label="参加登録" className="quiz-phase-enter flex min-h-0 flex-1 flex-col items-center justify-center gap-6 px-6 text-center">
       <h1 className="font-display text-2xl font-bold tracking-tight text-brand-primary drop-shadow-sm">{eventTitle}</h1>
       <form onSubmit={handleSubmit} className="flex w-full max-w-sm flex-col gap-4 rounded-2xl bg-white/70 p-6 shadow-lg backdrop-blur-sm">
         <label className="block text-left text-sm font-medium text-brand-text/80">
