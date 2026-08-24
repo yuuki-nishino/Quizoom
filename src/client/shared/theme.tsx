@@ -94,14 +94,18 @@ export function ThemeProvider({ theme, children, logoImageUrl, backgroundImageUr
   }, [theme, backgroundImageUrl]);
 
   return (
-    <div style={style} data-design-template={templateId ?? "standard"} className="relative min-h-full bg-brand-bg text-brand-text">
+    <div style={style} data-design-template={templateId ?? "standard"} className="relative flex min-h-full flex-col bg-brand-bg text-brand-text">
       <div aria-hidden="true" className="quiz-motif-layer pointer-events-none absolute inset-0 z-0 overflow-hidden" />
+      {/* ロゴは絶対配置でコンテンツに重ねず、専用の帯として通常のレイアウトに含める。
+          これによりコンテンツ側(flex-1)は常にロゴの分だけ縮小され、空間的な重なりが起きない */}
       {logoImageUrl && (
-        // z-0(コンテンツのz-10より背面)に置くことで、AnswerScreen等の左上寄せの文言と空間的に重なっても
-        // 文言が常にロゴの手前に描画され、ロゴが内容を隠して読みにくくすることを防ぐ
-        <img src={logoImageUrl} alt="" className="absolute left-4 top-4 z-0 max-h-14 max-w-28 object-contain opacity-90" />
+        <div className="relative z-10 shrink-0 p-4">
+          <img src={logoImageUrl} alt="" className="max-h-14 max-w-28 object-contain" />
+        </div>
       )}
-      <div className="relative z-10">{children}</div>
+      {/* flex-col化することで、ConnectionBadge等の非fixedな兄弟要素(RecoveryBanner, LateJoinNotice)が
+          先に自然な高さを占め、フェーズ画面コンポーネント(flex-1)が残り領域を正しく埋められるようにする */}
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col">{children}</div>
     </div>
   );
 }

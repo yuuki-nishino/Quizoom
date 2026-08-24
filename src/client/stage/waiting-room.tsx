@@ -28,7 +28,7 @@ export function WaitingRoom({ eventTitle, joinUrl, participantCount }: WaitingRo
   return (
     <div
       aria-label="待機状態"
-      className="stage-waiting-room quiz-phase-enter flex min-h-screen flex-col items-center justify-center gap-6 px-8 text-center"
+      className="stage-waiting-room quiz-phase-enter flex min-h-0 flex-1 flex-col items-center justify-center gap-6 px-8 text-center"
     >
       <h1 className="font-display text-5xl font-extrabold tracking-tight text-brand-primary drop-shadow-sm sm:text-6xl">{eventTitle}</h1>
       <p className="text-2xl font-medium text-brand-text/80">開始をお待ちください</p>

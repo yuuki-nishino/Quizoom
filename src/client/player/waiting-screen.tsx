@@ -5,7 +5,7 @@ export interface WaitingScreenProps {
 /** 開始待ち表示: 自分のニックネームと開始待ちである旨を表示する（要件7.1） */
 export function WaitingScreen({ nickname }: WaitingScreenProps) {
   return (
-    <section aria-label="開始待ち" className="quiz-phase-enter flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center">
+    <section aria-label="開始待ち" className="quiz-phase-enter flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
       <p className="text-lg text-brand-text/80">
         ニックネーム: <strong className="text-brand-primary">{nickname}</strong>
       </p>

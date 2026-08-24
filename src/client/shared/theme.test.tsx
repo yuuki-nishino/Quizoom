@@ -102,17 +102,16 @@ describe("ThemeProvider", () => {
     expect(markup).toContain('src="https://example.test/logo.png"');
   });
 
-  it("keeps the logo behind the main content stacking-wise so it never obscures top-left aligned text", () => {
+  it("reserves its own flow space above the content instead of overlaying it, so it never covers top-left aligned text", () => {
     const markup = renderToStaticMarkup(
       <ThemeProvider theme={theme()} logoImageUrl="https://example.test/logo.png">
         <span>content</span>
       </ThemeProvider>,
     );
 
-    const imgIndex = markup.indexOf("<img");
-    expect(markup.slice(imgIndex, imgIndex + 200)).not.toContain("z-20");
-    // ロゴがコンテンツより先(=背面)にレンダリングされることで、視覚的な重なりが起きても文言側が手前になる
-    expect(markup.indexOf("<img")).toBeLessThan(markup.indexOf('class="relative z-10"'));
+    // ロゴは絶対配置で重ねず、通常のフロー上でコンテンツより前に配置される(=コンテンツはその下に押し出される)
+    expect(markup).not.toMatch(/<img[^>]*class="[^"]*absolute[^"]*"/);
+    expect(markup.indexOf("<img")).toBeLessThan(markup.indexOf("<span>content</span>"));
   });
 
   it("falls back to the standard template attribute when templateId is omitted", () => {

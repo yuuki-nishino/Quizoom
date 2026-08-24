@@ -17,7 +17,7 @@ export function QuestionView({ question, imageUrl, remainingMs, paused, answered
   return (
     <div
       aria-label="出題中"
-      className="stage-question-view quiz-phase-enter flex min-h-screen flex-col items-center gap-6 px-12 py-10 text-center"
+      className="stage-question-view quiz-phase-enter flex min-h-0 flex-1 flex-col items-center gap-6 overflow-y-auto px-12 py-10 text-center"
     >
       <p className="stage-question-number inline-block rounded-full bg-brand-accent/15 px-4 py-1 text-2xl font-bold text-brand-accent">
         第{question.orderIndex + 1}問
