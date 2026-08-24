@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { EventId, OptionId } from "../../shared/domain-types";
 import type { QuestionPublicView } from "../../shared/protocol";
-import type { EventDetail, HostApiClient } from "./api-client";
+import type { EventDetail, HostApiClient, Question } from "./api-client";
 import { ThemePreviewWalkthrough, type PreviewQuestion } from "./theme-preview-walkthrough";
 
 export interface ThemePreviewPageProps {
@@ -14,10 +14,7 @@ function hostMediaUrl(eventId: EventId, assetId: string): string {
   return `/api/events/${eventId}/media/${assetId}`;
 }
 
-export function toPreviewQuestion(eventId: EventId, event: EventDetail): PreviewQuestion | null {
-  const question = event.questions[0];
-  if (!question) return null;
-
+function mapQuestionToPreview(eventId: EventId, question: Question): PreviewQuestion {
   const publicView: QuestionPublicView = {
     id: question.id,
     orderIndex: question.orderIndex,
@@ -29,6 +26,16 @@ export function toPreviewQuestion(eventId: EventId, event: EventDetail): Preview
   const imageUrl = question.imageAssetId ? hostMediaUrl(eventId, question.imageAssetId) : null;
 
   return { question: publicView, correctOptionId, imageUrl };
+}
+
+export function toPreviewQuestion(eventId: EventId, event: EventDetail): PreviewQuestion | null {
+  const question = event.questions[0];
+  return question ? mapQuestionToPreview(eventId, question) : null;
+}
+
+/** イベントに登録された全設問をプレビュー用にマッピングする（要件3.14）。順序は登録順のまま保つ */
+export function toPreviewQuestions(eventId: EventId, event: EventDetail): readonly PreviewQuestion[] {
+  return event.questions.map((question) => mapQuestionToPreview(eventId, question));
 }
 
 /**
@@ -63,13 +70,13 @@ export function ThemePreviewPage({ apiClient, eventId }: ThemePreviewPageProps) 
   return (
     <section aria-label="プレビュー(別タブ)" className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-xl font-bold text-slate-900">{event.title} のプレビュー</h1>
-      <p className="mt-1 text-sm text-slate-500">保存済みの外観設定と、1問目の設問(画像を含む)を実画面と同じコンポーネントで表示しています。</p>
+      <p className="mt-1 text-sm text-slate-500">保存済みの外観設定と、登録済みの設問(画像を含む)を実画面と同じコンポーネントで表示しています。「プレビューする設問」から確認したい設問を選べます。</p>
       <ThemePreviewWalkthrough
         eventTitle={event.title}
         theme={event.theme}
         logoImageUrl={event.theme.logoAssetId ? hostMediaUrl(eventId, event.theme.logoAssetId) : null}
         backgroundImageUrl={event.theme.backgroundAssetId ? hostMediaUrl(eventId, event.theme.backgroundAssetId) : null}
-        question={toPreviewQuestion(eventId, event)}
+        questions={toPreviewQuestions(eventId, event)}
       />
     </section>
   );

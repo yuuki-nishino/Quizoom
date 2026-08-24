@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ThemePreviewWalkthrough, previewFrameClassName } from "./theme-preview-walkthrough";
+import { ThemePreviewWalkthrough, previewFrameClassName, resolveActiveQuestion } from "./theme-preview-walkthrough";
 import type { OptionId, QuestionId, ThemeSettings } from "../../shared/domain-types";
 
 function theme(overrides: Partial<ThemeSettings> = {}): ThemeSettings {
@@ -82,20 +82,22 @@ describe("ThemePreviewWalkthrough", () => {
         theme={theme()}
         logoImageUrl={null}
         backgroundImageUrl={null}
-        question={{
-          question: {
-            id: "q1" as QuestionId,
-            orderIndex: 0,
-            body: "自作の設問",
-            imageAssetId: null,
-            options: [
-              { id: "o1" as OptionId, label: "A", orderIndex: 0 },
-              { id: "o2" as OptionId, label: "B", orderIndex: 1 },
-            ],
+        questions={[
+          {
+            question: {
+              id: "q1" as QuestionId,
+              orderIndex: 0,
+              body: "自作の設問",
+              imageAssetId: null,
+              options: [
+                { id: "o1" as OptionId, label: "A", orderIndex: 0 },
+                { id: "o2" as OptionId, label: "B", orderIndex: 1 },
+              ],
+            },
+            correctOptionId: "o2" as OptionId,
+            imageUrl: "https://example.test/question.png",
           },
-          correctOptionId: "o2" as OptionId,
-          imageUrl: "https://example.test/question.png",
-        }}
+        ]}
       />,
     );
     expect(markup).toContain("投影画面: 待機");
@@ -111,5 +113,64 @@ describe("previewFrameClassName", () => {
     const className = previewFrameClassName("回答画面");
     expect(className).toContain("aspect-[9/19.5]");
     expect(className).not.toContain("aspect-video");
+  });
+});
+
+describe("resolveActiveQuestion", () => {
+  function previewQuestion(body: string): { question: { id: QuestionId; orderIndex: number; body: string; imageAssetId: null; options: never[] }; correctOptionId: OptionId; imageUrl: null } {
+    return {
+      question: { id: `q-${body}` as QuestionId, orderIndex: 0, body, imageAssetId: null, options: [] },
+      correctOptionId: "o1" as OptionId,
+      imageUrl: null,
+    };
+  }
+
+  it("returns the question at the given index (要件3.14)", () => {
+    const questions = [previewQuestion("第1問"), previewQuestion("第2問"), previewQuestion("第3問")];
+    expect(resolveActiveQuestion(questions, 1).question.body).toBe("第2問");
+  });
+
+  it("falls back to the first question when the index is out of range", () => {
+    const questions = [previewQuestion("第1問"), previewQuestion("第2問")];
+    expect(resolveActiveQuestion(questions, 5).question.body).toBe("第1問");
+  });
+
+  it("falls back to the sample question when there are no registered questions", () => {
+    expect(resolveActiveQuestion([], 0).question.body).toBe("日本の首都はどこでしょう？");
+  });
+});
+
+describe("ThemePreviewWalkthrough question picker", () => {
+  it("lists every registered question as a selectable option (要件3.14)", () => {
+    const markup = renderToStaticMarkup(
+      <ThemePreviewWalkthrough
+        eventTitle="Quiz Night"
+        theme={theme()}
+        logoImageUrl={null}
+        backgroundImageUrl={null}
+        questions={[
+          {
+            question: { id: "q1" as QuestionId, orderIndex: 0, body: "第1問の本文", imageAssetId: null, options: [] },
+            correctOptionId: "o1" as OptionId,
+            imageUrl: null,
+          },
+          {
+            question: { id: "q2" as QuestionId, orderIndex: 1, body: "第2問の本文", imageAssetId: null, options: [] },
+            correctOptionId: "o1" as OptionId,
+            imageUrl: null,
+          },
+        ]}
+      />,
+    );
+    expect(markup).toContain("第1問の本文");
+    expect(markup).toContain("第2問の本文");
+    expect((markup.match(/<option/g) ?? []).length).toBe(2);
+  });
+
+  it("omits the question picker when the event has no registered questions", () => {
+    const markup = renderToStaticMarkup(
+      <ThemePreviewWalkthrough eventTitle="Quiz Night" theme={theme()} logoImageUrl={null} backgroundImageUrl={null} questions={[]} />,
+    );
+    expect(markup).not.toContain("プレビューする設問");
   });
 });

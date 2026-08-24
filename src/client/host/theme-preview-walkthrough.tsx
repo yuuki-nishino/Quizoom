@@ -24,7 +24,8 @@ export interface ThemePreviewWalkthroughProps {
   readonly theme: ThemeSettings;
   readonly logoImageUrl: string | null;
   readonly backgroundImageUrl: string | null;
-  readonly question?: PreviewQuestion | null;
+  /** イベントに登録された全設問(順序どおり)。空の場合はサンプル設問にフォールバックする（要件3.14） */
+  readonly questions?: readonly PreviewQuestion[];
 }
 
 const SAMPLE_QUESTION: QuestionPublicView = {
@@ -62,6 +63,11 @@ export function previewFrameClassName(group: WalkthroughStepGroup): string {
   return group === "投影画面"
     ? "mx-auto mt-3 aspect-video w-full max-w-3xl overflow-hidden rounded-lg border border-slate-200"
     : "mx-auto mt-3 aspect-[9/19.5] w-72 overflow-hidden rounded-[2rem] border-8 border-slate-800";
+}
+
+/** 選択中インデックスの設問を返す。範囲外や未選択時は先頭の設問、設問が1件もない場合はサンプル設問へ落ちる（要件3.14） */
+export function resolveActiveQuestion(questions: readonly PreviewQuestion[], questionIndex: number): PreviewQuestion {
+  return questions[questionIndex] ?? questions[0] ?? SAMPLE_QUESTION_PREVIEW;
 }
 
 function buildSteps(eventTitle: string, preview: PreviewQuestion): readonly WalkthroughStep[] {
@@ -163,13 +169,32 @@ function buildSteps(eventTitle: string, preview: PreviewQuestion): readonly Walk
  * 「次へ／前へ」で全状態を順に確認できるプレビュー（要件3.5, 3.8）。
  * 独自のミニレイアウトを持たないため、実画面との見た目の乖離が構造的に発生しない
  */
-export function ThemePreviewWalkthrough({ eventTitle, theme, logoImageUrl, backgroundImageUrl, question }: ThemePreviewWalkthroughProps) {
-  const steps = buildSteps(eventTitle, question ?? SAMPLE_QUESTION_PREVIEW);
+export function ThemePreviewWalkthrough({ eventTitle, theme, logoImageUrl, backgroundImageUrl, questions = [] }: ThemePreviewWalkthroughProps) {
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const activeQuestion = resolveActiveQuestion(questions, questionIndex);
+  const steps = buildSteps(eventTitle, activeQuestion);
   const [index, setIndex] = useState(0);
   const step = steps[index]!;
 
   return (
     <div aria-label="プレビュー" className="mt-6">
+      {questions.length > 0 && (
+        <label className="mb-3 block text-sm font-medium text-slate-700">
+          プレビューする設問
+          <select
+            value={questionIndex}
+            onChange={(e) => setQuestionIndex(Number(e.target.value))}
+            className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900"
+          >
+            {questions.map((q, i) => (
+              <option key={q.question.id} value={i}>
+                第{i + 1}問: {q.question.body}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"

@@ -609,14 +609,14 @@
   - _Boundary: ThemePreviewWalkthrough_
   - _Depends: 20.1_
 
-- [ ] 20.3 全設問プレビュー: データ層の拡張
+- [x] 20.3 全設問プレビュー: データ層の拡張
   - `theme-preview-page.tsx`に、イベントの全設問を`PreviewQuestion`の配列へマッピングする`toPreviewQuestions`(複数形)を追加する。既存の`toPreviewQuestion`(単数形)はそのまま残す
   - `ThemePreviewWalkthrough`のprops`question`(単一)を`questions`(配列)へ拡張する
   - 観測可能な完了条件: `toPreviewQuestions`がイベントの全設問を順序どおりマッピングすること、設問が0件のイベントでは空配列を返すことをテストで確認できる
   - _Requirements: 3.14_
   - _Boundary: theme-preview-page.tsx_
 
-- [ ] 20.4 全設問プレビュー: 設問選択UIの追加
+- [x] 20.4 全設問プレビュー: 設問選択UIの追加
   - `ThemePreviewWalkthrough`に、選択中の設問インデックスを保持するstateと、設問を選択するUI(セレクタ等)を追加する
   - 出題・正解発表の各ステップが、選択中の設問の内容を表示するようにする
   - 観測可能な完了条件: 設問を切り替えると出題・正解発表ステップの表示内容(問題文・選択肢)が切り替わること、設問が1件も登録されていないイベントではサンプル設問にフォールバックすることをテストで確認できる
