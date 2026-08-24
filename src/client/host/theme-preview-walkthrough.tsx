@@ -84,7 +84,7 @@ export function previewFrameConfig(group: WalkthroughStepGroup): PreviewFrameCon
   if (group === "投影画面") {
     const referenceWidth = 1920;
     const referenceHeight = 1080;
-    const displayWidth = 896;
+    const displayWidth = 1200;
     return {
       referenceWidth,
       referenceHeight,
@@ -96,7 +96,7 @@ export function previewFrameConfig(group: WalkthroughStepGroup): PreviewFrameCon
   }
   const referenceWidth = 390;
   const referenceHeight = 844;
-  const displayWidth = 340;
+  const displayWidth = 390;
   return {
     referenceWidth,
     referenceHeight,

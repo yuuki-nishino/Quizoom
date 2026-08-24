@@ -110,7 +110,7 @@ describe("ThemePreviewWalkthrough", () => {
 });
 
 describe("previewFrameConfig", () => {
-  it("renders 投影画面 steps at a realistic 1280x720 reference size, scaled down to fit the display frame (要件3.11)", () => {
+  it("renders 投影画面 steps at a realistic Full HD (1920x1080) reference size, scaled down to fit the display frame (要件3.11)", () => {
     const config = previewFrameConfig("投影画面");
     expect(config.referenceWidth / config.referenceHeight).toBeCloseTo(16 / 9, 2);
     expect(config.displayWidth / config.displayHeight).toBeCloseTo(16 / 9, 2);
@@ -118,12 +118,12 @@ describe("previewFrameConfig", () => {
     expect(config.scale).toBeLessThan(1);
   });
 
-  it("renders 回答画面 steps at a realistic smartphone reference size, scaled down to fit the display frame (要件3.12)", () => {
+  it("renders 回答画面 steps at a realistic smartphone reference size, at (or near) natural size since it is already compact (要件3.12)", () => {
     const config = previewFrameConfig("回答画面");
     expect(config.referenceWidth).toBeLessThan(config.referenceHeight);
-    expect(config.displayWidth).toBeLessThan(config.displayHeight);
+    expect(config.displayWidth).toBeLessThanOrEqual(config.displayHeight);
     expect(config.scale).toBeCloseTo(config.displayWidth / config.referenceWidth, 5);
-    expect(config.scale).toBeLessThan(1);
+    expect(config.scale).toBeLessThanOrEqual(1);
   });
 });
 
