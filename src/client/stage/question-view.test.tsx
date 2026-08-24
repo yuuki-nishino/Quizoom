@@ -45,4 +45,18 @@ describe("QuestionView", () => {
     );
     expect(markup).toContain('src="/api/events/e1/media/a1?token=t"');
   });
+
+  it("switches to a compact layout when an image is attached, so options fit without scrolling", () => {
+    const withImage = renderToStaticMarkup(
+      <QuestionView question={question()} imageUrl="/api/events/e1/media/a1?token=t" paused={false} remainingMs={1000} answeredCount={0} totalCount={1} />,
+    );
+    const withoutImage = renderToStaticMarkup(
+      <QuestionView question={question()} imageUrl={null} paused={false} remainingMs={1000} answeredCount={0} totalCount={1} />,
+    );
+    // 画像あり: 余白・フォントサイズが詰まったコンパクトクラスになる
+    expect(withImage).toMatch(/class="stage-question-view[^"]*gap-3[^"]*py-6[^"]*"/);
+    expect(withImage).toContain("max-h-56");
+    // 画像なし: 従来どおりゆったりしたクラスのまま
+    expect(withoutImage).toMatch(/class="stage-question-view[^"]*gap-6[^"]*py-10[^"]*"/);
+  });
 });
