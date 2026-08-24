@@ -68,7 +68,7 @@ export function ThemePreviewPage({ apiClient, eventId }: ThemePreviewPageProps) 
   if (!event) return <p className="m-8 text-slate-500">読み込み中…</p>;
 
   return (
-    <section aria-label="プレビュー(別タブ)" className="mx-auto max-w-3xl px-4 py-8">
+    <section aria-label="プレビュー(別タブ)" className="mx-auto max-w-5xl px-4 py-8">
       <h1 className="text-xl font-bold text-slate-900">{event.title} のプレビュー</h1>
       <p className="mt-1 text-sm text-slate-500">保存済みの外観設定と、登録済みの設問(画像を含む)を実画面と同じコンポーネントで表示しています。「プレビューする設問」から確認したい設問を選べます。</p>
       <ThemePreviewWalkthrough

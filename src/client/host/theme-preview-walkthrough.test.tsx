@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ThemePreviewWalkthrough, previewFrameClassName, resolveActiveQuestion } from "./theme-preview-walkthrough";
+import { ThemePreviewWalkthrough, previewFrameConfig, resolveActiveQuestion } from "./theme-preview-walkthrough";
 import type { OptionId, QuestionId, ThemeSettings } from "../../shared/domain-types";
 
 function theme(overrides: Partial<ThemeSettings> = {}): ThemeSettings {
@@ -28,11 +28,16 @@ describe("ThemePreviewWalkthrough", () => {
     expect(markup).toContain("1/9");
   });
 
-  it("displays the first (投影画面) step inside a 16:9 aspect-ratio frame, matching projector proportions (要件3.11)", () => {
+  it("displays the first (投影画面) step inside a 16:9 frame, matching projector proportions (要件3.11)", () => {
     const markup = renderToStaticMarkup(
       <ThemePreviewWalkthrough eventTitle="Quiz Night" theme={theme()} logoImageUrl={null} backgroundImageUrl={null} />,
     );
-    expect(markup).toMatch(/class="[^"]*aspect-video[^"]*"/);
+    const config = previewFrameConfig("投影画面");
+    expect(markup).toContain(`width:${config.displayWidth}px`);
+    expect(markup).toContain(`height:${config.displayHeight}px`);
+    // 実寸(1280x720)で描画してからscaleで縮小するため、内側のコンテンツがそのままの大きさで見切れることを防ぐ
+    expect(markup).toContain(`width:${config.referenceWidth}px`);
+    expect(markup).toContain(`transform:scale(${config.scale})`);
   });
 
   it("applies the projector safety-zone margin (StageSafeArea) around 投影画面 steps (要件3.13)", () => {
@@ -104,15 +109,21 @@ describe("ThemePreviewWalkthrough", () => {
   });
 });
 
-describe("previewFrameClassName", () => {
-  it("frames 投影画面 steps at a 16:9 aspect ratio (要件3.11)", () => {
-    expect(previewFrameClassName("投影画面")).toContain("aspect-video");
+describe("previewFrameConfig", () => {
+  it("renders 投影画面 steps at a realistic 1280x720 reference size, scaled down to fit the display frame (要件3.11)", () => {
+    const config = previewFrameConfig("投影画面");
+    expect(config.referenceWidth / config.referenceHeight).toBeCloseTo(16 / 9, 2);
+    expect(config.displayWidth / config.displayHeight).toBeCloseTo(16 / 9, 2);
+    expect(config.scale).toBeCloseTo(config.displayWidth / config.referenceWidth, 5);
+    expect(config.scale).toBeLessThan(1);
   });
 
-  it("frames 回答画面 steps at a tall, smartphone-like aspect ratio (要件3.12)", () => {
-    const className = previewFrameClassName("回答画面");
-    expect(className).toContain("aspect-[9/19.5]");
-    expect(className).not.toContain("aspect-video");
+  it("renders 回答画面 steps at a realistic smartphone reference size, scaled down to fit the display frame (要件3.12)", () => {
+    const config = previewFrameConfig("回答画面");
+    expect(config.referenceWidth).toBeLessThan(config.referenceHeight);
+    expect(config.displayWidth).toBeLessThan(config.displayHeight);
+    expect(config.scale).toBeCloseTo(config.displayWidth / config.referenceWidth, 5);
+    expect(config.scale).toBeLessThan(1);
   });
 });
 
