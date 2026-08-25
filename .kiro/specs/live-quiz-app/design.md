@@ -1090,6 +1090,8 @@ interface ServerClock {
 - `ThemePreviewWalkthrough`の表示枠は、ステップの種別（`step.group`）に応じて投影画面は`aspect-video`（16:9）、回答画面はスマートフォンを模した縦長比の枠として描画し、いずれも`overflow-hidden`とする。全体表示のためのスクロール制御は各フェーズ画面コンポーネント自身が持つ内部スクロール（`overflow-y-auto`、visual refresh作業で導入済み）に委ね、表示枠自体はスクロールコンテナにしない（要件3.11, 3.12）
 - 投影画面のセーフティゾーン余白は、新設する`StageSafeArea`（`src/client/stage/safe-area.tsx`）という薄いラッパーコンポーネントとして実装し、実画面の`stage-app.tsx`とプレビューの`theme-preview-walkthrough.tsx`（投影画面ステップ）の双方が同一コンポーネントを共有する。1箇所に定義することで、既存の設計原則「実画面との見た目の乖離が構造的に発生しない」を維持したまま余白を導入する（要件3.13）。回答画面（スマートフォン想定）はプロジェクターのセーフティゾーンと無関係のため対象外とする
 - `ThemePreviewWalkthrough`は単一の`question` propに代えて`questions`（配列）を受け取り、内部で選択中の設問インデックスをstateとして保持する。設問選択UIから任意の設問へ切り替えると、出題・正解発表の各ステップの表示内容がその設問に切り替わる。`theme-preview-page.tsx`の`toPreviewQuestion`（単数、既存）はそのまま残し、全設問をマッピングする`toPreviewQuestions`（複数）を追加する（要件3.14）
+- ニックネームの文字数制限（1〜20文字、制御文字禁止）自体は`join-routes.ts`の`nicknameRequestSchema`とクライアント側`maxLength`で既に担保されている。20文字のCJK文字列は依然として横幅が広く、`RankingView`の`stage-nickname`（幅制約なしの`flex-1`）や`LiveConsole`の参加者一覧ピルでは折り返し・はみ出しが起こり得るため、両箇所に`truncate`（`overflow-hidden text-ellipsis whitespace-nowrap`相当）を適用し、表示側でも安全側に丸め込む（要件13.1）
+- `RankingView`の1位行の順位バッジ（`stage-rank`）は固定幅`w-14`のためStarIconと「1位」の文字が折り返されていた。固定幅をやめ`shrink-0 whitespace-nowrap`とし、内容に応じた幅で1行に収まるようにする（要件13.2）
 
 ## Data Models
 
