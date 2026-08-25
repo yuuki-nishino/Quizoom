@@ -59,6 +59,8 @@ export interface EventDetail {
   readonly createdAt: number;
   readonly questions: readonly Question[];
   readonly theme: ThemeSettings;
+  /** テスト問題モードの有効/無効（要件1.1, 1.4） */
+  readonly practiceMode: boolean;
   readonly role: "owner" | "collaborator";
 }
 
@@ -72,6 +74,7 @@ export interface UpdateEventInput {
   readonly title?: string;
   readonly subtitle?: string;
   readonly capacity?: number | null;
+  readonly practiceMode?: boolean;
 }
 
 export interface QuestionOptionInput {
@@ -113,6 +116,7 @@ interface EventRow {
   readonly stage_token: string | null;
   readonly capacity: number | null;
   readonly created_at: number;
+  readonly practice_mode_enabled: number;
 }
 
 interface QuestionRow {
@@ -217,6 +221,7 @@ async function toEventDetail(env: Env, row: EventRow, role: "owner" | "collabora
     createdAt: row.created_at,
     questions,
     theme: toTheme(themeRow),
+    practiceMode: row.practice_mode_enabled === 1,
     role,
   };
 }
@@ -304,6 +309,8 @@ export async function createEvent(env: Env, ownerId: string, input: CreateEventI
     createdAt,
     questions: [],
     theme: DEFAULT_THEME,
+    // 新規作成イベントのテスト問題モードは既定で無効（要件1.2）。DB列側もDEFAULT 0
+    practiceMode: false,
     role: "owner",
   };
 }
@@ -318,17 +325,30 @@ export async function updateEvent(
   if (!accessible.ok) return accessible;
   const owned = accessible.value.row;
 
-  await env.DB.prepare("UPDATE event SET title = ?, subtitle = ?, capacity = ? WHERE id = ?")
+  // 開催中はテスト問題モードの変更のみ拒否する。他のフィールド（title等）は
+  // 従来どおり開催中でも変更できる（要件1.3）
+  if (input.practiceMode !== undefined && owned.status === "live") return err({ code: "EVENT_LIVE" });
+
+  await env.DB.prepare("UPDATE event SET title = ?, subtitle = ?, capacity = ?, practice_mode_enabled = ? WHERE id = ?")
     .bind(
       input.title ?? owned.title,
       input.subtitle ?? owned.subtitle,
       input.capacity !== undefined ? input.capacity : owned.capacity,
+      input.practiceMode !== undefined ? (input.practiceMode ? 1 : 0) : owned.practice_mode_enabled,
       eventId,
     )
     .run();
 
   const updated = await findEventRow(env, eventId);
   return ok(await toEventDetail(env, updated!, accessible.value.role));
+}
+
+/** 開催開始（startSession）直前にセッション側から呼ばれる、practiceModeのみの軽量取得（要件1.1, 1.3） */
+export async function getPracticeMode(env: Env, eventId: EventId): Promise<boolean> {
+  const row = await env.DB.prepare("SELECT practice_mode_enabled FROM event WHERE id = ?")
+    .bind(eventId)
+    .first<{ practice_mode_enabled: number }>();
+  return row?.practice_mode_enabled === 1;
 }
 
 export async function duplicateEvent(env: Env, eventId: EventId, ownerId: string): Promise<Result<EventDetail, CatalogError>> {

@@ -6,6 +6,7 @@ import {
   findEvent,
   createEvent,
   updateEvent,
+  getPracticeMode,
   duplicateEvent,
   deleteEvent,
   updateStatus,
@@ -105,6 +106,44 @@ describe("updateEvent", () => {
     const created = await createEvent(env, OWNER, { title: "Mine" });
     const result = await updateEvent(env, created.id, OTHER_OWNER, { title: "Hacked" });
     expect(result).toEqual({ ok: false, error: { code: "FORBIDDEN" } });
+  });
+
+  it("defaults practiceMode to false for a newly created event（要件1.2）", async () => {
+    const created = await createEvent(env, OWNER, { title: "Mine" });
+    expect(created.practiceMode).toBe(false);
+  });
+
+  it("enables practiceMode（要件1.1）", async () => {
+    const created = await createEvent(env, OWNER, { title: "Mine" });
+    const result = await updateEvent(env, created.id, OWNER, { practiceMode: true });
+    expect(result).toEqual({ ok: true, value: { ...created, practiceMode: true } });
+  });
+
+  it("rejects a practiceMode change while the event is live, without blocking other fields（要件1.3）", async () => {
+    const created = await createEvent(env, OWNER, { title: "Mine" });
+    await updateStatus(env, created.id, "draft", "published");
+    await updateStatus(env, created.id, "published", "live");
+
+    const rejected = await updateEvent(env, created.id, OWNER, { practiceMode: true });
+    expect(rejected).toEqual({ ok: false, error: { code: "EVENT_LIVE" } });
+
+    const stillAllowed = await updateEvent(env, created.id, OWNER, { title: "Renamed while live" });
+    expect(stillAllowed.ok).toBe(true);
+    if (stillAllowed.ok) expect(stillAllowed.value.title).toBe("Renamed while live");
+  });
+});
+
+describe("getPracticeMode", () => {
+  it("returns the current practiceMode value for the given event（開催開始時のセッション側再同期で使用、要件1.1/1.3）", async () => {
+    const created = await createEvent(env, OWNER, { title: "Mine" });
+    expect(await getPracticeMode(env, created.id)).toBe(false);
+
+    await updateEvent(env, created.id, OWNER, { practiceMode: true });
+    expect(await getPracticeMode(env, created.id)).toBe(true);
+  });
+
+  it("returns false for a missing event", async () => {
+    expect(await getPracticeMode(env, "missing" as EventId)).toBe(false);
   });
 });
 
