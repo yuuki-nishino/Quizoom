@@ -21,6 +21,8 @@ import {
   isLastQuestion,
   currentDeadlineAt,
   pausedRemainingMs,
+  isPracticeReady,
+  isPracticeRevealed,
 } from "./live-console-state";
 
 export interface LiveConsoleProps {
@@ -57,6 +59,8 @@ export function LiveConsole({ apiClient, eventId }: LiveConsoleProps) {
   const revealed = state.closedQuestion !== null;
   const rankingShown = state.ranking !== null;
   const lastQuestion = isLastQuestion(state.currentQuestion?.orderIndex ?? null, totalQuestions ?? Number.POSITIVE_INFINITY);
+  const practiceReady = isPracticeReady(state.phase);
+  const practiceRevealed = isPracticeRevealed(state.closedQuestion?.questionId ?? null);
 
   function handleConfirmFinalize() {
     setConfirmingFinalize(false);
@@ -105,8 +109,13 @@ export function LiveConsole({ apiClient, eventId }: LiveConsoleProps) {
 
       {state.phase?.kind === "ready" && (
         <div aria-label="出題待機" className="mt-6 rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
+          {practiceReady && (
+            <p className="mb-3 text-sm text-slate-600">
+              本編に入る前に、参加者が回答方法を確認できるテスト問題を実演できます（採点には反映されません）。
+            </p>
+          )}
           <button type="button" disabled={!canOpenQuestion(state.phase)} onClick={() => send({ type: "openQuestion" })} className={primaryButtonClass}>
-            出題する
+            {practiceReady ? "テスト問題を出題する" : "出題する"}
           </button>
         </div>
       )}
@@ -152,6 +161,9 @@ export function LiveConsole({ apiClient, eventId }: LiveConsoleProps) {
 
       {revealed && !finalized && state.closedQuestion && (
         <div aria-label="正解発表" className="mt-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          {practiceRevealed && (
+            <p className="mb-2 inline-block rounded-full bg-slate-100 px-3 py-0.5 text-xs font-semibold text-slate-600">テスト問題</p>
+          )}
           <p className="font-medium text-emerald-700">正解: {state.closedQuestion.correctOptionId}</p>
           <ul className="mt-2 space-y-1 text-sm text-slate-600">
             {state.closedQuestion.distribution.map((d) => (
@@ -162,29 +174,39 @@ export function LiveConsole({ apiClient, eventId }: LiveConsoleProps) {
           </ul>
           <p className="mt-2 text-sm text-slate-600">{state.closedQuestion.explanation}</p>
 
-          {rankingShown && state.ranking && (
-            <ol aria-label="中間ランキング" className="mt-4 space-y-1 rounded-md bg-slate-50 p-3 text-sm">
-              {state.ranking.map((entry) => (
-                <li key={entry.participantId} className="text-slate-800">
-                  {entry.rank}位 {entry.nickname}（正解数 {entry.correctCount} / {formatElapsedMs(entry.totalElapsedMs)}）
-                </li>
-              ))}
-            </ol>
-          )}
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <button type="button" disabled={!canShowRanking(revealed, rankingShown)} onClick={() => send({ type: "showRanking" })} className={secondaryButtonClass}>
-              中間ランキングを表示
-            </button>
-            {canShowNextQuestion(revealed, lastQuestion) && (
+          {practiceRevealed ? (
+            <div className="mt-5 flex flex-wrap gap-2">
               <button type="button" onClick={() => send({ type: "nextQuestion" })} className={primaryButtonClass}>
-                次の設問へ
+                本編を開始する
               </button>
-            )}
-            <button type="button" disabled={!canFinalize(revealed)} onClick={() => setConfirmingFinalize(true)} className={dangerButtonClass}>
-              結果を確定する
-            </button>
-          </div>
+            </div>
+          ) : (
+            <>
+              {rankingShown && state.ranking && (
+                <ol aria-label="中間ランキング" className="mt-4 space-y-1 rounded-md bg-slate-50 p-3 text-sm">
+                  {state.ranking.map((entry) => (
+                    <li key={entry.participantId} className="text-slate-800">
+                      {entry.rank}位 {entry.nickname}（正解数 {entry.correctCount} / {formatElapsedMs(entry.totalElapsedMs)}）
+                    </li>
+                  ))}
+                </ol>
+              )}
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button type="button" disabled={!canShowRanking(revealed, rankingShown)} onClick={() => send({ type: "showRanking" })} className={secondaryButtonClass}>
+                  中間ランキングを表示
+                </button>
+                {canShowNextQuestion(revealed, lastQuestion) && (
+                  <button type="button" onClick={() => send({ type: "nextQuestion" })} className={primaryButtonClass}>
+                    次の設問へ
+                  </button>
+                )}
+                <button type="button" disabled={!canFinalize(revealed)} onClick={() => setConfirmingFinalize(true)} className={dangerButtonClass}>
+                  結果を確定する
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
