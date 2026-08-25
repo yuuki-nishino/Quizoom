@@ -84,9 +84,20 @@
 - **Rationale**: `templateId`（`0005_theme_template_id.sql`）と同じ前例パターンに従う。
 - **Trade-offs**: なし。
 
+### Decision: `startSession` 実行直前にD1から最新の `practiceMode` を再取得してDO側の値を更新する
+- **Context**: `/kiro:validate-design` のレビューで指摘。`#handlePublish`（`/internal/publish`）はイベントが `draft` から初めて公開された時のみ呼ばれ、その時点の `EventMeta`（`practiceMode` を含む）をDOへ一度だけ書き込む。`updateEvent` は `status !== "live"` の間（＝「公開済み・開催開始前」を含む）`practiceMode` の変更を許可するため、公開後にトグルが変更されても、開催開始（`startSession`）時にDOが参照する値が公開時点のまま古くなる経路が存在した。
+- **Alternatives Considered**:
+  1. `PATCH /api/events/:id` で `practiceMode` が変わるたび、`status === "published"` のケースにも `/internal/theme` と同様の即時プッシュ通知をDOへ送る。
+  2. `#handleStartSession` の冒頭でD1から最新の `practiceMode` を1回読み直し、遷移計算前に `state.eventMeta` へ反映する（採用）。
+- **Selected Approach**: Option 2。`startSession` は開催中で唯一「これから初めてテスト問題モードの有無が意味を持ち始める」操作なので、その直前に1回だけ最新値を取得すれば十分であり、他の全更新経路に即時プッシュを実装するより変更点が小さい。
+- **Rationale**: Option 1 は `status: "published"` の間だけ発生するイベントごとに毎回DOを起こしてプッシュする必要があり、DOのアイドル課金ゼロ方針（`tech.md` の「アラームは締切1件のみに限定」と同じ思想）に対して不要なDO起床を増やす。Option 2 は `startSession` という既存の1回限りの操作に相乗りするだけで済む。
+- **Trade-offs**: `startSession` からD1読み取りが1回増えるが、頻度は開催開始時の1回のみで許容範囲。
+- **Follow-up**: 実装時、`#handleStartSession` が既存の `loadQuestionSnapshot` 呼び出しと同様のパターンで `catalog/repository.ts` の新規関数を呼び出すようにする。
+
 ## Risks & Mitigations
 - テスト問題の `questionId` 比較漏れにより、どこか1画面でテスト問題が「第0問」のように本編設問として誤表示される — 各画面コンポーネントの実装時に `question.id === PRACTICE_QUESTION_ID` チェックの追加箇所をタスクで明示し、ブラウザ確認時に確認項目へ含める。
 - `updateEvent` の「開催中は変更禁止」ガードをテスト問題フラグにのみ適用する際、他フィールド（title/subtitle/capacity）の既存の「開催中でも変更可能」という挙動を誤って壊してしまう — フィールド単位の条件分岐として実装し、既存のuriteEvent専用テストで回帰を確認する。
+- 公開後・開催開始前に `practiceMode` が変更された場合にDO側の値が古いまま `startSession` される — 上記Decisionの再同期で解消する。
 
 ## References
 - `src/server/session/phase-machine.ts` — 既存フェーズ遷移規則の実装

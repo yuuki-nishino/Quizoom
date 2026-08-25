@@ -122,9 +122,9 @@ flowchart TB
 - `src/shared/domain-types.ts` — `EventMeta` に `practiceMode: boolean` を追加。
 - `src/shared/practice-question.ts`（新規） — `PRACTICE_QUESTION_ID`・`PRACTICE_QUESTION` 固定定数の定義。
 - `src/server/session/phase-machine.ts` — `PhaseContext` に `practiceEnabled` を追加し、`lobby`/`ready`/`revealed`/`questionClosed` の4ケースにテスト問題分岐を追加。
-- `src/server/session/quiz-session-do.ts` — 設問解決ヘルパーをテスト問題対応にし、`next(...)` 呼び出し全箇所に `practiceEnabled` を渡す。`#afterFinalize` でテスト問題回答をアーカイブ対象から除外。
+- `src/server/session/quiz-session-do.ts` — 設問解決ヘルパーをテスト問題対応にし、`next(...)` 呼び出し全箇所に `practiceEnabled` を渡す。`#handleStartSession` で開催開始直前に最新の `practiceMode` をD1から再取得。`#afterFinalize` でテスト問題回答をアーカイブ対象から除外。
 - `src/server/catalog/schema.ts` — `updateEventRequestSchema` に `practiceMode: z.boolean().optional()` を追加。
-- `src/server/catalog/repository.ts` — `EventDetail`/`EventRow`/`CreateEventInput`/`UpdateEventInput` に `practiceMode` を追加。`updateEvent` に「開催中はテスト問題モードのみ変更禁止」の分岐を追加。
+- `src/server/catalog/repository.ts` — `EventDetail`/`EventRow`/`CreateEventInput`/`UpdateEventInput` に `practiceMode` を追加。`updateEvent` に「開催中はテスト問題モードのみ変更禁止」の分岐を追加。単一イベントの `practiceMode` のみを取得する軽量関数を追加し、`quiz-session-do.ts` の開催開始時再同期から利用する。
 - `src/server/catalog/routes.ts` — publish 時に組み立てる `EventMeta` に `practiceMode` を追加。
 - `migrations/0006_practice_mode.sql`（新規） — `event.practice_mode_enabled INTEGER NOT NULL DEFAULT 0`。
 - `src/client/host/live-console-state.ts` — `isPracticeQuestion(questionId)` 等の純粋判定関数を追加。
@@ -162,7 +162,7 @@ stateDiagram-v2
 | Requirement | Summary | Components | Interfaces | Flows |
 |-------------|---------|------------|------------|-------|
 | 1.1, 1.2, 1.4 | イベント単位のON/OFF設定・既定無効・表示 | PublishPanel, EventMeta | `PATCH /api/events/:id` | - |
-| 1.3 | 開催中は変更禁止 | updateEvent (repository) | `PATCH /api/events/:id` | - |
+| 1.3 | 開催中は変更禁止・開催開始直前に最新値を再同期 | updateEvent (repository), QuizSessionDO#handleStartSession | `PATCH /api/events/:id` | - |
 | 2.1, 2.2 | 固定テスト問題の内容・本編一覧からの除外 | practice-question.ts | - | - |
 | 3.1, 3.2 | テスト問題出題操作の提供・同時配信 | live-console-state, PhaseMachine, QuizSessionDO | `openQuestion` | テスト問題モード進行フロー |
 | 3.3 | テスト問題である明示 | QuestionView, RevealView, AnswerScreen | `QuestionPublicView` | - |
@@ -180,7 +180,7 @@ stateDiagram-v2
 |-----------|--------------|--------|--------------|--------------------------|-----------|
 | PracticeQuestion (shared constant) | Shared/Domain | 固定テスト問題の唯一の定義源 | 2.1, 2.2 | domain-types (P0) | State |
 | PhaseMachine（拡張） | Session/Domain | テスト問題⇄本編の遷移分岐 | 3.1, 3.2, 3.4, 3.5, 3.7, 3.8 | practice-question (P0) | State |
-| QuizSessionDO（拡張） | Session/Runtime | 設問解決・アーカイブ除外 | 3.2, 3.3, 4.4 | PhaseMachine (P0), archive (P0) | State, Batch |
+| QuizSessionDO（拡張） | Session/Runtime | 設問解決・開催開始時の設定再同期・アーカイブ除外 | 1.1, 1.3, 3.2, 3.3, 4.4 | PhaseMachine (P0), archive (P0), Catalog Repository (P0) | State, Batch |
 | Catalog Repository（拡張） | Catalog/Domain | practiceMode の永続化・開催中変更禁止 | 1.1, 1.2, 1.3, 1.4 | D1 event table (P0) | Service |
 | PublishPanel（拡張） | Host UI | テスト問題モードのトグルUI | 1.1, 1.3, 1.4 | api-client (P0) | API |
 | LiveConsole / live-console-state（拡張） | Host UI | テスト問題進行操作のラベル分岐 | 3.1, 3.7, 3.8 | QuizSessionDO (P0) | State |
@@ -264,23 +264,25 @@ function next(
 
 | Field | Detail |
 |-------|--------|
-| Intent | テスト問題IDに対する設問解決とアーカイブ除外 |
-| Requirements | 3.2, 3.3, 4.4 |
+| Intent | テスト問題IDに対する設問解決・開催開始時の設定再同期・アーカイブ除外 |
+| Requirements | 1.1, 1.3, 3.2, 3.3, 4.4 |
 
 **Responsibilities & Constraints**
 - `#afterQuestionOpened`/`#afterRevealAnswer` 内の `questions.find((q) => q.id === phase.questionId)` を、`resolveQuestion(id, questions)` ヘルパー（`id === PRACTICE_QUESTION_ID` なら `PRACTICE_QUESTION` を返し、それ以外は従来どおり `questions.find(...)`）経由に置き換える。
 - `#afterFinalize` で `judgedAnswers` を組み立てる前に `answers.filter((a) => a.questionId !== PRACTICE_QUESTION_ID)` を適用する。
 - `#broadcastRanking`/`#afterRevealAnswer` の `aggregate`/`rank` 呼び出しは変更しない（`questions` に本編のみが渡る既存の呼び出し方のままで要件4.1〜4.3を満たす）。
+- **`#handleStartSession` は `startSession` の遷移計算を行う前に、D1から最新の `practiceMode` を再取得し、`state.eventMeta.practiceMode` を更新してから `next(...)` を呼ぶ。**
+  `#handlePublish`（`/internal/publish`）は `status: "draft"` から初めて公開された時のみ呼ばれ、その時点の `EventMeta` をDOへ一度だけ書き込む。一方 `updateEvent` は `status !== "live"` の間（＝「公開済み・開催開始前」を含む）`practiceMode` の変更を許可する（要件1.3）。したがって公開後・開催開始前にトグルが変更された場合、DOが保持する値を明示的に再同期しない限り、開催開始時の判定が公開時点の古い値のまま行われてしまう（設計レビューで指摘、要件1.1/1.3の期待との不整合）。この再同期により、開催開始（`startSession`）の直前に確定した設定値が必ず反映されることを保証する。
 
 **Dependencies**
 - Inbound: WebSocket message handler (P0)
-- Outbound: PhaseMachine (P0), ScoringModule（変更なし、参照のみ）(P0), results/archive (P0)
+- Outbound: PhaseMachine (P0), ScoringModule（変更なし、参照のみ）(P0), results/archive (P0), Catalog Repository — 開催開始時の `practiceMode` 再取得 (P0)
 
 **Contracts**: State [x] / Batch [x]
 
 **Implementation Notes**
-- Integration: `resolveQuestion` は `quiz-session-do.ts` 内のモジュールプライベート関数として実装する（`toPublicView` の直後に追加）。
-- Validation: `quiz-session-do.test.ts`（存在する場合）にテスト問題フローの統合テストケースを追加する。存在しない場合はDO単体の既存テスト構成に合わせて追加場所を決める。
+- Integration: `resolveQuestion` は `quiz-session-do.ts` 内のモジュールプライベート関数として実装する（`toPublicView` の直後に追加）。Catalog Repository へ、単一イベントの `practiceMode` のみを返す軽量な取得関数を追加し（`loadQuestionSnapshot` と同じ「session層から呼ばれる repository 関数」という既存パターンに従う）、`#handleStartSession` の冒頭でそれを呼び出す。
+- Validation: `quiz-session-do.test.ts`（存在する場合）にテスト問題フローの統合テストケースを追加する。存在しない場合はDO単体の既存テスト構成に合わせて追加場所を決める。公開後にD1上の `practiceMode` を変更してから `startSession` を実行し、変更後の値が遷移に反映されることを検証するケースを含める。
 - Risks: `#afterFinalize` のフィルタ漏れは要件4.4の回帰に直結するため、専用のユニットテスト（テスト問題回答を含む `answers` を渡した場合に `result_answer` へ保存されないこと）を必須とする。
 
 ### Catalog / Domain
