@@ -28,6 +28,7 @@ const meta: EventMeta = {
     backgroundAssetId: "asset-1" as AssetId,
     templateId: null,
   },
+  practiceMode: false,
 };
 
 function question(id: string): QuestionSnapshot {

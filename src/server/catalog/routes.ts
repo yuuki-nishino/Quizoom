@@ -230,6 +230,8 @@ catalogRoutes.post("/api/events/:id/publish", async (c) => {
         capacity: eventDetail.value.capacity ?? DEFAULT_CAPACITY,
         status: "published",
         theme: eventDetail.value.theme,
+        // TODO(task 2.2): eventDetail.value.practiceMode をそのまま引き継ぐよう更新する
+        practiceMode: false,
       };
       const stub = getSessionStub(c.env, eventId);
       const publishRes = await stub.fetch("https://do/internal/publish", { method: "POST", body: JSON.stringify(meta) });

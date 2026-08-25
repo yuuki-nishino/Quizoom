@@ -21,6 +21,7 @@ const meta: EventMeta = {
     backgroundAssetId: null,
     templateId: null,
   },
+  practiceMode: false,
 };
 
 function newStub(): DurableObjectStub<QuizSessionDO> {
