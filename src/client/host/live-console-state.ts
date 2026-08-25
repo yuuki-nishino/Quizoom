@@ -1,6 +1,7 @@
-import type { LivePhase, RankingEntry, ThemeSettings } from "../../shared/domain-types";
+import type { LivePhase, QuestionId, RankingEntry, ThemeSettings } from "../../shared/domain-types";
 import type { CommandRejectedPayload, QuestionClosedPayload, QuestionPublicView, ServerEvent } from "../../shared/protocol";
 import { currentDeadlineAt, pausedRemainingMs } from "../shared/live-phase";
+import { PRACTICE_QUESTION_ID } from "../../shared/practice-question";
 
 export { currentDeadlineAt, pausedRemainingMs };
 
@@ -145,4 +146,20 @@ export function isLastQuestion(currentOrderIndex: number | null, totalQuestions:
 
 export function canShowNextQuestion(revealed: boolean, lastQuestion: boolean): boolean {
   return revealed && !lastQuestion;
+}
+
+// --- テスト問題モードの進行判定（要件3.1, 3.7, 3.8） -----------------------
+// テスト問題は新しいLivePhase種別を持たず、既存のready/questionClosed相当の
+// 状態にPRACTICE_QUESTION_IDが乗るだけなので、判定はquestionId比較のみで行う。
+// practiceModeが無効な開催ではPhaseMachineがPRACTICE_QUESTION_IDを一切積まないため、
+// ここで別途フラグを受け取らなくても自然にfalseのままになる。
+
+/** 出題待機がテスト問題を指しているか（trueなら「テスト問題を出題する」ボタンを表示する） */
+export function isPracticeReady(phase: LivePhase | null): boolean {
+  return phase?.kind === "ready" && phase.nextQuestionId === PRACTICE_QUESTION_ID;
+}
+
+/** 正解発表済みの設問がテスト問題だったか（trueなら本編開始への導線のみを表示する） */
+export function isPracticeRevealed(closedQuestionId: QuestionId | null): boolean {
+  return closedQuestionId === PRACTICE_QUESTION_ID;
 }

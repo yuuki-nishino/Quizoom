@@ -15,10 +15,13 @@ import {
   canStartSession,
   currentDeadlineAt,
   pausedRemainingMs,
+  isPracticeReady,
+  isPracticeRevealed,
 } from "./live-console-state";
 import type { HostConsoleState } from "./live-console-state";
 import type { LivePhase, OptionId, QuestionId, ThemeSettings } from "../../shared/domain-types";
 import type { ServerEvent } from "../../shared/protocol";
+import { PRACTICE_QUESTION_ID } from "../../shared/practice-question";
 
 const theme: ThemeSettings = {
   primaryColor: "#000",
@@ -198,5 +201,27 @@ describe("post-reveal gating (revealed / rankingShown / lastQuestion booleans)",
     expect(canShowNextQuestion(true, true)).toBe(false);
     expect(canShowNextQuestion(true, false)).toBe(true);
     expect(canShowNextQuestion(false, false)).toBe(false);
+  });
+});
+
+describe("practice question progression gating（要件3.1, 3.7, 3.8）", () => {
+  it("isPracticeReady is true only when ready is pointing at the practice question", () => {
+    expect(isPracticeReady({ kind: "ready", nextQuestionId: PRACTICE_QUESTION_ID })).toBe(true);
+    expect(isPracticeReady({ kind: "ready", nextQuestionId: "q1" as QuestionId })).toBe(false);
+    expect(isPracticeReady({ kind: "ready", nextQuestionId: null })).toBe(false);
+    expect(isPracticeReady({ kind: "lobby" })).toBe(false);
+    expect(isPracticeReady(null)).toBe(false);
+  });
+
+  it("isPracticeReady is never true when practice mode is disabled（要件3.8: nextQuestionIdは有効時にしかPRACTICE_QUESTION_IDにならない）", () => {
+    // practiceMode無効時、PhaseMachineはnextQuestionIdに本編設問IDしか積まないため、
+    // ここでの判定は自然にfalseのままになる（呼び出し側で別途フラグを渡す必要はない）
+    expect(isPracticeReady({ kind: "ready", nextQuestionId: "q1" as QuestionId })).toBe(false);
+  });
+
+  it("isPracticeRevealed is true only when the closed question was the practice question", () => {
+    expect(isPracticeRevealed(PRACTICE_QUESTION_ID)).toBe(true);
+    expect(isPracticeRevealed("q1" as QuestionId)).toBe(false);
+    expect(isPracticeRevealed(null)).toBe(false);
   });
 });

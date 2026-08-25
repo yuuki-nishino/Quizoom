@@ -3,9 +3,10 @@ import type { Env } from "../env";
 import { createLiveStore, type LiveStore } from "./live-store";
 import { createParticipantTokenService } from "./participant-token";
 import { requireEventAccess } from "../auth/guard";
-import { loadQuestionSnapshot, updateStatus } from "../catalog/repository";
+import { loadQuestionSnapshot, updateStatus, getPracticeMode } from "../catalog/repository";
 import { save as saveResult, type JudgedAnswer } from "../results/archive";
 import { judge, aggregate, rank } from "../../shared/scoring";
+import { PRACTICE_QUESTION, PRACTICE_QUESTION_ID } from "../../shared/practice-question";
 import { next } from "./phase-machine";
 import { retryAsync } from "./retry";
 import {
@@ -235,7 +236,11 @@ export class QuizSessionDO extends DurableObject<Env> {
     const state = this.#store.load();
     if (!state || state.phase.kind !== "questionOpen") return;
 
-    const transition = next(state.phase, { type: "closeQuestion" }, { now: Date.now(), questions: state.questions ?? [] });
+    const transition = next(
+      state.phase,
+      { type: "closeQuestion" },
+      { now: Date.now(), questions: state.questions ?? [], practiceEnabled: state.eventMeta.practiceMode },
+    );
     if (!transition.ok) return;
 
     this.#store.savePhase(transition.value.phase);
@@ -256,7 +261,11 @@ export class QuizSessionDO extends DurableObject<Env> {
     }
 
     const questions = state.questions ?? [];
-    const transition = next(state.phase, command, { now: Date.now(), questions });
+    const transition = next(state.phase, command, {
+      now: Date.now(),
+      questions,
+      practiceEnabled: state.eventMeta.practiceMode,
+    });
     if (!transition.ok) {
       this.#sendRejection(ws, transition.error.code, `cannot apply ${command.type} from phase ${state.phase.kind}`);
       return;
@@ -296,7 +305,14 @@ export class QuizSessionDO extends DurableObject<Env> {
       this.#store.freezeQuestionSnapshot(questions, Date.now());
     }
 
-    const transition = next(phase, { type: "startSession" }, { now: Date.now(), questions });
+    // 公開後・開催開始前にテスト問題モードの設定が変更されている場合があるため、
+    // 開催開始の遷移計算直前にD1から最新値を再取得して同期する（設計レビューで指摘）。
+    // publish時点のEventMetaはDOへ一度しか書き込まれないため、ここで読み直さない限り
+    // 開催開始の判定が公開時点の古い値のまま行われてしまう
+    const practiceMode = await getPracticeMode(this.env, eventId);
+    this.#store.saveEventMeta({ ...existing!.eventMeta, practiceMode });
+
+    const transition = next(phase, { type: "startSession" }, { now: Date.now(), questions, practiceEnabled: practiceMode });
     if (!transition.ok) {
       this.#sendRejection(ws, transition.error.code, `cannot apply startSession from phase ${phase.kind}`);
       return;
@@ -354,7 +370,7 @@ export class QuizSessionDO extends DurableObject<Env> {
 
   #afterQuestionOpened(phase: LivePhase, questions: readonly QuestionSnapshot[]): void {
     if (phase.kind !== "questionOpen") return;
-    const question = questions.find((q) => q.id === phase.questionId);
+    const question = phase.questionId === PRACTICE_QUESTION_ID ? PRACTICE_QUESTION : questions.find((q) => q.id === phase.questionId);
     if (!question) return;
 
     const payload: QuestionOpenedPayload = {
@@ -368,7 +384,7 @@ export class QuizSessionDO extends DurableObject<Env> {
 
   #afterRevealAnswer(phase: LivePhase, questions: readonly QuestionSnapshot[]): void {
     if (phase.kind !== "revealed") return;
-    const question = questions.find((q) => q.id === phase.questionId);
+    const question = phase.questionId === PRACTICE_QUESTION_ID ? PRACTICE_QUESTION : questions.find((q) => q.id === phase.questionId);
     if (!question) return;
 
     const answersForQuestion = this.#store.listAnswers(phase.questionId);
@@ -437,15 +453,20 @@ export class QuizSessionDO extends DurableObject<Env> {
     const ranked = rank(aggregate(participants, answers, questions));
 
     const correctOptionByQuestion = new Map(questions.map((q) => [q.id, q.correctOptionId]));
-    const judgedAnswers: readonly JudgedAnswer[] = answers.map((answer) => {
-      const correctOptionId = correctOptionByQuestion.get(answer.questionId);
-      return {
-        participantId: answer.participantId,
-        questionId: answer.questionId,
-        isCorrect: correctOptionId !== undefined && judge(answer, correctOptionId).isCorrect,
-        elapsedMs: answer.elapsedMs,
-      };
-    });
+    // テスト問題の回答は結果アーカイブに一切保存しない（要件4.4）。採点対象からは
+    // questionsに含まれないことで既に除外されているが、アーカイブには無条件で
+    // 全回答が渡るため、ここで明示的に取り除く
+    const judgedAnswers: readonly JudgedAnswer[] = answers
+      .filter((answer) => answer.questionId !== PRACTICE_QUESTION_ID)
+      .map((answer) => {
+        const correctOptionId = correctOptionByQuestion.get(answer.questionId);
+        return {
+          participantId: answer.participantId,
+          questionId: answer.questionId,
+          isCorrect: correctOptionId !== undefined && judge(answer, correctOptionId).isCorrect,
+          elapsedMs: answer.elapsedMs,
+        };
+      });
 
     await saveResult(this.env, eventId, ranked, judgedAnswers);
     await this.#updateStatusWithRetry(eventId, "live", "finished");

@@ -71,6 +71,7 @@ export function sampleEvent(overrides: Partial<EventDetail> = {}): EventDetail {
       backgroundAssetId: null,
       templateId: null,
     },
+    practiceMode: false,
     role: "owner",
     ...overrides,
   };

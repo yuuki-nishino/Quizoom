@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { env, SELF } from "cloudflare:test";
+import { env, SELF, runInDurableObject } from "cloudflare:test";
 import { createHostCookie } from "../../../test/auth-helpers";
 import { DEFAULT_THEME } from "./repository";
+import { createLiveStore } from "../session/live-store";
 
 beforeEach(async () => {
   await env.DB.exec(
@@ -317,6 +318,23 @@ describe("POST /api/events/:id/publish", () => {
       body: JSON.stringify({ nickname: "alice" }),
     });
     expect(await joinRes.json()).toMatchObject({ ok: true });
+  });
+
+  it("carries the event's practiceMode setting into the initialized live session（task 2.2, 要件1.1）", async () => {
+    const cookie = await hostCookie();
+    const created = await createEventAs(cookie);
+    await addQuestion(cookie, created.id);
+    await SELF.fetch(`https://example.com/api/events/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({ practiceMode: true }),
+    });
+
+    await SELF.fetch(`https://example.com/api/events/${created.id}/publish`, { method: "POST", headers: { Cookie: cookie } });
+
+    const stub = env.QUIZ_SESSION.getByName(created.id);
+    const state = await runInDurableObject(stub, (_instance, ctx) => createLiveStore(ctx.storage.sql).load());
+    expect(state?.eventMeta.practiceMode).toBe(true);
   });
 
   it("is idempotent when called twice, returning the same codes", async () => {

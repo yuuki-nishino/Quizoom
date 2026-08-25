@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QuestionView } from "./question-view";
 import type { QuestionPublicView } from "../../shared/protocol";
 import type { OptionId, QuestionId } from "../../shared/domain-types";
+import { PRACTICE_QUESTION_ID } from "../../shared/practice-question";
 
 function question(overrides: Partial<QuestionPublicView> = {}): QuestionPublicView {
   return {
@@ -58,5 +59,27 @@ describe("QuestionView", () => {
     expect(withImage).toContain("max-h-56");
     // 画像なし: 従来どおりゆったりしたクラスのまま
     expect(withoutImage).toMatch(/class="stage-question-view[^"]*gap-6[^"]*py-10[^"]*"/);
+  });
+
+  it("shows a テスト問題 badge instead of the question number when the practice question is open（要件3.3）", () => {
+    const markup = renderToStaticMarkup(
+      <QuestionView
+        question={question({ id: PRACTICE_QUESTION_ID })}
+        imageUrl={null}
+        remainingMs={1000}
+        paused={false}
+        answeredCount={0}
+        totalCount={1}
+      />,
+    );
+    expect(markup).toContain("テスト問題");
+    expect(markup).not.toContain("第3問");
+  });
+
+  it("keeps the question number for a real question", () => {
+    const markup = renderToStaticMarkup(
+      <QuestionView question={question()} imageUrl={null} remainingMs={1000} paused={false} answeredCount={0} totalCount={1} />,
+    );
+    expect(markup).not.toContain("テスト問題");
   });
 });

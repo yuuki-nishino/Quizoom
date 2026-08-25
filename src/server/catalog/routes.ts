@@ -230,6 +230,7 @@ catalogRoutes.post("/api/events/:id/publish", async (c) => {
         capacity: eventDetail.value.capacity ?? DEFAULT_CAPACITY,
         status: "published",
         theme: eventDetail.value.theme,
+        practiceMode: eventDetail.value.practiceMode,
       };
       const stub = getSessionStub(c.env, eventId);
       const publishRes = await stub.fetch("https://do/internal/publish", { method: "POST", body: JSON.stringify(meta) });

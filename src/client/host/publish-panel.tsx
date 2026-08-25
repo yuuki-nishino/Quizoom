@@ -19,6 +19,20 @@ export function PublishPanel({ apiClient, eventId, event, onEventChange }: Publi
 
   const hasNoQuestions = event.questions.length === 0;
   const alreadyPublished = event.status !== "draft";
+  const [practiceModeError, setPracticeModeError] = useState<string | null>(null);
+  const [practiceModeSaving, setPracticeModeSaving] = useState(false);
+
+  async function togglePracticeMode() {
+    setPracticeModeSaving(true);
+    const result = await apiClient.updateEvent(eventId, { practiceMode: !event.practiceMode });
+    setPracticeModeSaving(false);
+    if (!result.ok) {
+      setPracticeModeError(result.code);
+      return;
+    }
+    setPracticeModeError(null);
+    onEventChange({ ...event, practiceMode: result.value.practiceMode });
+  }
 
   async function doPublish() {
     setPublishing(true);
@@ -59,6 +73,29 @@ export function PublishPanel({ apiClient, eventId, event, onEventChange }: Publi
       {error && (
         <p role="alert" className="mt-2 rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800">
           エラーが発生しました（{error}）。
+        </p>
+      )}
+
+      <div className="mt-4 flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+        <input
+          type="checkbox"
+          id="practice-mode-toggle"
+          checked={event.practiceMode}
+          disabled={event.status === "live" || practiceModeSaving}
+          onChange={togglePracticeMode}
+          className="mt-1"
+        />
+        <label htmlFor="practice-mode-toggle" className="text-sm text-slate-700">
+          <span className="font-medium text-slate-900">テスト問題モード</span>
+          <p className="mt-0.5 text-slate-600">
+            有効にすると、待機状態から本編最初の設問に入る前に、採点に影響しない固定のテスト問題を1問実演できます。
+            {event.status === "live" && "（開催中は変更できません）"}
+          </p>
+        </label>
+      </div>
+      {practiceModeError && (
+        <p role="alert" className="mt-2 rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800">
+          テスト問題モードの変更に失敗しました（{practiceModeError}）。
         </p>
       )}
 

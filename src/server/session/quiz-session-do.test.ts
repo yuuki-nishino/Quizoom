@@ -8,6 +8,7 @@ import { getSessionStub } from "./quiz-session-do";
 import type { QuizSessionDO } from "./quiz-session-do";
 import { createHostCookie } from "../../../test/auth-helpers";
 import { createInvite, acceptInvite, revokeCollaborator, listCollaborators } from "../collaborators/repository";
+import { PRACTICE_QUESTION, PRACTICE_QUESTION_ID } from "../../shared/practice-question";
 
 const meta: EventMeta = {
   capacity: 2,
@@ -21,6 +22,7 @@ const meta: EventMeta = {
     backgroundAssetId: null,
     templateId: null,
   },
+  practiceMode: false,
 };
 
 function newStub(): DurableObjectStub<QuizSessionDO> {
@@ -159,6 +161,10 @@ async function addAcceptedCollaborator(eventId: string, collaboratorId = "collab
 
 async function loadState(stub: DurableObjectStub<QuizSessionDO>) {
   return runInDurableObject(stub, (_instance, state) => createLiveStore(state.storage.sql).load());
+}
+
+async function setPracticeMode(eventId: string, enabled: boolean): Promise<void> {
+  await env.DB.prepare("UPDATE event SET practice_mode_enabled = ? WHERE id = ?").bind(enabled ? 1 : 0, eventId).run();
 }
 
 async function joinParticipant(
@@ -783,6 +789,147 @@ describe("QuizSessionDO showRanking / finalize", () => {
     expect(entryRow).toEqual({ nickname: "alice", rank: 1, correct_count: 1 });
 
     aliceWs.close();
+  });
+});
+
+describe("QuizSessionDO practice question mode（要件1.1, 1.3, 3.2, 3.3, 4.1-4.4）", () => {
+  it("re-syncs practiceMode from D1 at startSession, reflecting a change made after publish（設計レビュー修正）", async () => {
+    await seedEvent("event-1", { status: "published" });
+    await seedQuestion("event-1", "q1", 0);
+    const stub = newStub();
+    await publish(stub, meta); // meta.practiceMode は false（公開時点の値）
+    await setPracticeMode("event-1", true); // 公開後・開催開始前にトグルを変更
+
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+
+    const loaded = await loadState(stub);
+    expect(loaded?.phase).toEqual({ kind: "ready", nextQuestionId: PRACTICE_QUESTION_ID });
+  });
+
+  it("delivers the practice question's own content and time limit when opened", async () => {
+    await seedEvent("event-1", { status: "published", stageToken: "tok" });
+    await seedQuestion("event-1", "q1", 0);
+    await setPracticeMode("event-1", true);
+    const stub = newStub();
+    await publish(stub, meta);
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+
+    const stageWs = await connectAndDrain(stub, { eventId: "event-1", role: "stage", token: "tok" });
+    const opened = nextMessage(stageWs);
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+    const event = await opened;
+
+    expect(event.type).toBe("questionOpened");
+    expect(event.payload.question.id).toBe(PRACTICE_QUESTION_ID);
+    expect(event.payload.question.body).toBe(PRACTICE_QUESTION.body);
+    expect(event.payload.question.options).toHaveLength(PRACTICE_QUESTION.options.length);
+    expect(event.payload.deadlineAt - event.payload.serverNow).toBeLessThanOrEqual(PRACTICE_QUESTION.timeLimitSec * 1000);
+
+    stageWs.close();
+  });
+
+  it("reveals the practice question's own correct answer", async () => {
+    await seedEvent("event-1", { status: "published", stageToken: "tok" });
+    await seedQuestion("event-1", "q1", 0);
+    await setPracticeMode("event-1", true);
+    const stub = newStub();
+    await publish(stub, meta);
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+    await sendHostCommand(stub, "event-1", { type: "closeQuestion" });
+
+    const stageWs = await connectAndDrain(stub, { eventId: "event-1", role: "stage", token: "tok" });
+    const closed = nextMessage(stageWs);
+    await sendHostCommand(stub, "event-1", { type: "revealAnswer" });
+    const event = await closed;
+
+    expect(event.type).toBe("questionClosed");
+    expect(event.payload.questionId).toBe(PRACTICE_QUESTION_ID);
+    expect(event.payload.correctOptionId).toBe(PRACTICE_QUESTION.correctOptionId);
+    expect(event.payload.explanation).toBe(PRACTICE_QUESTION.explanation);
+
+    stageWs.close();
+  });
+
+  it("advances from the revealed practice question to the real first question on nextQuestion（要件3.7）", async () => {
+    await seedEvent("event-1", { status: "published" });
+    await seedQuestion("event-1", "q1", 0);
+    await setPracticeMode("event-1", true);
+    const stub = newStub();
+    await publish(stub, meta);
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+    await sendHostCommand(stub, "event-1", { type: "closeQuestion" });
+    await sendHostCommand(stub, "event-1", { type: "revealAnswer" });
+
+    await sendHostCommand(stub, "event-1", { type: "nextQuestion" });
+
+    const loaded = await loadState(stub);
+    expect(loaded?.phase).toEqual({ kind: "ready", nextQuestionId: "q1" });
+  });
+
+  it("excludes the practice question's answer from scoring, ranking, and the result archive end-to-end（要件4.1〜4.4）", async () => {
+    await seedEvent("event-1", { status: "published", stageToken: "tok" });
+    await seedQuestion("event-1", "q1", 0, { correctOptionId: "q1-a" });
+    await setPracticeMode("event-1", true);
+    const stub = newStub();
+    await publish(stub, { ...meta, capacity: 5 });
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+
+    // テスト問題: aliceは正解(practice-option-b)を選ぶが、採点には一切反映されないはず
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+    const alice = await joinParticipant(stub, "event-1", "alice");
+    const aliceWs = await connectAndDrain(stub, { eventId: "event-1", role: "participant", token: alice.token });
+    await sendAndAwait(aliceWs, { type: "submitAnswer", questionId: PRACTICE_QUESTION_ID, optionId: PRACTICE_QUESTION.correctOptionId });
+    await sendHostCommand(stub, "event-1", { type: "closeQuestion" });
+    await sendHostCommand(stub, "event-1", { type: "revealAnswer" });
+    await sendHostCommand(stub, "event-1", { type: "nextQuestion" });
+
+    // 本編: aliceはq1に正解する
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+    await sendAndAwait(aliceWs, { type: "submitAnswer", questionId: "q1", optionId: "q1-a" });
+    await sendHostCommand(stub, "event-1", { type: "closeQuestion" });
+
+    const stageWs = await connectAndDrain(stub, { eventId: "event-1", role: "stage", token: "tok" });
+    const revealed = nextMessage(stageWs);
+    await sendHostCommand(stub, "event-1", { type: "revealAnswer" });
+    await revealed; // questionClosed をここで読み捨てる（rankingUpdated と取り違えないため）
+
+    const ranking = nextMessage(stageWs);
+    await sendHostCommand(stub, "event-1", { type: "finalize" });
+
+    const rankingEvent = await ranking;
+    expect(rankingEvent.type).toBe("rankingUpdated");
+    expect(rankingEvent.payload.entries).toEqual([
+      expect.objectContaining({ nickname: "alice", correctCount: 1, rank: 1 }),
+    ]);
+
+    const resultRow = await env.DB.prepare("SELECT id FROM result WHERE event_id = ?").bind("event-1").first<{ id: string }>();
+    const entryRow = await env.DB.prepare("SELECT id, correct_count FROM result_entry WHERE result_id = ?")
+      .bind(resultRow!.id)
+      .first<{ id: string; correct_count: number }>();
+    expect(entryRow?.correct_count).toBe(1);
+
+    const { results: answerRows } = await env.DB.prepare("SELECT question_id FROM result_answer WHERE result_entry_id = ?")
+      .bind(entryRow!.id)
+      .all<{ question_id: string }>();
+    expect(answerRows.map((r) => r.question_id)).toEqual(["q1"]);
+    expect(answerRows.map((r) => r.question_id)).not.toContain(PRACTICE_QUESTION_ID);
+
+    stageWs.close();
+    aliceWs.close();
+  });
+
+  it("shows no practice-related host progression once the event reaches ready without practiceMode（要件3.8の前提: PhaseMachineに委譲）", async () => {
+    await seedEvent("event-1", { status: "published" });
+    await seedQuestion("event-1", "q1", 0);
+    // practiceMode を有効化しない（既定false）
+    const stub = newStub();
+    await publish(stub, meta);
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+
+    const loaded = await loadState(stub);
+    expect(loaded?.phase).toEqual({ kind: "ready", nextQuestionId: "q1" });
   });
 });
 

@@ -133,6 +133,8 @@ export interface EventMeta {
   readonly capacity: number;
   readonly status: EventStatus;
   readonly theme: ThemeSettings;
+  /** テスト問題モードの有効/無効（要件1）。startSession実行直前に最新値へ再同期される */
+  readonly practiceMode: boolean;
 }
 
 export interface SessionState {

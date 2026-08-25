@@ -22,4 +22,14 @@ describe("WaitingRoom", () => {
     expect(markup).toContain("現在の参加者数");
     expect(markup).toContain(">3<");
   });
+
+  it("explains how scoring works, without hiding the title, QR code, or participant count（要件5.1, 5.2, 5.3）", () => {
+    const markup = renderToStaticMarkup(
+      <WaitingRoom eventTitle="Quiz Night" joinUrl="https://quizoom.example.com/join/ABC123" participantCount={3} />,
+    );
+    expect(markup).toMatch(/正解数|回答時間|順位/);
+    expect(markup).toContain("Quiz Night");
+    expect(markup).toContain("https://quizoom.example.com/join/ABC123");
+    expect(markup).toContain("現在の参加者数");
+  });
 });

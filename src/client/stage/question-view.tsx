@@ -1,5 +1,6 @@
 import type { QuestionPublicView } from "../../shared/protocol";
 import { formatRemainingSeconds } from "../shared/format";
+import { PRACTICE_QUESTION_ID } from "../../shared/practice-question";
 
 export interface QuestionViewProps {
   readonly question: QuestionPublicView;
@@ -19,6 +20,7 @@ export interface QuestionViewProps {
 export function QuestionView({ question, imageUrl, remainingMs, paused, answeredCount, totalCount }: QuestionViewProps) {
   const ratio = totalCount > 0 ? Math.round((answeredCount / totalCount) * 100) : 0;
   const hasImage = imageUrl !== null;
+  const isPractice = question.id === PRACTICE_QUESTION_ID;
 
   return (
     <div
@@ -32,7 +34,7 @@ export function QuestionView({ question, imageUrl, remainingMs, paused, answered
           hasImage ? "px-3 py-0.5 text-xl" : "px-4 py-1 text-2xl"
         }`}
       >
-        第{question.orderIndex + 1}問
+        {isPractice ? "テスト問題" : `第${question.orderIndex + 1}問`}
       </p>
       <h1
         className={`max-w-5xl font-extrabold leading-snug tracking-tight ${

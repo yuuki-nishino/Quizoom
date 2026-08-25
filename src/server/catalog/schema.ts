@@ -19,6 +19,7 @@ export const updateEventRequestSchema = z.object({
   title: z.string().min(1).optional(),
   subtitle: z.string().optional(),
   capacity: z.number().int().positive().nullable().optional(),
+  practiceMode: z.boolean().optional(),
 });
 export type UpdateEventRequest = z.infer<typeof updateEventRequestSchema>;
 

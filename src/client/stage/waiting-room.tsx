@@ -35,6 +35,9 @@ export function WaitingRoom({ eventTitle, joinUrl, participantCount }: WaitingRo
       <p aria-label="現在の参加者数" className="text-xl text-brand-text/80">
         現在の参加者数: <span className="font-bold text-brand-primary">{participantCount}</span>人
       </p>
+      <p className="max-w-xl text-base text-brand-text/70">
+        選択式のクイズに答えて、正解数と回答時間で最終順位が決まります。
+      </p>
       {qrSvg && (
         <div
           aria-label="参加用QRコード"
