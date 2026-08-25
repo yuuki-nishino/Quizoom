@@ -38,11 +38,11 @@ export function RankingView({ entries, isFinal, topN = 10 }: RankingViewProps) {
                     : "bg-white/90 text-slate-800"
             }`}
           >
-            <span className="stage-rank inline-flex w-14 items-center gap-1 text-2xl font-black">
-              {index === 0 && <StarIcon className="h-6 w-6" />}
+            <span className="stage-rank inline-flex w-24 shrink-0 items-center gap-1 whitespace-nowrap text-2xl font-black">
+              {index === 0 && <StarIcon className="h-6 w-6 shrink-0" />}
               {entry.rank}位
             </span>
-            <span className="stage-nickname flex-1 text-left text-2xl font-semibold">{entry.nickname}</span>
+            <span className="stage-nickname min-w-0 flex-1 truncate text-left text-2xl font-semibold">{entry.nickname}</span>
             <span className="text-lg">
               正解数 {entry.correctCount} / {formatElapsedMs(entry.totalElapsedMs)}
             </span>

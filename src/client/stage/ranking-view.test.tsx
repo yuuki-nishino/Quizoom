@@ -46,4 +46,18 @@ describe("RankingView", () => {
     expect(markup).toContain("player4");
     expect(markup).not.toContain("player5");
   });
+
+  describe("見栄えの安定性（要件13.1, 13.2, Issue #15）", () => {
+    it("truncates a long nickname within a bounded flex child instead of letting it overflow", () => {
+      const long = [{ ...entries()[0]!, nickname: "とてもながいにっくねーむをつけてしまったさんかしゃ" }];
+      const markup = renderToStaticMarkup(<RankingView entries={long} isFinal={false} />);
+      expect(markup).toMatch(/class="stage-nickname[^"]*\bmin-w-0\b[^"]*\btruncate\b[^"]*"/);
+    });
+
+    it("keeps the rank-1 star badge on a single line without wrapping", () => {
+      const markup = renderToStaticMarkup(<RankingView entries={entries()} isFinal={false} />);
+      expect(markup).toMatch(/class="stage-rank[^"]*\bwhitespace-nowrap\b[^"]*"/);
+      expect(markup).not.toMatch(/class="stage-rank[^"]*\bw-14\b[^"]*"/);
+    });
+  });
 });
