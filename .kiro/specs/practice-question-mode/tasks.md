@@ -72,7 +72,7 @@
   - _Boundary: WaitingRoom_
   - _Requirements: 5.1, 5.2, 5.3_
 
-- [ ] 5.2 (P) 投影画面でのテスト問題の明示
+- [x] 5.2 (P) 投影画面でのテスト問題の明示
   - 出題中・正解発表中の投影画面で、表示中の内容がテスト問題であることが一目でわかる表示になっていることを確認する（本編設問の「第N問」表示等と混同しないこと）
   - _Boundary: QuestionView, RevealView_
   - _Requirements: 3.3, 3.6_
