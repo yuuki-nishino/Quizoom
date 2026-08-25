@@ -96,7 +96,7 @@ export function LiveConsole({ apiClient, eventId }: LiveConsoleProps) {
           <p className="mt-1 text-slate-600">現在の参加者数: {state.participantCount}人</p>
           <ul className="mt-3 flex flex-wrap gap-2">
             {state.participantNicknames.map((nickname, i) => (
-              <li key={i} className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">
+              <li key={i} className="max-w-[12rem] truncate rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700" title={nickname}>
                 {nickname}
               </li>
             ))}
