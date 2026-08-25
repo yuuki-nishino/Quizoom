@@ -40,6 +40,17 @@
   --font-display: "Mochiy Pop One", var(--font-sans);
 }
 
+/*
+ * Mochiy Pop One は index.html でウェイト指定なし(単一ウェイト、400相当)のみ読み込んで
+ * いる。見出し側は font-bold/font-extrabold 等の太字ユーティリティを指定しているため、
+ * 読み込んだフォントに存在しないウェイトをブラウザが疑似太字(synthetic bold)で合成し、
+ * 画数の多い漢字のストロークが潰れて可読性が落ちていた(Issue #23)。fancy-party適用時は
+ * font-display を使う見出し全体を実際に読み込んだウェイトへ強制する
+ */
+[data-design-template="fancy-party"] .font-display {
+  font-weight: 400;
+}
+
 html,
 body {
   height: 100%;
@@ -49,8 +60,15 @@ body {
   @apply bg-slate-50 text-slate-900 font-sans;
 }
 
+/*
+ * min-height ではなく height を明示指定する。CSSの仕様上、子要素が height/min-height を
+ * パーセンテージで解決するには祖先の height が明示的に指定されている必要があり、
+ * min-height だけでは満たされない。#root が min-height のみだと、配下の
+ * ThemeProvider ルート(min-h-full)がビューポート高へ解決されず、コンテンツが
+ * ビューポートより短い画面で下部に地の body 背景が露出していた(Issue #22)
+ */
 #root {
-  min-height: 100%;
+  height: 100%;
 }
 
 /*
