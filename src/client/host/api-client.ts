@@ -51,6 +51,7 @@ export interface EventDetail {
   readonly createdAt: number;
   readonly questions: readonly Question[];
   readonly theme: ThemeSettings;
+  readonly practiceMode: boolean;
   readonly role: EventRole;
 }
 
@@ -64,6 +65,7 @@ export interface UpdateEventInput {
   readonly title?: string;
   readonly subtitle?: string;
   readonly capacity?: number | null;
+  readonly practiceMode?: boolean;
 }
 
 export interface QuestionOptionInput {
