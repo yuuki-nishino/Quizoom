@@ -1092,6 +1092,8 @@ interface ServerClock {
 - `ThemePreviewWalkthrough`は単一の`question` propに代えて`questions`（配列）を受け取り、内部で選択中の設問インデックスをstateとして保持する。設問選択UIから任意の設問へ切り替えると、出題・正解発表の各ステップの表示内容がその設問に切り替わる。`theme-preview-page.tsx`の`toPreviewQuestion`（単数、既存）はそのまま残し、全設問をマッピングする`toPreviewQuestions`（複数）を追加する（要件3.14）
 - ニックネームの文字数制限（1〜20文字、制御文字禁止）自体は`join-routes.ts`の`nicknameRequestSchema`とクライアント側`maxLength`で既に担保されている。20文字のCJK文字列は依然として横幅が広く、`RankingView`の`stage-nickname`（幅制約なしの`flex-1`）や`LiveConsole`の参加者一覧ピルでは折り返し・はみ出しが起こり得るため、両箇所に`truncate`（`overflow-hidden text-ellipsis whitespace-nowrap`相当）を適用し、表示側でも安全側に丸め込む（要件13.1）
 - `RankingView`の1位行の順位バッジ（`stage-rank`）は固定幅`w-14`のためStarIconと「1位」の文字が折り返されていた。固定幅をやめ`shrink-0 whitespace-nowrap`とし、内容に応じた幅で1行に収まるようにする（要件13.2）
+- `styles.css`の`#root { min-height: 100%; }`は`height`ではなく`min-height`のため、`#root`自身の`height`プロパティは`auto`のままである。CSSの仕様上、子要素が`height`/`min-height`をパーセンテージで解決するには祖先の`height`が明示的に指定されている必要があり、`min-height`だけでは満たされない。このため`ThemeProvider`ルート（`min-h-full` = `min-height: 100%`）が`#root`に対して正しく解決されず、コンテンツの実高さぶんしか配色・背景が適用されず、コンテンツがビューポートより短い場合に下部へ地の`body`背景（`bg-slate-50`）が露出していた。`#root`を`height: 100%`へ変更し、`height`の明示的指定によるパーセンテージ解決チェーンを成立させる（要件14.1）。`--color-brand-bg`との二重参照ではなく高さの継承チェーンの問題であり、要件3.6の配色反映修正とは別の不具合として扱う
+- `fancy-party`テンプレートの見出し（`RankingView`・`ResultScreen`の「最終結果」等）は、`font-display`（Google Fontsで読み込む「Mochiy Pop One」、単一ウェイトのみ提供）と`font-extrabold`（`font-weight: 800`）を同時に指定していたため、読み込んだフォントに存在しない800番ウェイトをブラウザが疑似太字（synthetic bold）で合成し、画数の多い漢字のストロークが潰れて可読性が落ちていた。`font-display`を用いる見出しでは、読み込んだフォントが実際に提供するウェイトの範囲でTailwindの`font-*`クラスを指定する（`fancy-party`の見出しは`font-extrabold`をやめ`font-bold`以下に留める）。他のテンプレート（`elegant-wedding`の"Shippori Mincho"は`700;800`の複数ウェイトを`index.html`で読み込み済みのため対象外）への影響はない（要件14.2）
 
 ## Data Models
 
