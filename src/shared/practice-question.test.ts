@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { PRACTICE_QUESTION, PRACTICE_QUESTION_ID } from "./practice-question";
+import { PRACTICE_QUESTION, PRACTICE_QUESTION_ID, resolveQuestion } from "./practice-question";
+import type { QuestionId, QuestionSnapshot } from "./domain-types";
 
 describe("PRACTICE_QUESTION", () => {
   it("uses PRACTICE_QUESTION_ID as its id", () => {
@@ -40,5 +41,26 @@ describe("PRACTICE_QUESTION", () => {
     for (const option of PRACTICE_QUESTION.options) {
       expect(option.label.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("resolveQuestion", () => {
+  const realQuestion: QuestionSnapshot = {
+    id: "q1" as QuestionId,
+    orderIndex: 0,
+    body: "real question",
+    imageAssetId: null,
+    timeLimitSec: 30,
+    explanation: "",
+    options: PRACTICE_QUESTION.options,
+    correctOptionId: PRACTICE_QUESTION.correctOptionId,
+  };
+
+  it("resolves PRACTICE_QUESTION_ID to PRACTICE_QUESTION even when it is absent from the questions list", () => {
+    expect(resolveQuestion(PRACTICE_QUESTION_ID, [realQuestion])).toBe(PRACTICE_QUESTION);
+  });
+
+  it("resolves a real questionId by looking it up in the questions list", () => {
+    expect(resolveQuestion("q1" as QuestionId, [realQuestion])).toBe(realQuestion);
   });
 });

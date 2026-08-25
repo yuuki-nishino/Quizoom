@@ -29,3 +29,14 @@ export const PRACTICE_QUESTION: QuestionSnapshot = {
   ],
   correctOptionId: OPTION_B,
 };
+
+/**
+ * questionIdからQuestionSnapshotを解決する。テスト問題は本編設問一覧(questions)に
+ * 決して含めないため、通常の`questions.find(...)`では見つからない。この関数を
+ * PhaseMachine・QuizSessionDOの両方から使うことで、テスト問題の解決ロジックを
+ * 一箇所に集約する。
+ */
+export function resolveQuestion(questionId: QuestionId, questions: readonly QuestionSnapshot[]): QuestionSnapshot {
+  if (questionId === PRACTICE_QUESTION_ID) return PRACTICE_QUESTION;
+  return questions.find((q) => q.id === questionId)!;
+}
