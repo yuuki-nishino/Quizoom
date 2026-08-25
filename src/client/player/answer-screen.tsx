@@ -3,6 +3,7 @@ import type { QuestionPublicView } from "../../shared/protocol";
 import { formatRemainingSeconds } from "../shared/format";
 import type { AnswerSubmissionState } from "./answer-submission";
 import { CheckCircleIcon } from "../shared/icons";
+import { PRACTICE_QUESTION_ID } from "../../shared/practice-question";
 
 export interface AnswerScreenProps {
   readonly question: QuestionPublicView;
@@ -26,9 +27,15 @@ export function AnswerScreen({ question, imageUrl, remainingMs, paused, alreadyA
   const locked = accepted || submission.status === "pending" || submission.status === "rejected";
   const selectedOptionId = submission.status !== "idle" ? submission.optionId : null;
   const selectedLabel = selectedOptionId ? question.options.find((o) => o.id === selectedOptionId)?.label : undefined;
+  const isPractice = question.id === PRACTICE_QUESTION_ID;
 
   return (
     <section aria-label="出題中" className="player-answer-screen quiz-phase-enter flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-6">
+      {isPractice && (
+        <p className="inline-block w-fit rounded-full bg-brand-accent/15 px-3 py-0.5 text-sm font-semibold text-brand-accent">
+          テスト問題
+        </p>
+      )}
       <h1 className="text-xl font-bold leading-snug">{question.body}</h1>
       {imageUrl && <img src={imageUrl} alt="" className="max-h-48 w-full rounded-lg object-contain" />}
 

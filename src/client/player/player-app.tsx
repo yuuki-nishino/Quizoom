@@ -17,6 +17,7 @@ import { WaitingScreen } from "./waiting-screen";
 import { AnswerScreen } from "./answer-screen";
 import { ResultScreen } from "./result-screen";
 import { LateJoinNotice } from "./late-join-notice";
+import { PRACTICE_QUESTION_ID } from "../../shared/practice-question";
 
 /** 回答画面のルート。参加登録・接続・フェーズに応じた画面切り替えを担う */
 export function PlayerApp() {
@@ -115,7 +116,11 @@ export function PlayerApp() {
       {state.phase === null ? (
         <p className="flex min-h-0 flex-1 items-center justify-center text-slate-500">読み込み中…</p>
       ) : state.closedQuestion !== null ? (
-        <ResultScreen personalResult={state.closedQuestion.personalResult} personalRank={state.personalRank} />
+        <ResultScreen
+          personalResult={state.closedQuestion.personalResult}
+          personalRank={state.personalRank}
+          isPractice={state.closedQuestion.questionId === PRACTICE_QUESTION_ID}
+        />
       ) : state.phase.kind === "questionClosed" ? (
         <p role="status" className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-lg text-brand-text/80">
           回答受付を終了しました。正解発表をお待ちください。

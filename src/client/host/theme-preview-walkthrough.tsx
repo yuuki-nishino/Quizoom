@@ -200,6 +200,7 @@ function buildSteps(eventTitle: string, preview: PreviewQuestion): readonly Walk
         <ResultScreen
           personalResult={{ isCorrect: true, correctCount: 3, rank: 1 }}
           personalRank={{ rank: 1, correctCount: 3, totalElapsedMs: 12000, isFinal: true }}
+          isPractice={false}
         />
       ),
     },

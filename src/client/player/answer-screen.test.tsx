@@ -4,6 +4,7 @@ import { AnswerScreen } from "./answer-screen";
 import type { QuestionPublicView } from "../../shared/protocol";
 import type { AnswerSubmissionState } from "./answer-submission";
 import type { OptionId, QuestionId } from "../../shared/domain-types";
+import { PRACTICE_QUESTION_ID } from "../../shared/practice-question";
 
 const question: QuestionPublicView = {
   id: "q1" as QuestionId,
@@ -90,5 +91,20 @@ describe("AnswerScreen", () => {
       <AnswerScreen question={question} imageUrl="/api/events/e1/media/a1?token=t" remainingMs={5000} paused={false} alreadyAnswered={false} submission={idle} onSelect={() => {}} onRetry={() => {}} />,
     );
     expect(markup).toContain('src="/api/events/e1/media/a1?token=t"');
+  });
+
+  it("shows a テスト問題 badge when answering the practice question（要件3.3）", () => {
+    const practiceQuestion: QuestionPublicView = { ...question, id: PRACTICE_QUESTION_ID };
+    const markup = renderToStaticMarkup(
+      <AnswerScreen question={practiceQuestion} imageUrl={null} remainingMs={5000} paused={false} alreadyAnswered={false} submission={idle} onSelect={() => {}} onRetry={() => {}} />,
+    );
+    expect(markup).toContain("テスト問題");
+  });
+
+  it("does not show the badge for a real question", () => {
+    const markup = renderToStaticMarkup(
+      <AnswerScreen question={question} imageUrl={null} remainingMs={5000} paused={false} alreadyAnswered={false} submission={idle} onSelect={() => {}} onRetry={() => {}} />,
+    );
+    expect(markup).not.toContain("テスト問題");
   });
 });
