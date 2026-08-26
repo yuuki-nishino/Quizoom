@@ -250,3 +250,12 @@
 
 1. While 参加者のニックネームが表示領域の幅に対して長い, the Presentation Screen and the Host Console shall ニックネームを省略記号付きで1行に収め、周囲の要素のレイアウトを崩さない。
 2. While 中間ランキングまたは最終結果で1位の順位が星アイコンとともに表示される, the Presentation Screen shall 星アイコンと順位表示を折り返さず1行で表示する。
+
+### Requirement 14: 外観の表示崩れ解消（Issue #22, #23）
+
+**Objective:** As a 主催者/参加者, I want 画面の高さやフォントの表示崩れによって見栄えが損なわれないようにしたい, so that どの端末・どのテンプレートでも安心して本番運用できる
+
+#### Acceptance Criteria
+
+1. While `ThemeProvider`配下の画面（投影画面・回答画面・共有ページ）のコンテンツの高さがビューポートの高さより短い, the Presentation Screen and the Answer Screen shall 配色・背景をビューポート全体に適用し、下部に地の背景色が露出しないようにする。
+2. While ファンシー/ポップのデザインテンプレートが選択されている, the Presentation Screen and the Answer Screen shall 見出しの文字を、読み込んだフォントに存在しないウェイトへの疑似太字化によって文字が潰れないよう表示する。
