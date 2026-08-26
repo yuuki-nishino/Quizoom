@@ -1094,6 +1094,10 @@ interface ServerClock {
 - `RankingView`の1位行の順位バッジ（`stage-rank`）は固定幅`w-14`のためStarIconと「1位」の文字が折り返されていた。固定幅をやめ`shrink-0 whitespace-nowrap`とし、内容に応じた幅で1行に収まるようにする（要件13.2）
 - `styles.css`の`#root { min-height: 100%; }`は`height`ではなく`min-height`のため、`#root`自身の`height`プロパティは`auto`のままである。CSSの仕様上、子要素が`height`/`min-height`をパーセンテージで解決するには祖先の`height`が明示的に指定されている必要があり、`min-height`だけでは満たされない。このため`ThemeProvider`ルート（`min-h-full` = `min-height: 100%`）が`#root`に対して正しく解決されず、コンテンツの実高さぶんしか配色・背景が適用されず、コンテンツがビューポートより短い場合に下部へ地の`body`背景（`bg-slate-50`）が露出していた。`#root`を`height: 100%`へ変更し、`height`の明示的指定によるパーセンテージ解決チェーンを成立させる（要件14.1）。`--color-brand-bg`との二重参照ではなく高さの継承チェーンの問題であり、要件3.6の配色反映修正とは別の不具合として扱う
 - `fancy-party`テンプレートの見出し（`RankingView`・`ResultScreen`の「最終結果」等）は、`font-display`（Google Fontsで読み込む「Mochiy Pop One」、単一ウェイトのみ提供）と`font-extrabold`（`font-weight: 800`）を同時に指定していたため、読み込んだフォントに存在しない800番ウェイトをブラウザが疑似太字（synthetic bold）で合成し、画数の多い漢字のストロークが潰れて可読性が落ちていた。`font-display`を用いる見出しでは、読み込んだフォントが実際に提供するウェイトの範囲でTailwindの`font-*`クラスを指定する（`fancy-party`の見出しは`font-extrabold`をやめ`font-bold`以下に留める）。他のテンプレート（`elegant-wedding`の"Shippori Mincho"は`700;800`の複数ウェイトを`index.html`で読み込み済みのため対象外）への影響はない（要件14.2）
+- `RankingView`は`isFinal`のときのみ、下位から上位へ向かって順位を1つずつ発表する演出を行う（要件15.1〜15.4）。中間ランキング（`isFinal=false`）は既存どおり即時全件表示のまま変更しない（要件15.5）。演出の対象は既存の`topN`件（既定10件）で、サーバー側の新しいコマンド・イベントは追加しない。1つの投影画面接続が`finalize`直後に受け取る1回の`rankingUpdated`イベントのみを起点に、各クライアントが自律的にタイマーで発表を進める（結果発表中は参加者の個々の端末ではなく投影画面のみが注視される想定のため、複数クライアント間の発表タイミング同期は要件としない）
+- 発表スケジュールの計算（各順位が発表されるまでの遅延時間、上位3位ほど間を長く取る）は、DOM操作・タイマーを伴わない純粋関数`buildRevealSchedule`として`src/client/stage/ranking-reveal.ts`に切り出し、ユニットテスト可能にする（本リポジトリのテスト基盤は`renderToStaticMarkup`によるSSRのみでタイマーを検証できないため、既存の`theme-editor-state.ts`等と同じ「状態計算を純粋関数へ抽出する」パターンに従う）。`RankingView`はこの関数が返すスケジュールに従って`setTimeout`を連鎖させ、発表済み件数を`useState`で保持する
+- 未発表の順位は、順位バッジ（枠）のみをプレースホルダーとして表示し、ニックネーム・正解数・合計回答時間は表示しない（要件15.4）。発表済みの行は既存の`quiz-phase-enter`（420ms fade-in、`prefers-reduced-motion`時は自動的に無効化される既存の仕組みをそのまま利用）で個別に出現させる
+- 既存の`Confetti`（`isFinal`時に無条件でマウント時発火）は、1位が発表されたタイミングでのみ発火するよう`RankingView`側の発火条件を変更する（要件15.3）
 
 ## Data Models
 

@@ -259,3 +259,15 @@
 
 1. While `ThemeProvider`配下の画面（投影画面・回答画面・共有ページ）のコンテンツの高さがビューポートの高さより短い, the Presentation Screen and the Answer Screen shall 配色・背景をビューポート全体に適用し、下部に地の背景色が露出しないようにする。
 2. While ファンシー/ポップのデザインテンプレートが選択されている, the Presentation Screen and the Answer Screen shall 見出しの文字を、読み込んだフォントに存在しないウェイトへの疑似太字化によって文字が潰れないよう表示する。
+
+### Requirement 15: 最終結果発表の演出強化（Issue #16）
+
+**Objective:** As a 主催者/会場の参加者全員, I want 最終結果の発表に高揚感のある演出が欲しい, so that 表彰式のような特別な瞬間として会場が盛り上がる
+
+#### Acceptance Criteria
+
+1. When 最終ランキングが確定した, the Presentation Screen shall 表示対象の順位を、下位から上位へ向かって順に発表する。
+2. While 上位3位以内の順位を発表している, the Presentation Screen shall 下位の発表よりも間を置いた演出で発表する。
+3. When 1位が発表された, the Presentation Screen shall 祝福演出（既存の紙吹雪等）を表示する。
+4. While 最終結果の発表演出の途中であり、ある順位がまだ発表されていない, the Presentation Screen shall 当該順位のニックネーム・正解数・合計回答時間を表示しない。
+5. While 中間ランキングを表示している, the Presentation Screen shall 発表演出を行わず、要件6.5のとおり即時に表示する。
