@@ -25,12 +25,9 @@ describe("RankingView", () => {
     expect(markup).toContain("stage-ranking-final");
   });
 
-  it("plays the celebratory effect only for the final ranking, not the interim one", () => {
+  it("never plays the celebratory effect for the interim ranking", () => {
     const interim = renderToStaticMarkup(<RankingView entries={entries()} isFinal={false} />);
     expect(interim).not.toContain("quiz-confetti");
-
-    const final = renderToStaticMarkup(<RankingView entries={entries()} isFinal={true} />);
-    expect(final).toContain("quiz-confetti");
   });
 
   it("limits the display to the top N entries", () => {
@@ -58,6 +55,28 @@ describe("RankingView", () => {
       const markup = renderToStaticMarkup(<RankingView entries={entries()} isFinal={false} />);
       expect(markup).toMatch(/class="stage-rank[^"]*\bwhitespace-nowrap\b[^"]*"/);
       expect(markup).not.toMatch(/class="stage-rank[^"]*\bw-14\b[^"]*"/);
+    });
+  });
+
+  describe("最終結果の発表演出（要件15.1〜15.5, Issue #16）", () => {
+    it("hides every nickname and score before the reveal timers have fired for a final ranking", () => {
+      const markup = renderToStaticMarkup(<RankingView entries={entries()} isFinal={true} />);
+      expect(markup).not.toContain("alice");
+      expect(markup).not.toContain("bob");
+      // 順位バッジ(枠)自体はプレースホルダーとして表示され続ける
+      expect(markup).toContain("1位");
+      expect(markup).toContain("2位");
+    });
+
+    it("does not fire the celebratory effect before rank 1 has been revealed", () => {
+      const markup = renderToStaticMarkup(<RankingView entries={entries()} isFinal={true} />);
+      expect(markup).not.toContain("quiz-confetti");
+    });
+
+    it("shows every nickname and score immediately for an interim ranking (no reveal staging)", () => {
+      const markup = renderToStaticMarkup(<RankingView entries={entries()} isFinal={false} />);
+      expect(markup).toContain("alice");
+      expect(markup).toContain("bob");
     });
   });
 });
