@@ -105,12 +105,13 @@ describe("RankingView", () => {
 
   describe("6位以下のグループ発表（要件15.1, 15.2, 15.3, Issue #16フォローアップ）", () => {
     it("shows only the current bottom batch's entries immediately, without placeholders (12 participants, revealStep=0)", () => {
-      // 12人: rest=6〜12位(7人) -> [8-12],[6,7] の2バッチ、その後に上位5位。revealStep=0は最下位バッチ(8〜12位)
+      // 12人: rest=6〜12位(7人)を1位から数えて5人単位に区切ると[6-10],[11,12]。
+      // 端数(11,12)が最下位側のグループとなり、revealStep=0で最初に表示される
       const markup = renderToStaticMarkup(<RankingView entries={manyEntries(12)} isFinal={true} revealStep={0} />);
-      for (const rank of [8, 9, 10, 11, 12]) {
+      for (const rank of [11, 12]) {
         expect(containsPlayer(markup, rank)).toBe(true);
       }
-      for (const rank of [1, 2, 3, 4, 5, 6, 7]) {
+      for (const rank of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
         expect(containsPlayer(markup, rank)).toBe(false);
       }
       expect(markup).not.toContain("？？？");
@@ -118,9 +119,10 @@ describe("RankingView", () => {
 
     it("switches to the next bottom batch on revealStep=1, no longer showing the previous batch", () => {
       const markup = renderToStaticMarkup(<RankingView entries={manyEntries(12)} isFinal={true} revealStep={1} />);
-      expect(containsPlayer(markup, 6)).toBe(true);
-      expect(containsPlayer(markup, 7)).toBe(true);
-      for (const rank of [1, 2, 3, 4, 5, 8, 9, 10, 11, 12]) {
+      for (const rank of [6, 7, 8, 9, 10]) {
+        expect(containsPlayer(markup, rank)).toBe(true);
+      }
+      for (const rank of [1, 2, 3, 4, 5, 11, 12]) {
         expect(containsPlayer(markup, rank)).toBe(false);
       }
     });
@@ -154,7 +156,7 @@ describe("RankingView", () => {
 
     it("falls back to the first batch when revealStep is null for a final ranking", () => {
       const markup = renderToStaticMarkup(<RankingView entries={manyEntries(12)} isFinal={true} revealStep={null} />);
-      for (const rank of [8, 9, 10, 11, 12]) {
+      for (const rank of [11, 12]) {
         expect(markup).toContain(`player${rank}`);
       }
     });

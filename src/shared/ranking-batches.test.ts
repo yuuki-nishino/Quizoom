@@ -37,15 +37,30 @@ describe("buildRevealBatches（要件15.1, 15.2）", () => {
     expect(batches[1]!.entries.map((e) => e.rank)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it("chunks 6th-place-and-below into groups of 5 counting from the bottom, ending with the top-5 stage (34 participants)", () => {
+  it("chunks 6th-place-and-below into groups of 5 counting from rank 1 (fixed boundaries: 6-10, 11-15, ...), revealing worst-to-best (34 participants)", () => {
+    // 6位以降は1位から数えて5人単位(6-10,11-15,16-20,21-25,26-30,31-34)に区切り、
+    // 端数(31-34の4人)は最下位側のグループとして最初に発表される
     const batches = buildRevealBatches(entries(34));
     expect(batches.map((b) => b.entries.map((e) => e.rank))).toEqual([
-      [30, 31, 32, 33, 34],
-      [25, 26, 27, 28, 29],
-      [20, 21, 22, 23, 24],
-      [15, 16, 17, 18, 19],
-      [10, 11, 12, 13, 14],
-      [6, 7, 8, 9],
+      [31, 32, 33, 34],
+      [26, 27, 28, 29, 30],
+      [21, 22, 23, 24, 25],
+      [16, 17, 18, 19, 20],
+      [11, 12, 13, 14, 15],
+      [6, 7, 8, 9, 10],
+      [1, 2, 3, 4, 5],
+    ]);
+  });
+
+  it("keeps the leftover (non-multiple-of-5) bottom group aligned to rank-1-counted boundaries (23 participants)", () => {
+    // 23人: 6位以降(18人)を1位から数えて5人単位に区切ると6-10,11-15,16-20,21-23(端数3人)。
+    // 端数は最下位側のグループとなり、最初に発表される
+    const batches = buildRevealBatches(entries(23));
+    expect(batches.map((b) => b.entries.map((e) => e.rank))).toEqual([
+      [21, 22, 23],
+      [16, 17, 18, 19, 20],
+      [11, 12, 13, 14, 15],
+      [6, 7, 8, 9, 10],
       [1, 2, 3, 4, 5],
     ]);
   });
@@ -62,7 +77,7 @@ describe("buildRevealBatches（要件15.1, 15.2）", () => {
 
 describe("maxRevealStep / isTopStage / revealedTopCount（要件15.3, 15.4, 15.8, Issue #16再フォローアップ）", () => {
   it("counts the bottom groups plus one step per top-5 entry (12 participants: 2 bottom groups + 5 top entries)", () => {
-    const batches = buildRevealBatches(entries(12)); // [8-12],[6,7],[1-5]
+    const batches = buildRevealBatches(entries(12)); // [11,12],[6-10],[1-5]
     // restCount=2 (2 bottom groups) + (topCount-1)=4 -> 6
     expect(maxRevealStep(batches)).toBe(6);
   });
