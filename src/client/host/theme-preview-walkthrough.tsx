@@ -158,7 +158,7 @@ function buildSteps(eventTitle: string, preview: PreviewQuestion): readonly Walk
       label: "中間ランキング",
       render: () => (
         <StageSafeArea>
-          <RankingView entries={SAMPLE_RANKING} isFinal={false} />
+          <RankingView entries={SAMPLE_RANKING} isFinal={false} revealStep={null} />
         </StageSafeArea>
       ),
     },
@@ -167,7 +167,7 @@ function buildSteps(eventTitle: string, preview: PreviewQuestion): readonly Walk
       label: "最終ランキング",
       render: () => (
         <StageSafeArea>
-          <RankingView entries={SAMPLE_RANKING} isFinal={true} />
+          <RankingView entries={SAMPLE_RANKING} isFinal={true} revealStep={0} />
         </StageSafeArea>
       ),
     },

@@ -142,6 +142,12 @@ export interface SessionState {
   readonly eventMeta: EventMeta;
   readonly questions: readonly QuestionSnapshot[] | null;
   readonly startedAt: number | null;
+  /**
+   * 最終結果発表の現在の段階（0始まり、要件15.1〜15.3）。finalize時に0で初期化され、
+   * advanceFinalRevealのたびに進む。finalRankingフェーズに至っていない間はnull。
+   * LivePhaseとは独立した並列フィールドとして持つ（PhaseMachineは採点データを参照しない設計を維持するため）
+   */
+  readonly finalRevealStep: number | null;
 }
 
 export type AnswerOutcome =

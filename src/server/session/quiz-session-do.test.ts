@@ -299,7 +299,7 @@ describe("QuizSessionDO publish", () => {
     await publish(stub, meta);
 
     const loaded = await loadState(stub);
-    expect(loaded).toEqual({ phase: { kind: "lobby" }, eventMeta: meta, questions: null, startedAt: null });
+    expect(loaded).toEqual({ phase: { kind: "lobby" }, eventMeta: meta, questions: null, startedAt: null, finalRevealStep: null });
   });
 });
 
@@ -789,6 +789,130 @@ describe("QuizSessionDO showRanking / finalize", () => {
     expect(entryRow).toEqual({ nickname: "alice", rank: 1, correct_count: 1 });
 
     aliceWs.close();
+  });
+});
+
+describe("QuizSessionDO advanceFinalReveal（要件15.1〜15.3, 15.8, Issue #16フォローアップ）", () => {
+  /** N人の参加者を全員同じ設問に正解させ、正解発表まで進める(finalizeは呼び出し側で行う)。
+   * 同一正解数・同一回答時間のため、参加登録順(joinedSeq)昇順が順位に直結する:
+   * 最初に参加した人が1位、最後の人が最下位になる */
+  async function setupRevealedWithParticipants(stub: DurableObjectStub<QuizSessionDO>, count: number) {
+    await seedEvent("event-1", { status: "published", stageToken: "tok" });
+    await seedQuestion("event-1", "q1", 0, { timeLimitSec: 30, correctOptionId: "q1-a" });
+    await publish(stub, { ...meta, capacity: count + 1 });
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+
+    const sockets: WebSocket[] = [];
+    for (let i = 0; i < count; i++) {
+      const participant = await joinParticipant(stub, "event-1", `player${i + 1}`);
+      const ws = await connectAndDrain(stub, { eventId: "event-1", role: "participant", token: participant.token });
+      await sendAndAwait(ws, { type: "submitAnswer", questionId: "q1", optionId: "q1-a" });
+      sockets.push(ws);
+    }
+
+    await sendHostCommand(stub, "event-1", { type: "closeQuestion" });
+    await sendHostCommand(stub, "event-1", { type: "revealAnswer" });
+    return { sockets };
+  }
+
+  it("shows only the lowest batch immediately upon finalize, for a 7-participant event (2 rest + top5)", async () => {
+    const stub = newStub();
+    const { sockets } = await setupRevealedWithParticipants(stub, 7);
+    const stageWs = await connectAndDrain(stub, { eventId: "event-1", role: "stage", token: "tok" });
+
+    const message = nextMessage(stageWs);
+    await sendHostCommand(stub, "event-1", { type: "finalize" });
+    const event = await message;
+
+    expect(event.type).toBe("rankingUpdated");
+    expect(event.payload.isFinal).toBe(true);
+    expect(event.payload.revealStep).toBe(0);
+    // entriesは常に全員分を送る(どのグループを表示するかはrevealStepからクライアント側で計算する)
+    expect(event.payload.entries.map((e: { rank: number }) => e.rank).sort((a: number, b: number) => a - b)).toEqual([
+      1, 2, 3, 4, 5, 6, 7,
+    ]);
+
+    const loaded = await loadState(stub);
+    expect(loaded?.finalRevealStep).toBe(0);
+
+    stageWs.close();
+    sockets.forEach((ws) => ws.close());
+  });
+
+  it("advances into the top-5 stage (one person revealed) on the first advanceFinalReveal after the bottom group", async () => {
+    const stub = newStub();
+    const { sockets } = await setupRevealedWithParticipants(stub, 7);
+    await sendHostCommand(stub, "event-1", { type: "finalize" });
+
+    const stageWs = await connectAndDrain(stub, { eventId: "event-1", role: "stage", token: "tok" });
+    const message = nextMessage(stageWs);
+    const { rejected } = await sendHostCommand(stub, "event-1", { type: "advanceFinalReveal" });
+    expect(rejected).toEqual([]);
+
+    const event = await message;
+    expect(event.type).toBe("rankingUpdated");
+    expect(event.payload.revealStep).toBe(1);
+
+    const loaded = await loadState(stub);
+    expect(loaded?.finalRevealStep).toBe(1);
+
+    stageWs.close();
+    sockets.forEach((ws) => ws.close());
+  });
+
+  it("advances one top-5 entry at a time and rejects once rank 1 has been revealed（要件15.3, 15.4, Issue #16再フォローアップ）", async () => {
+    const stub = newStub();
+    const { sockets } = await setupRevealedWithParticipants(stub, 7);
+    await sendHostCommand(stub, "event-1", { type: "finalize" });
+
+    // 7人: 6位以下グループが1つ(6,7位) + 上位5位。maxRevealStep = 1 + (5-1) = 5
+    for (let step = 1; step <= 5; step++) {
+      const { rejected } = await sendHostCommand(stub, "event-1", { type: "advanceFinalReveal" });
+      expect(rejected).toEqual([]);
+      const loaded = await loadState(stub);
+      expect(loaded?.finalRevealStep).toBe(step);
+    }
+
+    // 1位まで発表済み(finalRevealStep=5=maxRevealStep)のため、これ以上は拒否される
+    const { rejected } = await sendHostCommand(stub, "event-1", { type: "advanceFinalReveal" });
+    expect(rejected).toEqual([{ type: "commandRejected", payload: { code: "NO_NEXT_REVEAL_STEP", message: expect.any(String) } }]);
+
+    sockets.forEach((ws) => ws.close());
+  });
+
+  it("rejects advanceFinalReveal when the phase is not finalRanking", async () => {
+    await seedEvent("event-1", { status: "published" });
+    await seedQuestion("event-1", "q1", 0);
+    const stub = newStub();
+    await publish(stub, meta);
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+
+    const { rejected } = await sendHostCommand(stub, "event-1", { type: "advanceFinalReveal" });
+    expect(rejected).toEqual([{ type: "commandRejected", payload: { code: "INVALID_PHASE", message: expect.any(String) } }]);
+  });
+
+  it("starts the top-5 stage immediately (step 0) when there are 5 or fewer participants, still advancing one at a time", async () => {
+    const stub = newStub();
+    const { sockets } = await setupRevealedWithParticipants(stub, 3);
+    await sendHostCommand(stub, "event-1", { type: "finalize" });
+
+    const loaded = await loadState(stub);
+    expect(loaded?.finalRevealStep).toBe(0);
+
+    // 3人: 6位以下グループなし、maxRevealStep = 0 + (3-1) = 2
+    const first = await sendHostCommand(stub, "event-1", { type: "advanceFinalReveal" });
+    expect(first.rejected).toEqual([]);
+    expect((await loadState(stub))?.finalRevealStep).toBe(1);
+
+    const second = await sendHostCommand(stub, "event-1", { type: "advanceFinalReveal" });
+    expect(second.rejected).toEqual([]);
+    expect((await loadState(stub))?.finalRevealStep).toBe(2);
+
+    const third = await sendHostCommand(stub, "event-1", { type: "advanceFinalReveal" });
+    expect(third.rejected).toEqual([{ type: "commandRejected", payload: { code: "NO_NEXT_REVEAL_STEP", message: expect.any(String) } }]);
+
+    sockets.forEach((ws) => ws.close());
   });
 });
 

@@ -7,6 +7,7 @@ import { loadQuestionSnapshot, updateStatus, getPracticeMode } from "../catalog/
 import { save as saveResult, type JudgedAnswer } from "../results/archive";
 import { judge, aggregate, rank } from "../../shared/scoring";
 import { PRACTICE_QUESTION, PRACTICE_QUESTION_ID } from "../../shared/practice-question";
+import { buildRevealBatches, maxRevealStep } from "../../shared/ranking-batches";
 import { next } from "./phase-machine";
 import { retryAsync } from "./retry";
 import {
@@ -35,6 +36,7 @@ import type {
   ParticipantId,
   QuestionSnapshot,
   Result,
+  SessionState,
   ThemeSettings,
 } from "../../shared/domain-types";
 import { err, ok } from "../../shared/domain-types";
@@ -261,6 +263,13 @@ export class QuizSessionDO extends DurableObject<Env> {
     }
 
     const questions = state.questions ?? [];
+
+    // LivePhaseの種類を変更しない操作のため、PhaseMachineを経由させず直接処理する
+    // (theme更新と同じ扱い。要件15.3, 15.8)
+    if (command.type === "advanceFinalReveal") {
+      this.#handleAdvanceFinalReveal(ws, state, questions);
+      return;
+    }
     const transition = next(state.phase, command, {
       now: Date.now(),
       questions,
@@ -428,12 +437,34 @@ export class QuizSessionDO extends DurableObject<Env> {
     }
   }
 
+  /** 次のグループを発表する操作。LivePhaseの種類は変更せず、finalRevealStepのみを進める（要件15.3, 15.8） */
+  #handleAdvanceFinalReveal(ws: WebSocket, state: SessionState, questions: readonly QuestionSnapshot[]): void {
+    if (state.phase.kind !== "finalRanking" || state.finalRevealStep === null) {
+      this.#sendRejection(ws, "INVALID_PHASE", "advanceFinalReveal is only valid during finalRanking");
+      return;
+    }
+
+    const participants = this.#store.listParticipants();
+    const answers = this.#store.listAllAnswers();
+    const ranked = rank(aggregate(participants, answers, questions));
+    const batches = buildRevealBatches(ranked);
+
+    if (state.finalRevealStep >= maxRevealStep(batches)) {
+      this.#sendRejection(ws, "NO_NEXT_REVEAL_STEP", "already showing the final reveal stage");
+      return;
+    }
+
+    this.#store.saveFinalRevealStep(state.finalRevealStep + 1);
+    this.#broadcastRanking(questions, true);
+  }
+
   #broadcastRanking(questions: readonly QuestionSnapshot[], isFinal: boolean): void {
     const participants = this.#store.listParticipants();
     const answers = this.#store.listAllAnswers();
     const ranked = rank(aggregate(participants, answers, questions));
+    const revealStep = isFinal ? this.#store.load()!.finalRevealStep : null;
 
-    const payload: RankingUpdatedPayload = { entries: ranked, isFinal };
+    const payload: RankingUpdatedPayload = { entries: ranked, isFinal, revealStep };
     this.#broadcast({ type: "rankingUpdated", payload }, (role) => role.role === "host" || role.role === "stage");
 
     const rankByParticipant = new Map(ranked.map((r) => [r.participantId, r]));
@@ -471,6 +502,8 @@ export class QuizSessionDO extends DurableObject<Env> {
     await saveResult(this.env, eventId, ranked, judgedAnswers);
     await this.#updateStatusWithRetry(eventId, "live", "finished");
 
+    // 確定と同時に最下位グループが表示された状態から発表演出を開始する（要件15.1, 15.3）
+    this.#store.saveFinalRevealStep(0);
     this.#broadcastRanking(questions, true);
   }
 

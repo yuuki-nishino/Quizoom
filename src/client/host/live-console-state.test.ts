@@ -17,6 +17,7 @@ import {
   pausedRemainingMs,
   isPracticeReady,
   isPracticeRevealed,
+  canAdvanceFinalReveal,
 } from "./live-console-state";
 import type { HostConsoleState } from "./live-console-state";
 import type { LivePhase, OptionId, QuestionId, ThemeSettings } from "../../shared/domain-types";
@@ -107,8 +108,14 @@ describe("hostConsoleReducer", () => {
 
   it("stores ranking entries from rankingUpdated", () => {
     const entries = [{ participantId: "p1" as never, nickname: "alice", correctCount: 1, totalElapsedMs: 100, joinedSeq: 0, rank: 1 }];
-    const event: ServerEvent = { type: "rankingUpdated", payload: { entries, isFinal: false } };
+    const event: ServerEvent = { type: "rankingUpdated", payload: { entries, isFinal: false, revealStep: null } };
     expect(hostConsoleReducer(initialHostConsoleState, event).ranking).toEqual(entries);
+  });
+
+  it("stores revealStep from rankingUpdated（要件15.8, Issue #16フォローアップ）", () => {
+    const entries = [{ participantId: "p1" as never, nickname: "alice", correctCount: 1, totalElapsedMs: 100, joinedSeq: 0, rank: 1 }];
+    const event: ServerEvent = { type: "rankingUpdated", payload: { entries, isFinal: true, revealStep: 2 } };
+    expect(hostConsoleReducer(initialHostConsoleState, event).revealStep).toBe(2);
   });
 
   it("replaces the theme on themeUpdated without touching the phase", () => {
@@ -223,5 +230,48 @@ describe("practice question progression gating（要件3.1, 3.7, 3.8）", () => 
     expect(isPracticeRevealed(PRACTICE_QUESTION_ID)).toBe(true);
     expect(isPracticeRevealed("q1" as QuestionId)).toBe(false);
     expect(isPracticeRevealed(null)).toBe(false);
+  });
+});
+
+describe("canAdvanceFinalReveal（要件15.8, Issue #16フォローアップ）", () => {
+  function ranking(count: number) {
+    return Array.from({ length: count }, (_, i) => ({
+      participantId: `p${i + 1}` as never,
+      nickname: `player${i + 1}`,
+      correctCount: 1,
+      totalElapsedMs: 1000,
+      joinedSeq: i,
+      rank: i + 1,
+    }));
+  }
+
+  it("is false before any ranking has arrived", () => {
+    expect(canAdvanceFinalReveal(null, null)).toBe(false);
+  });
+
+  it("is false while revealStep is null (not yet in finalRanking)", () => {
+    expect(canAdvanceFinalReveal(ranking(12), null)).toBe(false);
+  });
+
+  it("is true while a bottom batch is showing (12 participants, more groups remain)", () => {
+    expect(canAdvanceFinalReveal(ranking(12), 0)).toBe(true);
+    expect(canAdvanceFinalReveal(ranking(12), 1)).toBe(true);
+  });
+
+  it("stays true while individually revealing the top-5 group, up to just before rank 1（要件15.3, 15.4, Issue #16再フォローアップ）", () => {
+    // 12人: maxRevealStep=6(restCount=2 + topCount-1=4)。5(=6の1つ手前)までは1位未発表のため操作可能
+    expect(canAdvanceFinalReveal(ranking(12), 2)).toBe(true);
+    expect(canAdvanceFinalReveal(ranking(12), 5)).toBe(true);
+  });
+
+  it("is false once rank 1 has been revealed (revealStep reached maxRevealStep)", () => {
+    expect(canAdvanceFinalReveal(ranking(12), 6)).toBe(false);
+  });
+
+  it("is true for 5 or fewer participants until the very last step (rank 1)", () => {
+    // 3人: maxRevealStep=2(restCount=0 + topCount-1=2)
+    expect(canAdvanceFinalReveal(ranking(3), 0)).toBe(true);
+    expect(canAdvanceFinalReveal(ranking(3), 1)).toBe(true);
+    expect(canAdvanceFinalReveal(ranking(3), 2)).toBe(false);
   });
 });

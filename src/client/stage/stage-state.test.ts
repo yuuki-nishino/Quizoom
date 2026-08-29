@@ -81,10 +81,10 @@ describe("stageReducer", () => {
   it("stores ranking entries and the isFinal flag from rankingUpdated", () => {
     const entries = [{ participantId: "p1" as never, nickname: "alice", correctCount: 1, totalElapsedMs: 100, joinedSeq: 0, rank: 1 }];
 
-    const interim: ServerEvent = { type: "rankingUpdated", payload: { entries, isFinal: false } };
+    const interim: ServerEvent = { type: "rankingUpdated", payload: { entries, isFinal: false, revealStep: null } };
     expect(stageReducer(initialStageState, interim)).toMatchObject({ ranking: entries, isFinalRanking: false });
 
-    const final: ServerEvent = { type: "rankingUpdated", payload: { entries, isFinal: true } };
+    const final: ServerEvent = { type: "rankingUpdated", payload: { entries, isFinal: true, revealStep: 0 } };
     expect(stageReducer(initialStageState, final)).toMatchObject({ ranking: entries, isFinalRanking: true });
   });
 

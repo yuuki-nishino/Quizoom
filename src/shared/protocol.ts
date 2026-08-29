@@ -27,6 +27,7 @@ export const hostCommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("pause") }),
   z.object({ type: z.literal("resume") }),
   z.object({ type: z.literal("finalize") }),
+  z.object({ type: z.literal("advanceFinalReveal") }),
 ]);
 export type HostCommand = z.infer<typeof hostCommandSchema>;
 
@@ -118,6 +119,8 @@ export interface RankingUpdatedPayload {
   readonly entries: readonly RankingEntry[];
   /** finalize による確定ランキングか、showRanking による中間ランキングかをクライアントが区別するためのフラグ */
   readonly isFinal: boolean;
+  /** 最終結果発表の現在の段階（要件15.1〜15.3）。中間ランキング（isFinal=false）では常にnull */
+  readonly revealStep: number | null;
 }
 
 export interface PersonalRankPayload {

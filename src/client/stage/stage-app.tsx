@@ -80,7 +80,7 @@ export function StageApp() {
 
       <StageSafeArea>
         {state.ranking !== null ? (
-          <RankingView entries={state.ranking} isFinal={state.isFinalRanking} />
+          <RankingView entries={state.ranking} isFinal={state.isFinalRanking} revealStep={state.revealStep} />
         ) : state.closedQuestion !== null && state.currentQuestion !== null ? (
           <RevealView question={state.currentQuestion} closed={state.closedQuestion} />
         ) : state.currentQuestion !== null ? (

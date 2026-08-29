@@ -11,6 +11,8 @@ export interface StageState {
   readonly closedQuestion: QuestionClosedPayload | null;
   readonly ranking: readonly RankingEntry[] | null;
   readonly isFinalRanking: boolean;
+  /** 最終結果発表の現在の段階（要件15.1〜15.3）。中間ランキングでは常にnull */
+  readonly revealStep: number | null;
   readonly participantCount: number;
 }
 
@@ -24,6 +26,7 @@ export const initialStageState: StageState = {
   closedQuestion: null,
   ranking: null,
   isFinalRanking: false,
+  revealStep: null,
   participantCount: 0,
 };
 
@@ -59,6 +62,7 @@ export function stageReducer(state: StageState, event: ServerEvent): StageState 
         closedQuestion: null,
         ranking: null,
         isFinalRanking: false,
+        revealStep: null,
       };
 
     case "progressUpdated":
@@ -68,7 +72,7 @@ export function stageReducer(state: StageState, event: ServerEvent): StageState 
       return { ...state, closedQuestion: event.payload };
 
     case "rankingUpdated":
-      return { ...state, ranking: event.payload.entries, isFinalRanking: event.payload.isFinal };
+      return { ...state, ranking: event.payload.entries, isFinalRanking: event.payload.isFinal, revealStep: event.payload.revealStep };
 
     case "themeUpdated":
       return { ...state, theme: event.payload };

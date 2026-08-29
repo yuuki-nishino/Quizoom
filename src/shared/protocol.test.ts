@@ -30,6 +30,10 @@ describe("clientCommandSchema", () => {
     expect(hostCommandSchema.safeParse({ type: "submitAnswer", questionId: "q1", optionId: "o1" }).success).toBe(false);
     expect(hostCommandSchema.safeParse({ type: "resync" }).success).toBe(false);
   });
+
+  it("accepts advanceFinalReveal as a host command（要件15.3, Issue #16フォローアップ）", () => {
+    expect(hostCommandSchema.safeParse({ type: "advanceFinalReveal" }).success).toBe(true);
+  });
 });
 
 describe("ServerEvent type", () => {
