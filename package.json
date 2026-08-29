@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -b --noEmit",
-    "cf-typegen": "wrangler types src/server/worker-configuration.d.ts"
+    "cf-typegen": "wrangler types src/server/worker-configuration.d.ts",
+    "seed:participants": "node scripts/seed-participants.mjs"
   },
   "dependencies": {
     "better-auth": "^1.6.27",
