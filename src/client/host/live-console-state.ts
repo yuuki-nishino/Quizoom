@@ -2,7 +2,7 @@ import type { LivePhase, QuestionId, RankingEntry, ThemeSettings } from "../../s
 import type { CommandRejectedPayload, QuestionClosedPayload, QuestionPublicView, ServerEvent } from "../../shared/protocol";
 import { currentDeadlineAt, pausedRemainingMs } from "../shared/live-phase";
 import { PRACTICE_QUESTION_ID } from "../../shared/practice-question";
-import { buildRevealBatches, isFinalBatchStep } from "../../shared/ranking-batches";
+import { buildRevealBatches, maxRevealStep } from "../../shared/ranking-batches";
 
 export { currentDeadlineAt, pausedRemainingMs };
 
@@ -175,5 +175,5 @@ export function canAdvanceFinalReveal(ranking: readonly RankingEntry[] | null, r
   if (ranking === null || revealStep === null) return false;
   const sorted = [...ranking].sort((a, b) => a.rank - b.rank);
   const batches = buildRevealBatches(sorted);
-  return !isFinalBatchStep(batches, revealStep);
+  return revealStep < maxRevealStep(batches);
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildRevealBatches, isFinalBatchStep } from "./ranking-batches";
+import { buildRevealBatches, maxRevealStep, isTopStage, revealedTopCount } from "./ranking-batches";
 import type { RankingEntry, ParticipantId } from "./domain-types";
 
 function entries(count: number): readonly RankingEntry[] {
@@ -60,20 +60,42 @@ describe("buildRevealBatches（要件15.1, 15.2）", () => {
   });
 });
 
-describe("isFinalBatchStep（要件15.8）", () => {
-  it("is true only for the last batch index (the top-5 stage)", () => {
-    const batches = buildRevealBatches(entries(34));
-    expect(isFinalBatchStep(batches, 0)).toBe(false);
-    expect(isFinalBatchStep(batches, batches.length - 2)).toBe(false);
-    expect(isFinalBatchStep(batches, batches.length - 1)).toBe(true);
+describe("maxRevealStep / isTopStage / revealedTopCount（要件15.3, 15.4, 15.8, Issue #16再フォローアップ）", () => {
+  it("counts the bottom groups plus one step per top-5 entry (12 participants: 2 bottom groups + 5 top entries)", () => {
+    const batches = buildRevealBatches(entries(12)); // [8-12],[6,7],[1-5]
+    // restCount=2 (2 bottom groups) + (topCount-1)=4 -> 6
+    expect(maxRevealStep(batches)).toBe(6);
   });
 
-  it("is true immediately when there are 5 or fewer participants (single batch)", () => {
+  it("is not yet on the top stage while a bottom group is showing", () => {
+    const batches = buildRevealBatches(entries(12));
+    expect(isTopStage(batches, 0)).toBe(false);
+    expect(isTopStage(batches, 1)).toBe(false);
+    expect(revealedTopCount(batches, 0)).toBe(0);
+    expect(revealedTopCount(batches, 1)).toBe(0);
+  });
+
+  it("reveals the top-5 group one person at a time, from the bottom (rank5) up to rank1", () => {
+    const batches = buildRevealBatches(entries(12)); // restCount=2
+    expect(isTopStage(batches, 2)).toBe(true);
+    expect(revealedTopCount(batches, 2)).toBe(1); // rank5だけ発表済み
+    expect(revealedTopCount(batches, 3)).toBe(2); // rank5,4
+    expect(revealedTopCount(batches, 4)).toBe(3);
+    expect(revealedTopCount(batches, 5)).toBe(4);
+    expect(revealedTopCount(batches, 6)).toBe(5); // 全員(1位まで)発表済み = maxRevealStep
+  });
+
+  it("starts the top stage immediately (step 0) when there are 5 or fewer participants", () => {
     const batches = buildRevealBatches(entries(3));
-    expect(isFinalBatchStep(batches, 0)).toBe(true);
+    expect(isTopStage(batches, 0)).toBe(true);
+    expect(revealedTopCount(batches, 0)).toBe(1);
+    expect(maxRevealStep(batches)).toBe(2); // 3人 -> steps 0,1,2 (rank3,2,1の順)
+    expect(revealedTopCount(batches, 2)).toBe(3);
   });
 
-  it("is false for an empty batch list (no participants)", () => {
-    expect(isFinalBatchStep([], 0)).toBe(false);
+  it("treats an empty batch list (no participants) as step 0 with nothing to reveal", () => {
+    expect(maxRevealStep([])).toBe(0);
+    expect(isTopStage([], 0)).toBe(false);
+    expect(revealedTopCount([], 0)).toBe(0);
   });
 });

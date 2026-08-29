@@ -258,11 +258,20 @@ describe("canAdvanceFinalReveal（要件15.8, Issue #16フォローアップ）"
     expect(canAdvanceFinalReveal(ranking(12), 1)).toBe(true);
   });
 
-  it("is false once the top-5 (final) batch has been reached", () => {
-    expect(canAdvanceFinalReveal(ranking(12), 2)).toBe(false);
+  it("stays true while individually revealing the top-5 group, up to just before rank 1（要件15.3, 15.4, Issue #16再フォローアップ）", () => {
+    // 12人: maxRevealStep=6(restCount=2 + topCount-1=4)。5(=6の1つ手前)までは1位未発表のため操作可能
+    expect(canAdvanceFinalReveal(ranking(12), 2)).toBe(true);
+    expect(canAdvanceFinalReveal(ranking(12), 5)).toBe(true);
   });
 
-  it("is false immediately for 5 or fewer participants (single, already-final batch)", () => {
-    expect(canAdvanceFinalReveal(ranking(3), 0)).toBe(false);
+  it("is false once rank 1 has been revealed (revealStep reached maxRevealStep)", () => {
+    expect(canAdvanceFinalReveal(ranking(12), 6)).toBe(false);
+  });
+
+  it("is true for 5 or fewer participants until the very last step (rank 1)", () => {
+    // 3人: maxRevealStep=2(restCount=0 + topCount-1=2)
+    expect(canAdvanceFinalReveal(ranking(3), 0)).toBe(true);
+    expect(canAdvanceFinalReveal(ranking(3), 1)).toBe(true);
+    expect(canAdvanceFinalReveal(ranking(3), 2)).toBe(false);
   });
 });

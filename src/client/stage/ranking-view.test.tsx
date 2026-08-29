@@ -68,20 +68,32 @@ describe("RankingView", () => {
     });
   });
 
-  describe("上位5位の個別発表演出（要件15.4〜15.6, Issue #16）", () => {
-    it("hides every nickname and score before the reveal timers have fired, on the final (top-5) batch", () => {
-      // 2人のみなので最初のbatch(revealStep=0)が既に最終(上位5位)段階になる
+  describe("上位5位の個別発表演出（要件15.3〜15.6, Issue #16再フォローアップ: 進行画面操作で1人ずつ進む）", () => {
+    it("reveals only the worst-ranked entry in the top group at the first top-stage step, keeping better ranks hidden", () => {
+      // 2人(alice=1位, bob=2位)のみなので最初のbatch(revealStep=0)が既に上位段階になる。
+      // 下位(bob=2位)から発表するため、revealStep=0ではbobのみ発表され、aliceはまだプレースホルダー
       const markup = renderToStaticMarkup(<RankingView entries={entries()} isFinal={true} revealStep={0} />);
       expect(markup).not.toContain("alice");
-      expect(markup).not.toContain("bob");
-      // 順位バッジ(枠)自体はプレースホルダーとして表示され続ける
+      expect(markup).toContain("bob");
       expect(markup).toContain("1位");
       expect(markup).toContain("2位");
+    });
+
+    it("reveals rank 1 only once revealStep reaches the max (no timer involved)", () => {
+      // 2人の場合のmaxRevealStepは1(restCount=0 + topCount-1=1)
+      const markup = renderToStaticMarkup(<RankingView entries={entries()} isFinal={true} revealStep={1} />);
+      expect(markup).toContain("alice");
+      expect(markup).toContain("bob");
     });
 
     it("does not fire the celebratory effect before rank 1 has been revealed", () => {
       const markup = renderToStaticMarkup(<RankingView entries={entries()} isFinal={true} revealStep={0} />);
       expect(markup).not.toContain("quiz-confetti");
+    });
+
+    it("fires the celebratory effect once revealStep reaches the max (rank 1 revealed)", () => {
+      const markup = renderToStaticMarkup(<RankingView entries={entries()} isFinal={true} revealStep={1} />);
+      expect(markup).toContain("quiz-confetti");
     });
 
     it("shows every nickname and score immediately for an interim ranking (no reveal staging)", () => {
@@ -113,15 +125,24 @@ describe("RankingView", () => {
       }
     });
 
-    it("reaches the final (top-5, staged) batch only once every bottom batch has been shown", () => {
-      // 12人の場合、バッチは[8-12],[6,7],[1-5]の3つ。revealStep=2で初めて上位5位の個別発表段階になる
+    it("reaches the top-5 stage only once every bottom batch has been shown, revealing just rank 5 at first", () => {
+      // 12人: restCount=2([8-12],[6,7])。revealStep=2で上位5位段階に入り、下位(5位)から1人だけ発表される
       const markup = renderToStaticMarkup(<RankingView entries={manyEntries(12)} isFinal={true} revealStep={2} />);
-      // 上位5位段階はまだ何も発表されていない(プレースホルダー)ため名前は一切出ない
-      for (let rank = 1; rank <= 12; rank++) {
+      expect(containsPlayer(markup, 5)).toBe(true);
+      for (const rank of [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12]) {
         expect(containsPlayer(markup, rank)).toBe(false);
       }
       expect(markup).toContain("1位");
       expect(markup).toContain("5位");
+    });
+
+    it("reveals the top-5 stage one more entry per step, ending with rank 1 at maxRevealStep", () => {
+      // 12人: maxRevealStep = 2(restCount) + (5-1) = 6
+      const markup = renderToStaticMarkup(<RankingView entries={manyEntries(12)} isFinal={true} revealStep={6} />);
+      for (const rank of [1, 2, 3, 4, 5]) {
+        expect(containsPlayer(markup, rank)).toBe(true);
+      }
+      expect(markup).toContain("quiz-confetti");
     });
 
     it("does not apply podium (top-3) styling to a bottom batch's rows", () => {

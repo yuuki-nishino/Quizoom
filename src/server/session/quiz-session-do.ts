@@ -7,7 +7,7 @@ import { loadQuestionSnapshot, updateStatus, getPracticeMode } from "../catalog/
 import { save as saveResult, type JudgedAnswer } from "../results/archive";
 import { judge, aggregate, rank } from "../../shared/scoring";
 import { PRACTICE_QUESTION, PRACTICE_QUESTION_ID } from "../../shared/practice-question";
-import { buildRevealBatches, isFinalBatchStep } from "../../shared/ranking-batches";
+import { buildRevealBatches, maxRevealStep } from "../../shared/ranking-batches";
 import { next } from "./phase-machine";
 import { retryAsync } from "./retry";
 import {
@@ -449,7 +449,7 @@ export class QuizSessionDO extends DurableObject<Env> {
     const ranked = rank(aggregate(participants, answers, questions));
     const batches = buildRevealBatches(ranked);
 
-    if (isFinalBatchStep(batches, state.finalRevealStep)) {
+    if (state.finalRevealStep >= maxRevealStep(batches)) {
       this.#sendRejection(ws, "NO_NEXT_REVEAL_STEP", "already showing the final reveal stage");
       return;
     }

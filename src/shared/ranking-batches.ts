@@ -31,7 +31,30 @@ export function buildRevealBatches(sortedEntries: readonly RankingEntry[]): read
   return batches;
 }
 
-/** `step`が最後のバッチ(上位5位の個別発表段階)を指しているかどうか（要件15.8） */
-export function isFinalBatchStep(batches: readonly RevealBatch[], step: number): boolean {
-  return batches.length > 0 && step >= batches.length - 1;
+/**
+ * 「6位以下のグループ段階」と「上位5位以内の個別発表段階」を通した単一の連番として、
+ * 主催者操作(advanceFinalReveal)で到達できる最大の発表段階(1位が発表された状態)を返す
+ * （要件15.3, 15.4, 15.8）。6位以下のグループ数を`restCount`とすると、上位5位グループ内は
+ * 1人ずつ`restCount`件のステップに1件ずつ追加され、最後のステップ(=maxRevealStep)で1位まで
+ * 発表済みになる。
+ */
+export function maxRevealStep(batches: readonly RevealBatch[]): number {
+  if (batches.length === 0) return 0;
+  const restCount = batches.length - 1;
+  const topCount = batches[batches.length - 1]!.entries.length;
+  return restCount + Math.max(topCount - 1, 0);
+}
+
+/** `step`が「6位以下のグループ」ではなく「上位5位以内の個別発表」段階を指しているかどうか（要件15.3, 15.8） */
+export function isTopStage(batches: readonly RevealBatch[], step: number): boolean {
+  if (batches.length === 0) return false;
+  const restCount = batches.length - 1;
+  return step >= restCount;
+}
+
+/** `isTopStage`のとき、上位5位グループのうち下位から何人発表済みかを返す（`isTopStage`でなければ0、要件15.3, 15.4） */
+export function revealedTopCount(batches: readonly RevealBatch[], step: number): number {
+  if (!isTopStage(batches, step)) return 0;
+  const restCount = batches.length - 1;
+  return step - restCount + 1;
 }

@@ -1,17 +1,17 @@
-import { useEffect, useState } from "react";
 import type { RankingEntry } from "../../shared/domain-types";
 import { formatElapsedMs } from "../shared/format";
 import { Confetti } from "../shared/confetti";
 import { StarIcon } from "../shared/icons";
-import { buildRevealSchedule } from "./ranking-reveal";
-import { buildRevealBatches, isFinalBatchStep } from "../../shared/ranking-batches";
+import { buildRevealBatches, maxRevealStep, isTopStage, revealedTopCount } from "../../shared/ranking-batches";
 
 export interface RankingViewProps {
   readonly entries: readonly RankingEntry[];
   readonly isFinal: boolean;
   /**
-   * 最終結果発表の現在の段階（要件15.1〜15.3）。0始まりで、主催者の「次のグループを発表する」
-   * 操作のたびに進む。isFinal=falseの中間ランキングでは無視される
+   * 最終結果発表の現在の段階（要件15.1〜15.4）。0始まりで、主催者の「次を発表する」
+   * 操作のたびに進む。6位以下のグループ段階と上位5位以内の個別発表段階を通した単一の
+   * 連番として扱う（`src/shared/ranking-batches.ts`参照）。タイマーは一切用いず、
+   * この値のみから表示内容を導出する。isFinal=falseの中間ランキングでは無視される
    */
   readonly revealStep: number | null;
   /** 中間ランキング表示の上限件数（既定10件）。最終結果は全員をグループ分けして表示するため対象外 */
@@ -28,37 +28,22 @@ function podiumStyle(rank: number): string {
 /**
  * 中間/最終ランキングの表示。最終確定時は演出付きの見出しに切り替える（要件6.5, 6.6, 6.7）。
  * 最終ランキングは、6位以下を5人単位のグループにまとめ、`revealStep`が指す1グループのみを
- * 表示する（前のグループは表示から消える。要件15.1〜15.3）。上位5位グループに達したときのみ、
- * 1人ずつ・上位ほど間を置くクライアント側タイマー演出を行う（要件15.4〜15.6）。
+ * 表示する（前のグループは表示から消える。要件15.1〜15.3）。上位5位グループに達した後も
+ * 同じ`revealStep`の連番で1人ずつ表示する（要件15.3, 15.4）。表示内容はすべて`revealStep`
+ * からの純粋な導出であり、クライアント側のタイマーは持たない。
  */
 export function RankingView({ entries, isFinal, revealStep, topN = 10 }: RankingViewProps) {
   const sorted = [...entries].sort((a, b) => a.rank - b.rank);
   const batches = isFinal ? buildRevealBatches(sorted) : [];
-  const maxBatchIndex = Math.max(batches.length - 1, 0);
-  const currentBatchIndex = isFinal ? Math.min(Math.max(revealStep ?? 0, 0), maxBatchIndex) : 0;
-  const currentBatch = isFinal ? (batches[currentBatchIndex]?.entries ?? []) : sorted.slice(0, topN);
-  const onFinalStage = isFinal && isFinalBatchStep(batches, currentBatchIndex);
-
-  const [revealedCount, setRevealedCount] = useState(() => (onFinalStage ? 0 : currentBatch.length));
-
-  useEffect(() => {
-    if (!onFinalStage) {
-      setRevealedCount(currentBatch.length);
-      return;
-    }
-    setRevealedCount(0);
-    const schedule = buildRevealSchedule(currentBatch.length);
-    const timers: number[] = [];
-    let elapsed = 0;
-    schedule.forEach((step, stepIndex) => {
-      elapsed += step.delayMs;
-      timers.push(window.setTimeout(() => setRevealedCount(stepIndex + 1), elapsed));
-    });
-    return () => timers.forEach((timer) => window.clearTimeout(timer));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onFinalStage, currentBatch.length, currentBatchIndex]);
-
-  const rank1Revealed = onFinalStage && currentBatch.length > 0 && revealedCount >= currentBatch.length;
+  const clampedStep = isFinal ? Math.min(Math.max(revealStep ?? 0, 0), maxRevealStep(batches)) : 0;
+  const onTopStage = isFinal && isTopStage(batches, clampedStep);
+  const currentBatch = isFinal
+    ? onTopStage
+      ? (batches[batches.length - 1]?.entries ?? [])
+      : (batches[clampedStep]?.entries ?? [])
+    : sorted.slice(0, topN);
+  const revealedWithinTop = onTopStage ? revealedTopCount(batches, clampedStep) : 0;
+  const rank1Revealed = onTopStage && currentBatch.length > 0 && revealedWithinTop >= currentBatch.length;
 
   return (
     <div
@@ -71,9 +56,9 @@ export function RankingView({ entries, isFinal, revealStep, topN = 10 }: Ranking
         {isFinal ? "最終結果" : "中間ランキング"}
         {isFinal && <StarIcon className="h-10 w-10 text-brand-accent" />}
       </h1>
-      <ol key={currentBatchIndex} className="quiz-phase-enter w-full max-w-2xl space-y-3">
+      <ol key={onTopStage ? "top" : clampedStep} className="quiz-phase-enter w-full max-w-2xl space-y-3">
         {currentBatch.map((entry, indexInBatch) => {
-          const revealed = !onFinalStage || indexInBatch >= currentBatch.length - revealedCount;
+          const revealed = !onTopStage || indexInBatch >= currentBatch.length - revealedWithinTop;
           return (
             <li
               key={entry.participantId}
