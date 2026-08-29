@@ -19,6 +19,7 @@ export interface LiveStore {
   savePhase(phase: LivePhase): void;
   saveEventMeta(meta: EventMeta): void;
   freezeQuestionSnapshot(questions: readonly QuestionSnapshot[], startedAt: number): void;
+  saveFinalRevealStep(step: number): void;
 
   addParticipant(nickname: string, now: number): Result<Participant, JoinRejection>;
   listParticipants(): readonly Participant[];
@@ -35,6 +36,7 @@ interface SessionStateRow extends Record<string, SqlStorageValue> {
   readonly event_meta_json: string;
   readonly question_snapshot_json: string | null;
   readonly started_at: number | null;
+  readonly final_reveal_step: number | null;
 }
 
 interface ParticipantRow extends Record<string, SqlStorageValue> {
@@ -57,7 +59,8 @@ CREATE TABLE IF NOT EXISTS session_state (
   phase_json TEXT NOT NULL,
   event_meta_json TEXT NOT NULL,
   question_snapshot_json TEXT,
-  started_at INTEGER
+  started_at INTEGER,
+  final_reveal_step INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS participant (
@@ -89,13 +92,14 @@ export function createLiveStore(sql: SqlStorage): LiveStore {
         eventMeta: JSON.parse(row.event_meta_json) as EventMeta,
         questions: row.question_snapshot_json ? (JSON.parse(row.question_snapshot_json) as QuestionSnapshot[]) : null,
         startedAt: row.started_at,
+        finalRevealStep: row.final_reveal_step,
       };
     },
 
     initialize(meta: EventMeta): void {
       const phase: LivePhase = { kind: "lobby" };
       sql.exec(
-        "INSERT OR REPLACE INTO session_state (id, phase_json, event_meta_json, question_snapshot_json, started_at) VALUES (1, ?, ?, NULL, NULL)",
+        "INSERT OR REPLACE INTO session_state (id, phase_json, event_meta_json, question_snapshot_json, started_at, final_reveal_step) VALUES (1, ?, ?, NULL, NULL, NULL)",
         JSON.stringify(phase),
         JSON.stringify(meta),
       );
@@ -107,6 +111,10 @@ export function createLiveStore(sql: SqlStorage): LiveStore {
 
     saveEventMeta(meta: EventMeta): void {
       sql.exec("UPDATE session_state SET event_meta_json = ? WHERE id = 1", JSON.stringify(meta));
+    },
+
+    saveFinalRevealStep(step: number): void {
+      sql.exec("UPDATE session_state SET final_reveal_step = ? WHERE id = 1", step);
     },
 
     freezeQuestionSnapshot(questions: readonly QuestionSnapshot[], startedAt: number): void {

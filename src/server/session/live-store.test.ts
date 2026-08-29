@@ -68,6 +68,7 @@ describe("LiveStore.load", () => {
       eventMeta: meta,
       questions: null,
       startedAt: null,
+      finalRevealStep: null,
     });
   });
 });
@@ -98,6 +99,20 @@ describe("LiveStore.savePhase / saveEventMeta", () => {
 
     const loaded = await runInDurableObject(stub, (_instance, state) => createLiveStore(state.storage.sql).load());
     expect(loaded?.eventMeta).toEqual(updated);
+  });
+
+  it("persists the final reveal step, visible to a newly constructed store（要件15.1〜15.3, Issue #16フォローアップ）", async () => {
+    const stub = newStub();
+
+    await runInDurableObject(stub, (_instance, state) => {
+      const store = createLiveStore(state.storage.sql);
+      store.initialize(meta);
+      store.saveFinalRevealStep(0);
+      store.saveFinalRevealStep(2);
+    });
+
+    const loaded = await runInDurableObject(stub, (_instance, state) => createLiveStore(state.storage.sql).load());
+    expect(loaded?.finalRevealStep).toBe(2);
   });
 });
 
