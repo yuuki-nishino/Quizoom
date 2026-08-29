@@ -4,30 +4,50 @@ import { formatElapsedMs } from "../shared/format";
 import { Confetti } from "../shared/confetti";
 import { StarIcon } from "../shared/icons";
 import { buildRevealSchedule } from "./ranking-reveal";
+import { buildRevealBatches, isFinalBatchStep } from "../../shared/ranking-batches";
 
 export interface RankingViewProps {
   readonly entries: readonly RankingEntry[];
   readonly isFinal: boolean;
+  /**
+   * 最終結果発表の現在の段階（要件15.1〜15.3）。0始まりで、主催者の「次のグループを発表する」
+   * 操作のたびに進む。isFinal=falseの中間ランキングでは無視される
+   */
+  readonly revealStep: number | null;
+  /** 中間ランキング表示の上限件数（既定10件）。最終結果は全員をグループ分けして表示するため対象外 */
   readonly topN?: number;
+}
+
+function podiumStyle(rank: number): string {
+  if (rank === 1) return "bg-amber-300 text-amber-950";
+  if (rank === 2) return "bg-slate-200 text-slate-900";
+  if (rank === 3) return "bg-orange-200 text-orange-950";
+  return "bg-white/90 text-slate-800";
 }
 
 /**
  * 中間/最終ランキングの表示。最終確定時は演出付きの見出しに切り替える（要件6.5, 6.6, 6.7）。
- * 最終ランキングのみ、下位から1位へ向かって1件ずつ発表する演出を行う（要件15.1〜15.5）。
- * サーバー側の新しいコマンド・イベントは持たず、受け取った1回分のランキングを起点に
- * クライアント側のタイマーだけで発表を進める。
+ * 最終ランキングは、6位以下を5人単位のグループにまとめ、`revealStep`が指す1グループのみを
+ * 表示する（前のグループは表示から消える。要件15.1〜15.3）。上位5位グループに達したときのみ、
+ * 1人ずつ・上位ほど間を置くクライアント側タイマー演出を行う（要件15.4〜15.6）。
  */
-export function RankingView({ entries, isFinal, topN = 10 }: RankingViewProps) {
-  const top = [...entries].sort((a, b) => a.rank - b.rank).slice(0, topN);
-  const [revealedCount, setRevealedCount] = useState(() => (isFinal ? 0 : top.length));
+export function RankingView({ entries, isFinal, revealStep, topN = 10 }: RankingViewProps) {
+  const sorted = [...entries].sort((a, b) => a.rank - b.rank);
+  const batches = isFinal ? buildRevealBatches(sorted) : [];
+  const maxBatchIndex = Math.max(batches.length - 1, 0);
+  const currentBatchIndex = isFinal ? Math.min(Math.max(revealStep ?? 0, 0), maxBatchIndex) : 0;
+  const currentBatch = isFinal ? (batches[currentBatchIndex]?.entries ?? []) : sorted.slice(0, topN);
+  const onFinalStage = isFinal && isFinalBatchStep(batches, currentBatchIndex);
+
+  const [revealedCount, setRevealedCount] = useState(() => (onFinalStage ? 0 : currentBatch.length));
 
   useEffect(() => {
-    if (!isFinal) {
-      setRevealedCount(top.length);
+    if (!onFinalStage) {
+      setRevealedCount(currentBatch.length);
       return;
     }
     setRevealedCount(0);
-    const schedule = buildRevealSchedule(top.length);
+    const schedule = buildRevealSchedule(currentBatch.length);
     const timers: number[] = [];
     let elapsed = 0;
     schedule.forEach((step, stepIndex) => {
@@ -36,9 +56,9 @@ export function RankingView({ entries, isFinal, topN = 10 }: RankingViewProps) {
     });
     return () => timers.forEach((timer) => window.clearTimeout(timer));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFinal, top.length]);
+  }, [onFinalStage, currentBatch.length, currentBatchIndex]);
 
-  const rank1Revealed = isFinal && top.length > 0 && revealedCount >= top.length;
+  const rank1Revealed = onFinalStage && currentBatch.length > 0 && revealedCount >= currentBatch.length;
 
   return (
     <div
@@ -51,24 +71,16 @@ export function RankingView({ entries, isFinal, topN = 10 }: RankingViewProps) {
         {isFinal ? "最終結果" : "中間ランキング"}
         {isFinal && <StarIcon className="h-10 w-10 text-brand-accent" />}
       </h1>
-      <ol className="w-full max-w-2xl space-y-3">
-        {top.map((entry, index) => {
-          const revealed = index >= top.length - revealedCount;
+      <ol key={currentBatchIndex} className="quiz-phase-enter w-full max-w-2xl space-y-3">
+        {currentBatch.map((entry, indexInBatch) => {
+          const revealed = !onFinalStage || indexInBatch >= currentBatch.length - revealedCount;
           return (
             <li
               key={entry.participantId}
-              className={`flex items-center gap-4 rounded-2xl px-6 py-4 shadow-lg ${
-                index === 0
-                  ? "bg-amber-300 text-amber-950"
-                  : index === 1
-                    ? "bg-slate-200 text-slate-900"
-                    : index === 2
-                      ? "bg-orange-200 text-orange-950"
-                      : "bg-white/90 text-slate-800"
-              }`}
+              className={`flex items-center gap-4 rounded-2xl px-6 py-4 shadow-lg ${podiumStyle(entry.rank)}`}
             >
               <span className="stage-rank inline-flex w-24 shrink-0 items-center gap-1 whitespace-nowrap text-2xl font-black">
-                {index === 0 && revealed && <StarIcon className="h-6 w-6 shrink-0" />}
+                {entry.rank === 1 && revealed && <StarIcon className="h-6 w-6 shrink-0" />}
                 {entry.rank}位
               </span>
               {revealed ? (
