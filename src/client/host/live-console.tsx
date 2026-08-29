@@ -23,6 +23,7 @@ import {
   pausedRemainingMs,
   isPracticeReady,
   isPracticeRevealed,
+  canAdvanceFinalReveal,
 } from "./live-console-state";
 
 export interface LiveConsoleProps {
@@ -213,6 +214,15 @@ export function LiveConsole({ apiClient, eventId }: LiveConsoleProps) {
       {finalized && (
         <div aria-label="結果確定済み" className="mt-6 rounded-lg border border-emerald-300 bg-emerald-50 p-6 text-center shadow-sm">
           <p className="font-medium text-emerald-800">結果を確定しました。</p>
+          {canAdvanceFinalReveal(state.ranking, state.revealStep) && (
+            <button
+              type="button"
+              onClick={() => send({ type: "advanceFinalReveal" })}
+              className={`mt-4 ${primaryButtonClass}`}
+            >
+              次のグループを発表する
+            </button>
+          )}
         </div>
       )}
 

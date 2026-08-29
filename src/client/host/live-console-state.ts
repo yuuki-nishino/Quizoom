@@ -2,6 +2,7 @@ import type { LivePhase, QuestionId, RankingEntry, ThemeSettings } from "../../s
 import type { CommandRejectedPayload, QuestionClosedPayload, QuestionPublicView, ServerEvent } from "../../shared/protocol";
 import { currentDeadlineAt, pausedRemainingMs } from "../shared/live-phase";
 import { PRACTICE_QUESTION_ID } from "../../shared/practice-question";
+import { buildRevealBatches, isFinalBatchStep } from "../../shared/ranking-batches";
 
 export { currentDeadlineAt, pausedRemainingMs };
 
@@ -16,6 +17,8 @@ export interface HostConsoleState {
   readonly currentQuestion: QuestionPublicView | null;
   readonly closedQuestion: QuestionClosedPayload | null;
   readonly ranking: readonly RankingEntry[] | null;
+  /** 最終結果発表の現在の段階（要件15.1〜15.3, 15.8）。中間ランキングでは常にnull */
+  readonly revealStep: number | null;
   readonly lastRejection: CommandRejectedPayload | null;
 }
 
@@ -30,6 +33,7 @@ export const initialHostConsoleState: HostConsoleState = {
   currentQuestion: null,
   closedQuestion: null,
   ranking: null,
+  revealStep: null,
   lastRejection: null,
 };
 
@@ -81,7 +85,7 @@ export function hostConsoleReducer(state: HostConsoleState, event: ServerEvent):
       return { ...state, closedQuestion: event.payload };
 
     case "rankingUpdated":
-      return { ...state, ranking: event.payload.entries };
+      return { ...state, ranking: event.payload.entries, revealStep: event.payload.revealStep };
 
     case "themeUpdated":
       return { ...state, theme: event.payload };
@@ -162,4 +166,14 @@ export function isPracticeReady(phase: LivePhase | null): boolean {
 /** 正解発表済みの設問がテスト問題だったか（trueなら本編開始への導線のみを表示する） */
 export function isPracticeRevealed(closedQuestionId: QuestionId | null): boolean {
   return closedQuestionId === PRACTICE_QUESTION_ID;
+}
+
+// --- 最終結果発表のグループ進行判定（要件15.8, Issue #16フォローアップ） -----
+
+/** 「次のグループを発表する」操作を提示してよいか（上位5位の発表段階に達していない間のみ） */
+export function canAdvanceFinalReveal(ranking: readonly RankingEntry[] | null, revealStep: number | null): boolean {
+  if (ranking === null || revealStep === null) return false;
+  const sorted = [...ranking].sort((a, b) => a.rank - b.rank);
+  const batches = buildRevealBatches(sorted);
+  return !isFinalBatchStep(batches, revealStep);
 }
