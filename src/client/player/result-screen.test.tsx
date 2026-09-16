@@ -11,11 +11,13 @@ describe("ResultScreen", () => {
     expect(markup).toBe("");
   });
 
-  it("shows correctness, current correct count, and current rank from the interim personal result", () => {
+  it("shows correctness and the current correct count, but never the interim rank, from the interim personal result", () => {
     const markup = renderToStaticMarkup(<ResultScreen personalResult={personalResult} personalRank={null} isPractice={false} />);
     expect(markup).toContain("正解です");
     expect(markup).toContain("現在の正解数: 3");
-    expect(markup).toContain("現在の順位: 2位");
+    // 途中順位は最終結果発表のネタバレになるため表示しない（要件7.6・Issue #28）
+    expect(markup).not.toContain("現在の順位");
+    expect(markup).not.toContain("2位");
   });
 
   it("shows an incorrect message when isCorrect is false", () => {
@@ -59,7 +61,8 @@ describe("ResultScreen", () => {
         isPractice={false}
       />,
     );
-    expect(markup).toContain("現在の順位: 2位");
+    expect(markup).toContain("現在の正解数: 3");
+    expect(markup).not.toContain("現在の順位");
     expect(markup).not.toContain("最終結果");
   });
 

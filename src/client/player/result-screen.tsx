@@ -10,7 +10,10 @@ export interface ResultScreenProps {
   readonly isPractice: boolean;
 }
 
-/** 正誤・順位・最終結果の表示（要件7.6, 7.7, 7.9）。最終順位が確定していればそちらを優先表示する */
+/**
+ * 正誤・正解数・最終結果の表示（要件7.6, 7.7, 7.9）。最終順位が確定していればそちらを優先表示する。
+ * 途中順位は要件15の最終結果発表のネタバレになるため表示しない（要件7.6・Issue #28）
+ */
 export function ResultScreen({ personalResult, personalRank, isPractice }: ResultScreenProps) {
   if (isPractice && personalResult) {
     return (
@@ -59,7 +62,6 @@ export function ResultScreen({ personalResult, personalRank, isPractice }: Resul
           {personalResult.isCorrect ? "正解です！" : "不正解でした"}
         </p>
         <p className="text-lg text-brand-text/80">現在の正解数: {personalResult.correctCount}</p>
-        <p className="text-lg text-brand-text/80">現在の順位: {personalResult.rank}位</p>
       </section>
     );
   }

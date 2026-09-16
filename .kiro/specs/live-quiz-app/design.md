@@ -571,7 +571,7 @@ interface QuizSessionDO {
 | `answerAccepted` | 該当参加者のみ | 受理した選択肢 | 7.3 |
 | `questionClosed` | 全役割 | 正解、選択肢別分布、解説（参加者へは自分の正誤も） | 5.6, 6.4, 7.6 |
 | `rankingUpdated` | 主催者, 投影 | 上位者のランキング | 5.9, 6.5, 6.6 |
-| `personalRank` | 該当参加者のみ | 自分の順位・正解数・合計時間 | 7.6, 7.9 |
+| `personalRank` | 該当参加者のみ | 自分の順位・正解数・合計時間 | 7.9 |
 | `themeUpdated` | 投影, 参加者 | 外観設定 | 3.7 |
 | `commandRejected` | 送信者のみ | 拒否理由コード | 7.5, 9.6 |
 
@@ -1112,6 +1112,9 @@ interface ServerClock {
 - 既存の`Confetti`は、上位5位グループの1位が発表された（`revealedTopCount`がグループの人数に達した）タイミングでのみ発火するよう`RankingView`側の発火条件を維持する（要件15.5）
 - `LiveConsole`（進行画面）は、`state.ranking`と受信した`revealStep`から`maxRevealStep`に到達したか（＝1位を発表済みか）を判定し、到達していない間だけ「次のグループを発表する」ボタンを表示して`advanceFinalReveal`を送信する（要件15.8。ボタン文言は改訂2でも変更しない）。判定はテスト可能な純粋関数として`live-console-state.ts`に追加する
 - Issue #16当初実装のクライアント側タイマー演出（`src/client/stage/ranking-reveal.ts`の`buildRevealSchedule`）は、改訂2により完全に不要になったため削除する
+- **（Issue #28）** `ResultScreen`の正解発表時（`personalResult`あり・`personalRank?.isFinal`が偽）の表示から、途中順位（「現在の順位: N位」）の行を削除する。要件15の最終結果発表は下位から1位へ順に発表する演出であり、途中順位が毎問表示されると自分の到達順位が事前に推測できてしまいネタバレになるため（要件7.6改訂）。最終結果（`personalRank.isFinal`が真）の「あなたの順位: N位」は要件7.9のとおり維持し、テスト問題の分岐（要件3.3, 3.6）も元から順位を表示しないため変更しない
+  - `PersonalResult.rank`（`shared/protocol.ts`）と`QuizSessionDO`側の算出・配信は**残す**。最小変更の方針であり、`rank`はサーバー側で既に`rank(aggregate(...))`の結果から取得している値のため、配信を止めても採点処理は簡素化されない。配信は残るため、参加者がDevToolsでWebSocketフレームを直接読めば途中順位は観測可能だが、通常の利用における画面上のネタバレを防ぐという要件7.6の目的は満たす
+  - `personalRank`イベントのうち`isFinal=false`（中間ランキング表示時）のものは、改訂前から`ResultScreen`が描画に用いていない（`isFinal`が真のときのみ最終結果ブロックへ分岐する）ため、この改訂による挙動変更はない。Event Contract表の`personalRank`行の要件参照を`7.6, 7.9`から`7.9`へ修正する
 
 ## Data Models
 
