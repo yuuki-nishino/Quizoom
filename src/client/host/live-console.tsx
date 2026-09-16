@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { EventId } from "../../shared/domain-types";
+import type { QuestionClosedPayload, QuestionPublicView } from "../../shared/protocol";
 import type { HostApiClient } from "./api-client";
 import { useHostConsole } from "./use-host-console";
 import { useServerClock, useRemainingMs } from "../shared/use-server-clock";
@@ -7,6 +8,8 @@ import { ConnectionBadge } from "../shared/connection-badge";
 import { RecoveryBanner } from "../shared/recovery-banner";
 import { ConfirmDialog } from "./confirm-dialog";
 import { formatElapsedMs, formatRemainingSeconds } from "../shared/format";
+import { buildOptionBreakdown } from "../shared/option-breakdown";
+import { CheckCircleIcon } from "../shared/icons";
 import {
   canStartSession,
   canOpenQuestion,
@@ -29,6 +32,45 @@ import {
 export interface LiveConsoleProps {
   readonly apiClient: HostApiClient;
   readonly eventId: EventId;
+}
+
+export interface RevealSummaryProps {
+  /** 再接続直後は復元されないため null になりうる（buildOptionBreakdown が代替ラベルへフォールバックする） */
+  readonly question: QuestionPublicView | null;
+  readonly closed: QuestionClosedPayload;
+}
+
+/**
+ * 進行画面の正解発表: 正解と選択肢別の回答分布を、選択肢の文言・設問の並び順・人数と割合で表示する（要件5.6）。
+ * 以前は optionId（UUID）をそのまま描画しており、主催者がどの選択肢が正解か説明できなかった（Issue #29）
+ */
+export function RevealSummary({ question, closed }: RevealSummaryProps) {
+  const breakdown = buildOptionBreakdown(question, closed);
+  const correctLabel = breakdown.find((row) => row.isCorrect)?.label ?? "";
+
+  return (
+    <>
+      <p className="font-medium text-emerald-700">正解: {correctLabel}</p>
+      <ul aria-label="回答分布" className="mt-2 space-y-1 text-sm">
+        {breakdown.map((row) => (
+          <li
+            key={row.optionId}
+            data-correct={row.isCorrect}
+            className={
+              row.isCorrect
+                ? "flex items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-1 font-medium text-emerald-800"
+                : "flex items-center gap-1.5 px-2 py-1 text-slate-600"
+            }
+          >
+            {row.isCorrect && <CheckCircleIcon className="h-4 w-4 shrink-0 text-emerald-600" />}
+            <span>
+              {row.label}: {row.count}人（{row.pct}%）
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
 }
 
 /** 進行画面: 参加者待機・出題・正解発表・ランキング・結果確定を1画面で扱う（要件5, 9.5, 11.5, 11.6） */
@@ -165,14 +207,7 @@ export function LiveConsole({ apiClient, eventId }: LiveConsoleProps) {
           {practiceRevealed && (
             <p className="mb-2 inline-block rounded-full bg-slate-100 px-3 py-0.5 text-xs font-semibold text-slate-600">テスト問題</p>
           )}
-          <p className="font-medium text-emerald-700">正解: {state.closedQuestion.correctOptionId}</p>
-          <ul className="mt-2 space-y-1 text-sm text-slate-600">
-            {state.closedQuestion.distribution.map((d) => (
-              <li key={d.optionId}>
-                {d.optionId}: {d.count}人
-              </li>
-            ))}
-          </ul>
+          <RevealSummary question={state.currentQuestion} closed={state.closedQuestion} />
           <p className="mt-2 text-sm text-slate-600">{state.closedQuestion.explanation}</p>
 
           {practiceRevealed ? (

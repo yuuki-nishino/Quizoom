@@ -2,6 +2,7 @@ import type { QuestionPublicView, QuestionClosedPayload } from "../../shared/pro
 import { Confetti } from "../shared/confetti";
 import { CheckCircleIcon } from "../shared/icons";
 import { PRACTICE_QUESTION_ID } from "../../shared/practice-question";
+import { buildOptionBreakdown } from "../shared/option-breakdown";
 
 export interface RevealViewProps {
   readonly question: QuestionPublicView;
@@ -10,7 +11,8 @@ export interface RevealViewProps {
 
 /** 正解発表: 正解のハイライト・選択肢別回答分布・解説文を表示する（要件6.4, 6.7, 6.8） */
 export function RevealView({ question, closed }: RevealViewProps) {
-  const totalAnswers = closed.distribution.reduce((sum, d) => sum + d.count, 0);
+  // 進行画面（LiveConsole）と変換ロジックが乖離しないよう、表示行の組み立ては共通の純粋関数に寄せる（Issue #29）
+  const breakdown = buildOptionBreakdown(question, closed);
   const isPractice = question.id === PRACTICE_QUESTION_ID;
 
   return (
@@ -24,14 +26,10 @@ export function RevealView({ question, closed }: RevealViewProps) {
       )}
       <h1 className="max-w-5xl text-4xl font-extrabold leading-snug sm:text-5xl">{question.body}</h1>
       <ul className="stage-options grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
-        {question.options.map((option) => {
-          const isCorrect = option.id === closed.correctOptionId;
-          const entry = closed.distribution.find((d) => d.optionId === option.id);
-          const count = entry?.count ?? 0;
-          const pct = totalAnswers > 0 ? Math.round((count / totalAnswers) * 100) : 0;
+        {breakdown.map(({ optionId, label, count, pct, isCorrect }) => {
           return (
             <li
-              key={option.id}
+              key={optionId}
               data-correct={isCorrect}
               className={
                 isCorrect
@@ -40,7 +38,7 @@ export function RevealView({ question, closed }: RevealViewProps) {
               }
             >
               <span className="inline-flex items-center gap-1.5">
-                {option.label}
+                {label}
                 {isCorrect && (
                   <>
                     <CheckCircleIcon className="h-6 w-6 text-emerald-600" />
