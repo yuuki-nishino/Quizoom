@@ -851,3 +851,36 @@
   - 観測可能な完了条件: 型チェック・全テストスイート・ビルドがいずれも成功することを確認できる
   - _Requirements: 7.6, 7.9_
   - _Depends: 28.1_
+
+- [x] 29. 修正: 進行画面の正解発表で選択肢IDではなく文言を表示する(Issue #29・要件5改訂)
+- [x] 29.1 (P) 正解・回答分布の表示行を組み立てる純粋関数の切り出し
+  - `src/client/shared/option-breakdown.ts`に`buildOptionBreakdown(question, closed)`を新設する。戻り値は`{ optionId, label, count, pct, isCorrect }`の配列
+  - 並び順は`question.options`の`orderIndex`順とし、`distribution`に現れない選択肢も`count: 0`の行として含める
+  - `pct`は回答総数を分母とした整数パーセントとし、回答総数が0のときは0とする
+  - `question`がnullのときは`distribution`の並び順から「選択肢1」「選択肢2」…という代替ラベルを割り当てる(再接続直後のフォールバック)
+  - 観測可能な完了条件: 0票の選択肢を含むケース・回答総数0のケース・`question`がnullのケースそれぞれで期待どおりの配列が返ることをユニットテストで確認できる
+  - _Requirements: 5.6_
+  - _Boundary: src/client/shared/option-breakdown.ts_
+
+- [x] 29.2 進行画面の正解発表ブロックをラベル表示へ差し替え
+  - `LiveConsole`の正解発表ブロックで`buildOptionBreakdown`を用い、「正解: {ラベル}」と分布の各行を選択肢の文言で表示する
+  - 各行に人数と割合を表示し、正解の選択肢を視覚的に区別できるようにする(投影画面と同様の強調)
+  - 観測可能な完了条件: 進行画面の正解発表にUUIDが一切現れず、選択肢の文言・人数・割合が設問の並び順で表示され、正解行が区別できることをユニットテストで確認できる
+  - 実装メモ: `LiveConsole`本体はWebSocket接続(`useHostConsole`)に依存し単体でレンダリングできないため、正解発表ブロックを同ファイル内の`RevealSummary`として切り出してexportし、テスト対象とした(新規ファイルは追加しない)
+  - _Requirements: 5.6_
+  - _Boundary: src/client/host/live-console.tsx_
+  - _Depends: 29.1_
+
+- [x] 29.3 投影画面の正解発表を同じ純粋関数へ寄せる
+  - `RevealView`が各自で行っている`optionId`→ラベル・件数・割合の突き合わせを`buildOptionBreakdown`の呼び出しへ置き換える。表示(DOM構造・スタイル)は変更しない
+  - 進行画面と投影画面で変換ロジックが再び乖離しないようにすることが目的であり、投影画面の既存の見た目・挙動は維持する
+  - 観測可能な完了条件: `reveal-view.test.tsx`の既存テストを変更せずに通過することを確認できる
+  - _Requirements: 6.4_
+  - _Boundary: src/client/stage/reveal-view.tsx_
+  - _Depends: 29.1_
+
+- [x] 29.4 検証: 回帰確認
+  - 型チェック・全テストスイート・ビルドがいずれも成功することを確認する
+  - 観測可能な完了条件: 型チェック・全テストスイート・ビルドがいずれも成功することを確認できる
+  - _Requirements: 5.6, 6.4_
+  - _Depends: 29.2, 29.3_
