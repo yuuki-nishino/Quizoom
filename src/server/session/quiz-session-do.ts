@@ -7,7 +7,7 @@ import { loadQuestionSnapshot, updateStatus, getPracticeMode } from "../catalog/
 import { save as saveResult, type JudgedAnswer } from "../results/archive";
 import { judge, aggregate, rank } from "../../shared/scoring";
 import { PRACTICE_QUESTION, PRACTICE_QUESTION_ID } from "../../shared/practice-question";
-import { buildRevealBatches, maxRevealStep } from "../../shared/ranking-batches";
+import { buildRevealBatches, maxRevealStep, revealedEntries } from "../../shared/ranking-batches";
 import { next } from "./phase-machine";
 import { retryAsync } from "./retry";
 import {
@@ -467,7 +467,9 @@ export class QuizSessionDO extends DurableObject<Env> {
     const payload: RankingUpdatedPayload = { entries: ranked, isFinal, revealStep };
     this.#broadcast({ type: "rankingUpdated", payload }, (role) => role.role === "host" || role.role === "stage");
 
-    const rankByParticipant = new Map(ranked.map((r) => [r.participantId, r]));
+    // 最終順位は投影画面で発表済みの参加者にのみ配信し、手元から先に順位が分かることを防ぐ（要件7.9, 15.6, Issue #34）
+    const recipients = isFinal && revealStep !== null ? revealedEntries(buildRevealBatches(ranked), revealStep) : ranked;
+    const rankByParticipant = new Map(recipients.map((r) => [r.participantId, r]));
     for (const ws of this.ctx.getWebSockets()) {
       const role = ws.deserializeAttachment() as ConnectionRole | null;
       if (!role || role.role !== "participant") continue;
@@ -501,6 +503,13 @@ export class QuizSessionDO extends DurableObject<Env> {
 
     await saveResult(this.env, eventId, ranked, judgedAnswers);
     await this.#updateStatusWithRetry(eventId, "live", "finished");
+
+    // 参加者画面は最終発表フェーズへの遷移を知る手段がほかにないため、発表段階を記録する前に
+    // スナップショットを送る（この時点では誰も発表済みでないため最終順位は同送されない。Issue #34）
+    for (const ws of this.ctx.getWebSockets()) {
+      const role = ws.deserializeAttachment() as ConnectionRole | null;
+      if (role?.role === "participant") this.#sendStateSnapshot(ws, role);
+    }
 
     // 確定と同時に最下位グループが表示された状態から発表演出を開始する（要件15.1, 15.3）
     this.#store.saveFinalRevealStep(0);
@@ -549,6 +558,18 @@ export class QuizSessionDO extends DurableObject<Env> {
       participantCount: this.#store.listParticipants().length,
     };
     this.#sendTo(ws, { type: "stateSnapshot", payload });
+    if (role.role === "participant") this.#sendRevealedFinalRank(ws, role.participantId, state);
+  }
+
+  /** 再接続・resync時、最終発表で既に発表済みの参加者へ最終順位を再送する（要件7.9, Issue #34） */
+  #sendRevealedFinalRank(ws: WebSocket, participantId: ParticipantId, state: SessionState): void {
+    if (state.phase.kind !== "finalRanking" || state.finalRevealStep === null || state.questions === null) return;
+
+    const ranked = rank(aggregate(this.#store.listParticipants(), this.#store.listAllAnswers(), state.questions));
+    const my = revealedEntries(buildRevealBatches(ranked), state.finalRevealStep).find((r) => r.participantId === participantId);
+    if (!my) return;
+    const payload: PersonalRankPayload = { rank: my.rank, correctCount: my.correctCount, totalElapsedMs: my.totalElapsedMs, isFinal: true };
+    this.#sendTo(ws, { type: "personalRank", payload });
   }
 
   #broadcastStateSnapshot(): void {

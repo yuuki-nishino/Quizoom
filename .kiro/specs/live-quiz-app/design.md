@@ -571,7 +571,7 @@ interface QuizSessionDO {
 | `answerAccepted` | 該当参加者のみ | 受理した選択肢 | 7.3 |
 | `questionClosed` | 全役割 | 正解、選択肢別分布、解説（参加者へは自分の正誤も） | 5.6, 6.4, 7.6 |
 | `rankingUpdated` | 主催者, 投影 | 上位者のランキング | 5.9, 6.5, 6.6 |
-| `personalRank` | 該当参加者のみ | 自分の順位・正解数・合計時間 | 7.9 |
+| `personalRank` | 該当参加者のみ（最終順位は投影画面で発表済みの参加者のみ） | 自分の順位・正解数・合計時間 | 7.9 |
 | `themeUpdated` | 投影, 参加者 | 外観設定 | 3.7 |
 | `commandRejected` | 送信者のみ | 拒否理由コード | 7.5, 9.6 |
 
@@ -1119,6 +1119,13 @@ interface ServerClock {
 - **（Issue #28）** `ResultScreen`の正解発表時（`personalResult`あり・`personalRank?.isFinal`が偽）の表示から、途中順位（「現在の順位: N位」）の行を削除する。要件15の最終結果発表は下位から1位へ順に発表する演出であり、途中順位が毎問表示されると自分の到達順位が事前に推測できてしまいネタバレになるため（要件7.6改訂）。最終結果（`personalRank.isFinal`が真）の「あなたの順位: N位」は要件7.9のとおり維持し、テスト問題の分岐（要件3.3, 3.6）も元から順位を表示しないため変更しない
   - `PersonalResult.rank`（`shared/protocol.ts`）と`QuizSessionDO`側の算出・配信は**残す**。最小変更の方針であり、`rank`はサーバー側で既に`rank(aggregate(...))`の結果から取得している値のため、配信を止めても採点処理は簡素化されない。配信は残るため、参加者がDevToolsでWebSocketフレームを直接読めば途中順位は観測可能だが、通常の利用における画面上のネタバレを防ぐという要件7.6の目的は満たす
   - `personalRank`イベントのうち`isFinal=false`（中間ランキング表示時）のものは、改訂前から`ResultScreen`が描画に用いていない（`isFinal`が真のときのみ最終結果ブロックへ分岐する）ため、この改訂による挙動変更はない。Event Contract表の`personalRank`行の要件参照を`7.6, 7.9`から`7.9`へ修正する
+- **（Issue #34）** 最終結果発表の途中で参加者の手元に最終順位が先に表示されないよう、`isFinal=true`の`personalRank`は**投影画面で当該参加者の順位が発表済みになった時点でのみ**配信する（要件7.9改訂）
+  - 発表済み判定は`src/shared/ranking-batches.ts`の純粋関数`revealedEntries(batches, step)`に置く。6位以下は`step`までに表示したグループの全員、上位5位以内は下位から`revealedTopCount`人を返す。投影画面の`RankingView`と同じ`buildRevealBatches`・`revealedTopCount`から導出するため、手元と投影画面の発表タイミングが構造的に一致する（同率順位がグループ境界をまたぐ場合も投影画面の表示順に従う）
+  - `#broadcastRanking`は`isFinal`のとき、参加者への配信対象を`revealedEntries`の結果に絞る。発表段階が進むたびに発表済みの全員へ再送するが、内容は同一で冪等なため差分管理はしない。主催者・投影画面への`rankingUpdated`は従来どおり全員分を送る
+  - **画面側で伏せるのではなくサーバーで配信しない方式を採る**。Issue #28（途中順位）は最小変更のため配信を残したが、本件は「上位者が先に知って口にする」ことの防止が目的であり、WebSocketフレームを読めば分かる状態では目的を満たしにくい。また発表段階はサーバーが保持しており追加の状態を要しない
+  - 参加者画面はこれまで`finalize`後も`stateSnapshot`を受け取らず、フェーズが`revealed`のまま`personalRank`の受信で最終結果へ切り替わっていた。最終順位が届くまでの「？？？」表示にはフェーズの把握が必要なため、`#afterFinalize`で`finalRevealStep`を記録する**前に**参加者へ`stateSnapshot`を送る（記録前のため、このスナップショットに最終順位は同送されない。直後の`#broadcastRanking`が発表済みの参加者へ配信する）。主催者・投影画面は従来どおり`rankingUpdated`で遷移を把握するため送らない
+  - 再接続・`resync`時は、`#sendStateSnapshot`が参加者に対して`finalRanking`中かつ発表済みであれば`personalRank`を続けて送る。従来は`stateSnapshot`に個人の順位が含まれず、最終結果発表中に再接続した参加者に最終結果が表示されない既知の欠落があったため、本改訂で併せて解消する
+  - 参加者画面は`phase.kind === "finalRanking"`のとき新設の`FinalResultScreen`を表示する。`isFinal=true`の`personalRank`を保持していれば順位・正解数・合計回答時間と祝福演出を、なければ各値を「？？？」として伏せた表示を行う。これに伴い`ResultScreen`から最終結果の分岐と`personalRank`プロパティを取り除き、正解発表の表示に専念させる（テーマプレビューの「結果」も`FinalResultScreen`で描画する）
 
 ## Data Models
 

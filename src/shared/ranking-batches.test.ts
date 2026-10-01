@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildRevealBatches, maxRevealStep, isTopStage, revealedTopCount } from "./ranking-batches";
+import { buildRevealBatches, maxRevealStep, isTopStage, revealedTopCount, revealedEntries } from "./ranking-batches";
 import type { RankingEntry, ParticipantId } from "./domain-types";
 
 function entries(count: number): readonly RankingEntry[] {
@@ -112,5 +112,47 @@ describe("maxRevealStep / isTopStage / revealedTopCount（要件15.3, 15.4, 15.8
     expect(maxRevealStep([])).toBe(0);
     expect(isTopStage([], 0)).toBe(false);
     expect(revealedTopCount([], 0)).toBe(0);
+  });
+});
+
+describe("revealedEntries（要件7.9, 15.6, Issue #34）", () => {
+  function revealedRanks(count: number, step: number): readonly number[] {
+    return revealedEntries(buildRevealBatches(entries(count)), step)
+      .map((e) => e.rank)
+      .sort((a, b) => a - b);
+  }
+
+  it("returns nobody for zero participants", () => {
+    expect(revealedEntries([], 0)).toEqual([]);
+  });
+
+  it("reveals only the lowest group at step 0 when there are rest groups (12 participants: 11-12, 6-10, top5)", () => {
+    expect(revealedRanks(12, 0)).toEqual([11, 12]);
+  });
+
+  it("keeps earlier groups revealed as later groups are announced", () => {
+    expect(revealedRanks(12, 1)).toEqual([6, 7, 8, 9, 10, 11, 12]);
+  });
+
+  it("reveals the top-5 stage one person at a time from the bottom (5th place first)", () => {
+    // 12人: restCount = 2。step 2で5位、step 3で4位…step 6で1位
+    expect(revealedRanks(12, 2)).toEqual([5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(revealedRanks(12, 5)).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  });
+
+  it("reveals everyone once rank 1 has been announced (step = maxRevealStep)", () => {
+    const batches = buildRevealBatches(entries(12));
+    expect(revealedEntries(batches, maxRevealStep(batches)).map((e) => e.rank).sort((a, b) => a - b)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    ]);
+  });
+
+  it("reveals the lowest-ranked person immediately at step 0 when there are 5 or fewer participants", () => {
+    expect(revealedRanks(3, 0)).toEqual([3]);
+    expect(revealedRanks(3, 2)).toEqual([1, 2, 3]);
+  });
+
+  it("reveals the sole participant immediately at step 0", () => {
+    expect(revealedRanks(1, 0)).toEqual([1]);
   });
 });

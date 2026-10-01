@@ -120,6 +120,30 @@ async function connectAndDrain(
   return ws;
 }
 
+/** 以後そのソケットに届くメッセージをすべて記録する。記録済み配列は呼び出し側が随時参照する */
+function collectMessages(ws: WebSocket): any[] {
+  const received: any[] = [];
+  ws.addEventListener("message", (event) => received.push(JSON.parse(event.data as string)));
+  return received;
+}
+
+/**
+ * 副作用のない不正なコマンドを送り、その拒否応答を待つ。同一ソケット上の配信順は保たれるため、
+ * それ以前に送られたメッセージの到着を保証する(resyncは順位の再送を伴うため障壁に使わない)
+ */
+async function flush(ws: WebSocket): Promise<void> {
+  const rejected = new Promise<void>((resolve) => {
+    const onMessage = (event: MessageEvent) => {
+      if (JSON.parse(event.data as string).type !== "commandRejected") return;
+      ws.removeEventListener("message", onMessage);
+      resolve();
+    };
+    ws.addEventListener("message", onMessage);
+  });
+  ws.send(JSON.stringify({ type: "__flush__" }));
+  await rejected;
+}
+
 async function sendAndAwait(ws: WebSocket, command: unknown): Promise<any> {
   const received = nextMessage(ws);
   ws.send(JSON.stringify(command));
@@ -749,10 +773,12 @@ describe("QuizSessionDO showRanking / finalize", () => {
     expect(interimEvent.type).toBe("personalRank");
     expect(interimEvent.payload).toMatchObject({ rank: 1, correctCount: 1, isFinal: false });
 
-    const final = nextMessage(aliceWs);
+    // finalize時は最終発表フェーズへの遷移(stateSnapshot)が先に届き、1人だけの参加者は即座に発表済みとなる
+    const received = collectMessages(aliceWs);
     await sendHostCommand(stub, "event-1", { type: "finalize" });
-    const finalEvent = await final;
-    expect(finalEvent.type).toBe("personalRank");
+    await flush(aliceWs);
+    expect(received[0]).toMatchObject({ type: "stateSnapshot", payload: { phase: { kind: "finalRanking" } } });
+    const finalEvent = received.find((m) => m.type === "personalRank");
     expect(finalEvent.payload).toMatchObject({ rank: 1, correctCount: 1, isFinal: true });
 
     aliceWs.close();
@@ -913,6 +939,116 @@ describe("QuizSessionDO advanceFinalReveal（要件15.1〜15.3, 15.8, Issue #16�
     expect(third.rejected).toEqual([{ type: "commandRejected", payload: { code: "NO_NEXT_REVEAL_STEP", message: expect.any(String) } }]);
 
     sockets.forEach((ws) => ws.close());
+  });
+});
+
+describe("QuizSessionDO 参加者への最終順位の段階的な配信（要件7.9, 15.6, Issue #34）", () => {
+  /** advanceFinalRevealのdescribeと同様、参加登録順(joinedSeq)昇順に1位, 2位…となる */
+  async function setupRevealedWithParticipants(stub: DurableObjectStub<QuizSessionDO>, count: number) {
+    await seedEvent("event-1", { status: "published", stageToken: "tok" });
+    await seedQuestion("event-1", "q1", 0, { timeLimitSec: 30, correctOptionId: "q1-a" });
+    await publish(stub, { ...meta, capacity: count + 1 });
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+
+    const players: { readonly ws: WebSocket; readonly token: string; readonly received: any[] }[] = [];
+    for (let i = 0; i < count; i++) {
+      const participant = await joinParticipant(stub, "event-1", `player${i + 1}`);
+      const ws = await connectAndDrain(stub, { eventId: "event-1", role: "participant", token: participant.token });
+      await sendAndAwait(ws, { type: "submitAnswer", questionId: "q1", optionId: "q1-a" });
+      players.push({ ws, token: participant.token, received: [] });
+    }
+
+    await sendHostCommand(stub, "event-1", { type: "closeQuestion" });
+    await sendHostCommand(stub, "event-1", { type: "revealAnswer" });
+    await Promise.all(players.map((p) => flush(p.ws)));
+    return players.map((p) => ({ ...p, received: collectMessages(p.ws) }));
+  }
+
+  function finalRanks(received: readonly any[]): readonly number[] {
+    return received.filter((m) => m.type === "personalRank" && m.payload.isFinal).map((m) => m.payload.rank);
+  }
+
+  it("sends every participant the finalRanking phase on finalize, but the final rank only to the lowest group revealed on stage", async () => {
+    const stub = newStub();
+    const players = await setupRevealedWithParticipants(stub, 7);
+
+    await sendHostCommand(stub, "event-1", { type: "finalize" });
+    await Promise.all(players.map((p) => flush(p.ws)));
+
+    for (const p of players) {
+      expect(p.received[0]).toMatchObject({ type: "stateSnapshot", payload: { phase: { kind: "finalRanking" } } });
+    }
+    // 7人: step 0 で 6,7位のグループのみ発表済み
+    expect(players.map((p) => finalRanks(p.received).length > 0)).toEqual([false, false, false, false, false, true, true]);
+    expect(finalRanks(players[5]!.received)).toEqual([6]);
+    expect(players[6]!.received.find((m) => m.type === "personalRank").payload).toMatchObject({
+      rank: 7,
+      correctCount: 1,
+      totalElapsedMs: expect.any(Number),
+      isFinal: true,
+    });
+
+    players.forEach((p) => p.ws.close());
+  });
+
+  it("delivers each top-5 participant's final rank only at the step that reveals them, and rank 1 last", async () => {
+    const stub = newStub();
+    const players = await setupRevealedWithParticipants(stub, 7);
+    await sendHostCommand(stub, "event-1", { type: "finalize" });
+
+    // step 1 = 5位, step 2 = 4位, ..., step 5 = 1位
+    for (let step = 1; step <= 5; step++) {
+      await sendHostCommand(stub, "event-1", { type: "advanceFinalReveal" });
+      await Promise.all(players.map((p) => flush(p.ws)));
+      const revealedRank = 6 - step;
+      for (let rank = 1; rank <= 5; rank++) {
+        expect(finalRanks(players[rank - 1]!.received).length > 0).toBe(rank >= revealedRank);
+      }
+    }
+    expect(finalRanks(players[0]!.received)).toEqual([1]);
+
+    players.forEach((p) => p.ws.close());
+  });
+
+  it("does not send the final rank on reconnect before the participant is revealed, and sends it after", async () => {
+    const stub = newStub();
+    const players = await setupRevealedWithParticipants(stub, 7);
+    await sendHostCommand(stub, "event-1", { type: "finalize" });
+    const first = players[0]!;
+    first.ws.close();
+
+    const before = await connectReal(stub, { eventId: "event-1", role: "participant", token: first.token });
+    const beforeReceived = collectMessages(before);
+    await flush(before);
+    expect(beforeReceived[0]).toMatchObject({ type: "stateSnapshot", payload: { phase: { kind: "finalRanking" } } });
+    expect(finalRanks(beforeReceived)).toEqual([]);
+    before.close();
+
+    for (let step = 1; step <= 5; step++) await sendHostCommand(stub, "event-1", { type: "advanceFinalReveal" });
+
+    const after = await connectReal(stub, { eventId: "event-1", role: "participant", token: first.token });
+    const afterReceived = collectMessages(after);
+    await flush(after);
+    expect(afterReceived[0]).toMatchObject({ type: "stateSnapshot", payload: { phase: { kind: "finalRanking" } } });
+    expect(afterReceived[1]).toMatchObject({ type: "personalRank", payload: { rank: 1, isFinal: true } });
+    after.close();
+
+    players.slice(1).forEach((p) => p.ws.close());
+  });
+
+  it("re-sends the final rank after the snapshot on resync once the participant has been revealed", async () => {
+    const stub = newStub();
+    const players = await setupRevealedWithParticipants(stub, 7);
+    await sendHostCommand(stub, "event-1", { type: "finalize" });
+    const last = players[6]!;
+
+    const received = collectMessages(last.ws);
+    last.ws.send(JSON.stringify({ type: "resync" }));
+    await flush(last.ws);
+    expect(received.map((m) => m.type)).toEqual(["stateSnapshot", "personalRank", "commandRejected"]);
+
+    players.forEach((p) => p.ws.close());
   });
 });
 

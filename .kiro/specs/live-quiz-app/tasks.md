@@ -884,3 +884,33 @@
   - 観測可能な完了条件: 型チェック・全テストスイート・ビルドがいずれも成功することを確認できる
   - _Requirements: 5.6, 6.4_
   - _Depends: 29.2, 29.3_
+
+- [x] 30. 修正: 最終結果発表中は手元に順位を表示せず、投影画面で発表された参加者から順に表示する(Issue #34・要件7.9改訂)
+- [x] 30.1 (P) 発表済み参加者を求める純粋関数の追加
+  - `src/shared/ranking-batches.ts`に`revealedEntries(batches, step)`を追加する。6位以下は`step`までに表示したグループの全員、上位5位以内は下位から`revealedTopCount`人を返す
+  - 観測可能な完了条件: 参加者0人・1人・5人以下・6位以下のグループがある場合・1位発表済みの各ケースで期待どおりの参加者が返ることをユニットテストで確認できる
+  - _Requirements: 7.9, 15.6_
+  - _Boundary: src/shared/ranking-batches.ts_
+
+- [x] 30.2 最終順位の配信を発表済みの参加者に限定する
+  - `#broadcastRanking`が`isFinal`のとき、`personalRank`を`revealedEntries`の対象者にのみ送る。主催者・投影画面への`rankingUpdated`は変更しない
+  - `#afterFinalize`で`finalRevealStep`を記録する前に、参加者へ`stateSnapshot`(フェーズ`finalRanking`)を送る
+  - 再接続・`resync`時、`finalRanking`中かつ発表済みの参加者には`stateSnapshot`に続けて`personalRank`を送る
+  - 観測可能な完了条件: finalize直後は最下位グループの参加者のみが、以後は発表された段階の参加者のみが最終順位を受け取り、1位は最後に受け取ることを結合テストで確認できる。発表前の再接続では最終順位が届かず、発表後の再接続・resyncでは届くことを確認できる
+  - _Requirements: 7.9, 9.2_
+  - _Boundary: src/server/session/quiz-session-do.ts_
+  - _Depends: 30.1_
+
+- [x] 30.3 参加者画面の最終結果表示を「？？？」から発表時に切り替える
+  - `FinalResultScreen`を新設し、`finalRanking`中は最終順位を受け取るまで順位・正解数・合計回答時間を「？？？」で伏せ、受け取った時点で値と祝福演出を表示する
+  - `ResultScreen`から最終結果の分岐と`personalRank`プロパティを取り除き、テーマプレビューの「結果」を`FinalResultScreen`へ差し替える
+  - 観測可能な完了条件: 最終順位未受信・中間順位のみ保持・最終順位受信済みの各状態で期待どおりに描画されることをユニットテストで確認できる
+  - _Requirements: 7.9_
+  - _Boundary: src/client/player/result-screen.tsx, src/client/player/player-app.tsx, src/client/host/theme-preview-walkthrough.tsx_
+  - _Depends: 30.2_
+
+- [x] 30.4 検証: 回帰確認
+  - 型チェック・全テストスイート・ビルドがいずれも成功することを確認する
+  - 観測可能な完了条件: 型チェック・全テストスイート・ビルドがいずれも成功することを確認できる
+  - _Requirements: 7.9, 15.6_
+  - _Depends: 30.3_

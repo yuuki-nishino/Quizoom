@@ -10,7 +10,7 @@ import { StageSafeArea } from "../stage/safe-area";
 import { NicknameForm } from "../player/nickname-form";
 import { WaitingScreen } from "../player/waiting-screen";
 import { AnswerScreen } from "../player/answer-screen";
-import { ResultScreen } from "../player/result-screen";
+import { FinalResultScreen } from "../player/result-screen";
 
 /** 主催者自身の設問(実データ)をプレビューへ差し込むための入力。無い場合はサンプル設問にフォールバックする */
 export interface PreviewQuestion {
@@ -197,11 +197,7 @@ function buildSteps(eventTitle: string, preview: PreviewQuestion): readonly Walk
       group: "回答画面",
       label: "結果",
       render: () => (
-        <ResultScreen
-          personalResult={{ isCorrect: true, correctCount: 3, rank: 1 }}
-          personalRank={{ rank: 1, correctCount: 3, totalElapsedMs: 12000, isFinal: true }}
-          isPractice={false}
-        />
+        <FinalResultScreen personalRank={{ rank: 1, correctCount: 3, totalElapsedMs: 12000, isFinal: true }} />
       ),
     },
   ];

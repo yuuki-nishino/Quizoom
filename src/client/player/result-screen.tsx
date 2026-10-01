@@ -5,16 +5,15 @@ import { CheckCircleIcon, StarIcon } from "../shared/icons";
 
 export interface ResultScreenProps {
   readonly personalResult: PersonalResult | null;
-  readonly personalRank: PersonalRankPayload | null;
   /** テスト問題の正解発表かどうか。trueの場合、正誤のみを示し、採点数値は表示しない（要件3.3, 3.6） */
   readonly isPractice: boolean;
 }
 
 /**
- * 正誤・正解数・最終結果の表示（要件7.6, 7.7, 7.9）。最終順位が確定していればそちらを優先表示する。
+ * 正解発表時の正誤・正解数の表示（要件7.6, 7.7）。最終結果は`FinalResultScreen`が担う。
  * 途中順位は要件15の最終結果発表のネタバレになるため表示しない（要件7.6・Issue #28）
  */
-export function ResultScreen({ personalResult, personalRank, isPractice }: ResultScreenProps) {
+export function ResultScreen({ personalResult, isPractice }: ResultScreenProps) {
   if (isPractice && personalResult) {
     return (
       <section
@@ -29,21 +28,6 @@ export function ResultScreen({ personalResult, personalRank, isPractice }: Resul
           {personalResult.isCorrect ? "正解です！" : "不正解でした"}
         </p>
         <p className="text-lg text-brand-text/80">これはテスト問題です。正解数・順位には反映されません。</p>
-      </section>
-    );
-  }
-
-  if (personalRank?.isFinal) {
-    return (
-      <section aria-label="最終結果" className="quiz-phase-enter relative flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-        <Confetti active={true} />
-        <h1 className="font-display inline-flex items-center gap-2 text-3xl font-extrabold text-brand-primary">
-          <StarIcon className="h-7 w-7 text-brand-accent" />
-          最終結果
-        </h1>
-        <p className="text-2xl font-bold">あなたの順位: {personalRank.rank}位</p>
-        <p className="text-lg text-brand-text/80">正解数: {personalRank.correctCount}</p>
-        <p className="text-lg text-brand-text/80">合計回答時間: {formatElapsedMs(personalRank.totalElapsedMs)}</p>
       </section>
     );
   }
@@ -67,4 +51,31 @@ export function ResultScreen({ personalResult, personalRank, isPractice }: Resul
   }
 
   return null;
+}
+
+export interface FinalResultScreenProps {
+  readonly personalRank: PersonalRankPayload | null;
+}
+
+const HIDDEN = "？？？";
+
+/**
+ * 最終結果の表示（要件7.9）。サーバーは投影画面で自分の順位が発表されるまで最終順位を配信しないため、
+ * それまでは順位・正解数・合計回答時間を伏せ、手元から結果が先に分からないようにする（Issue #34）
+ */
+export function FinalResultScreen({ personalRank }: FinalResultScreenProps) {
+  const revealed = personalRank?.isFinal ? personalRank : null;
+  return (
+    <section aria-label="最終結果" className="quiz-phase-enter relative flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+      {revealed && <Confetti active={true} />}
+      <h1 className="font-display inline-flex items-center gap-2 text-3xl font-extrabold text-brand-primary">
+        <StarIcon className="h-7 w-7 text-brand-accent" />
+        最終結果
+      </h1>
+      <p className="text-2xl font-bold">あなたの順位: {revealed ? `${revealed.rank}位` : HIDDEN}</p>
+      <p className="text-lg text-brand-text/80">正解数: {revealed ? revealed.correctCount : HIDDEN}</p>
+      <p className="text-lg text-brand-text/80">合計回答時間: {revealed ? formatElapsedMs(revealed.totalElapsedMs) : HIDDEN}</p>
+      {!revealed && <p className="text-base text-brand-text/70">スクリーンでの発表をお待ちください</p>}
+    </section>
+  );
 }

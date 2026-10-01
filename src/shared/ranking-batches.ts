@@ -58,3 +58,17 @@ export function revealedTopCount(batches: readonly RevealBatch[], step: number):
   const restCount = batches.length - 1;
   return step - restCount + 1;
 }
+
+/**
+ * 発表段階`step`の時点で投影画面に一度でも発表された参加者（順位不問）を返す。参加者の手元へ
+ * 最終順位を配信してよいかの判定に使う（要件7.9, 15.6, Issue #34）。6位以下は現在までに
+ * 表示したグループ全員、上位5位以内は下位から`revealedTopCount`人が対象になる。
+ */
+export function revealedEntries(batches: readonly RevealBatch[], step: number): readonly RankingEntry[] {
+  if (batches.length === 0) return [];
+  const restCount = batches.length - 1;
+  const restRevealed = batches.slice(0, Math.min(step + 1, restCount)).flatMap((batch) => batch.entries);
+  const topEntries = batches[restCount]!.entries;
+  const topRevealed = topEntries.slice(topEntries.length - revealedTopCount(batches, step));
+  return [...restRevealed, ...topRevealed];
+}
