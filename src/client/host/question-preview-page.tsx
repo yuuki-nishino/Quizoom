@@ -74,6 +74,7 @@ export function QuestionPreviewView({ eventId, eventTitle, theme, logoImageUrl, 
         logoImageUrl={logoImageUrl}
         backgroundImageUrl={backgroundImageUrl}
         fitViewport={step.fitViewport ?? false}
+        clip
       >
         {step.render()}
       </PreviewStageFrame>

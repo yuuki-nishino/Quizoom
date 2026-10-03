@@ -49,7 +49,8 @@ export function previewFrameConfig(group: WalkthroughStepGroup): PreviewFrameCon
     displayWidth,
     displayHeight: Math.round((displayWidth * referenceHeight) / referenceWidth),
     scale: displayWidth / referenceWidth,
-    frameClassName: "mx-auto mt-3 overflow-y-auto overflow-x-hidden rounded-[2rem] border-8 border-slate-800",
+    // 枠線(border-8)を幅・高さに含めない(box-content)。含めると内側が16px狭くなり、基準幅390pxの右端が切れる
+    frameClassName: "mx-auto mt-3 box-content overflow-y-auto overflow-x-hidden rounded-[2rem] border-8 border-slate-800",
   };
 }
 
@@ -60,6 +61,8 @@ export interface PreviewStageFrameProps {
   readonly backgroundImageUrl: string | null;
   /** 画面高に固定してテーマ領域を描画する(選択肢画像付きのフィットレイアウトを実画面と同じ条件で確認するため) */
   readonly fitViewport?: boolean;
+  /** 枠からはみ出した部分をスクロールではなく切り取る。収まりが保証されたフィットレイアウトの確認用 */
+  readonly clip?: boolean;
   readonly frameRef?: Ref<HTMLDivElement>;
   readonly children: ReactNode;
 }
@@ -70,10 +73,11 @@ export interface PreviewStageFrameProps {
  * どちらも実画面と同じ構成・同じ縦横比で表示され、見た目の乖離が構造的に発生しない。
  * 実際のサイズのまま縮小せずに枠へ収めると内容が見切れてしまうため、内側を基準サイズで描画して scale する（要件3.11, 3.12, 5.6）
  */
-export function PreviewStageFrame({ group, theme, logoImageUrl, backgroundImageUrl, fitViewport = false, frameRef, children }: PreviewStageFrameProps) {
+export function PreviewStageFrame({ group, theme, logoImageUrl, backgroundImageUrl, fitViewport = false, clip = false, frameRef, children }: PreviewStageFrameProps) {
   const frame = previewFrameConfig(group);
+  const frameClassName = clip ? frame.frameClassName.replace("overflow-y-auto overflow-x-hidden", "overflow-hidden") : frame.frameClassName;
   return (
-    <div ref={frameRef} className={frame.frameClassName} style={{ width: frame.displayWidth, height: frame.displayHeight }}>
+    <div ref={frameRef} className={frameClassName} style={{ width: frame.displayWidth, height: frame.displayHeight }}>
       <div style={{ width: frame.referenceWidth, height: frame.referenceHeight, transform: `scale(${frame.scale})`, transformOrigin: "top left" }}>
         <ThemeProvider theme={theme} templateId={theme.templateId} logoImageUrl={logoImageUrl} backgroundImageUrl={backgroundImageUrl} fitViewport={fitViewport}>
           {children}

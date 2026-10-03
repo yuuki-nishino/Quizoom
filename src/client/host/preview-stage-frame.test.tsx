@@ -46,4 +46,19 @@ describe("PreviewStageFrame", () => {
     expect(render("投影画面", { fitViewport: true })).toMatch(/class="[^"]*h-full[^"]*overflow-hidden/);
     expect(render("投影画面")).toContain("min-h-full");
   });
+
+  it("scrolls the frame by default, and clips instead when clip is set (the fit layout guarantees the content fits)", () => {
+    expect(render("投影画面")).toMatch(/class="[^"]*overflow-y-auto/);
+    const clipped = renderToStaticMarkup(
+      <PreviewStageFrame group="投影画面" theme={theme} logoImageUrl={null} backgroundImageUrl={null} clip>
+        <p>inner content</p>
+      </PreviewStageFrame>,
+    );
+    expect(clipped).toMatch(/class="[^"]*overflow-hidden/);
+    expect(clipped).not.toMatch(/class="mx-auto mt-3 [^"]*overflow-y-auto/);
+  });
+
+  it("keeps the phone frame's border out of its width, so the full 390px reference width is visible", () => {
+    expect(render("回答画面")).toMatch(/class="[^"]*box-content[^"]*border-8/);
+  });
 });
