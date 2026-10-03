@@ -79,6 +79,13 @@ export interface ThemeProviderProps {
   readonly backgroundImageUrl?: string | null;
   /** 選択中のデザインテンプレート。未指定時は既定テンプレート(standard)の装飾を適用する（要件4.3, 4.6） */
   readonly templateId?: DesignTemplateId | null;
+  /**
+   * 高さを親(ビューポート)の高さに固定し、内容が増えてもページ全体を伸ばさない。
+   * 既定は内容に応じて伸びる(min-h-full)。スクロールできない投影画面の「フィットレイアウト」
+   * (選択肢画像付きの出題・正解発表)が、収まらない分をページのスクロールではなく
+   * レイアウト内の縮小で吸収できるよう、必要な画面でのみ有効にする
+   */
+  readonly fitViewport?: boolean;
 }
 
 /**
@@ -86,7 +93,7 @@ export interface ThemeProviderProps {
  * `data-design-template` 属性を出力するのみで、装飾の実体(グラデーション・アニメーション)は styles.css 側の
  * 属性セレクタが持つ。子コンポーネントはテンプレートの存在を意識しない（design.md「装飾スロット + CSS属性セレクタ」）
  */
-export function ThemeProvider({ theme, children, logoImageUrl, backgroundImageUrl, templateId }: ThemeProviderProps): ReactElement {
+export function ThemeProvider({ theme, children, logoImageUrl, backgroundImageUrl, templateId, fitViewport = false }: ThemeProviderProps): ReactElement {
   const style = useMemo(() => {
     const base = themeToCssProperties(theme);
     if (!backgroundImageUrl) return base;
@@ -94,7 +101,11 @@ export function ThemeProvider({ theme, children, logoImageUrl, backgroundImageUr
   }, [theme, backgroundImageUrl]);
 
   return (
-    <div style={style} data-design-template={templateId ?? "standard"} className="relative flex min-h-full flex-col bg-brand-bg text-brand-text">
+    <div
+      style={style}
+      data-design-template={templateId ?? "standard"}
+      className={`relative flex flex-col bg-brand-bg text-brand-text ${fitViewport ? "h-full overflow-hidden [container-type:size]" : "min-h-full"}`}
+    >
       <div aria-hidden="true" className="quiz-motif-layer pointer-events-none absolute inset-0 z-0 overflow-hidden" />
       {/* ロゴは絶対配置でコンテンツに重ねず、専用の帯として通常のレイアウトに含める。
           これによりコンテンツ側(flex-1)は常にロゴの分だけ縮小され、空間的な重なりが起きない */}

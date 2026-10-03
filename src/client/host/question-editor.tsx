@@ -1,13 +1,20 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { AssetId, EventId, QuestionId } from "../../shared/domain-types";
 import type { EventDetail, HostApiClient, Question } from "./api-client";
-import { validateQuestionForm, resizeOptions, optionCountForFormat } from "./question-validation";
+import { validateQuestionForm, resizeOptions, optionCountForFormat, findEmptyOptionIndexes } from "./question-validation";
 import type { QuestionFormat, QuestionFormOption, QuestionValidationField } from "./question-validation";
 import { ConfirmDialog } from "./confirm-dialog";
+import { QuestionOptionFields } from "./question-option-fields";
+import { processChoiceImage } from "./choice-image-processor";
+import { formToPreviewDraft, newPreviewSessionKey, QuestionPreviewLauncher } from "./question-preview-launcher";
+import { isPreviewChannelSupported } from "./question-preview-channel";
+import { usePreviewDraftPublisher } from "./use-preview-draft-publisher";
+import { clearOptionImage, optionImageErrorMessage, prepareOptionImage, setOptionImage } from "./option-image-controller";
 
 const FIELD_LABELS: Record<QuestionValidationField, string> = {
   body: "問題文を入力してください",
   options: "選択肢は2〜4個で指定してください",
+  optionLabel: "選択肢のテキストを入力してください(画像を添付する場合も必須です)",
   correctOption: "正解をちょうど1つ選択してください",
   timeLimitSec: "制限時間は5〜300秒で指定してください",
 };
@@ -28,8 +35,8 @@ function emptyForm(): FormState {
     timeLimitSec: 30,
     format: "two",
     options: [
-      { label: "", isCorrect: false },
-      { label: "", isCorrect: false },
+      { label: "", isCorrect: false, imageAssetId: null },
+      { label: "", isCorrect: false, imageAssetId: null },
     ],
     imageAssetId: null,
   };
@@ -42,9 +49,14 @@ function formFromQuestion(question: Question): FormState {
     explanation: question.explanation,
     timeLimitSec: question.timeLimitSec,
     format,
-    options: question.options.map((o) => ({ label: o.label, isCorrect: o.isCorrect })),
+    options: question.options.map((o) => ({ label: o.label, isCorrect: o.isCorrect, imageAssetId: o.imageAssetId })),
     imageAssetId: question.imageAssetId,
   };
+}
+
+function omitKey(record: Readonly<Record<number, string>>, key: number): Readonly<Record<number, string>> {
+  const { [key]: _removed, ...rest } = record;
+  return rest;
 }
 
 export interface QuestionEditorProps {
@@ -63,20 +75,30 @@ export function QuestionEditor({ apiClient, eventId, event, onEventChange }: Que
   const [serverError, setServerError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Question | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [optionImageErrors, setOptionImageErrors] = useState<Readonly<Record<number, string>>>({});
+  const [uploadingOptionIndexes, setUploadingOptionIndexes] = useState<readonly number[]>([]);
+  // 編集フォームを開いている間だけ持つ。この識別子のプレビュータブへ、未保存の内容を公開する
+  const [previewSessionKey, setPreviewSessionKey] = useState<string | null>(null);
+  const previewDraft = useMemo(() => formToPreviewDraft(form), [form]);
+  usePreviewDraftPublisher(eventId, previewSessionKey, previewDraft);
 
   const questions = [...event.questions].sort((a, b) => a.orderIndex - b.orderIndex);
 
   function startNew() {
     setForm(emptyForm());
+    setOptionImageErrors({});
     setErrors([]);
     setServerError(null);
+    setPreviewSessionKey(newPreviewSessionKey());
     setEditingId("new");
   }
 
   function startEdit(question: Question) {
     setForm(formFromQuestion(question));
+    setOptionImageErrors({});
     setErrors([]);
     setServerError(null);
+    setPreviewSessionKey(newPreviewSessionKey());
     setEditingId(question.id);
   }
 
@@ -90,6 +112,28 @@ export function QuestionEditor({ apiClient, eventId, event, onEventChange }: Que
 
   function selectCorrectOption(index: number) {
     setForm((prev) => ({ ...prev, options: prev.options.map((o, i) => ({ ...o, isCorrect: i === index })) }));
+  }
+
+  /** 選択肢の画像を選んだら、4:3へ統一(加工)してからアップロードし、その選択肢に設定する。失敗時は画像を変更しない */
+  async function handleOptionImagePick(index: number, file: File | undefined) {
+    if (!file) return;
+    setOptionImageErrors((prev) => omitKey(prev, index));
+    setUploadingOptionIndexes((prev) => [...prev, index]);
+    const result = await prepareOptionImage(file, {
+      process: (f) => processChoiceImage(f),
+      upload: (f) => apiClient.uploadMedia(eventId, f),
+    });
+    setUploadingOptionIndexes((prev) => prev.filter((i) => i !== index));
+    if (result.ok) {
+      setForm((prev) => ({ ...prev, options: setOptionImage(prev.options, index, result.assetId) }));
+    } else {
+      setOptionImageErrors((prev) => ({ ...prev, [index]: optionImageErrorMessage(result.error) }));
+    }
+  }
+
+  function handleOptionImageRemove(index: number) {
+    setOptionImageErrors((prev) => omitKey(prev, index));
+    setForm((prev) => ({ ...prev, options: clearOptionImage(prev.options, index) }));
   }
 
   async function handleImageChange(file: File | undefined) {
@@ -129,6 +173,7 @@ export function QuestionEditor({ apiClient, eventId, event, onEventChange }: Que
       ? event.questions.map((q) => (q.id === questionId ? result.value : q))
       : [...event.questions, result.value];
     onEventChange({ ...event, questions: nextQuestions });
+    setPreviewSessionKey(null);
     setEditingId(null);
   }
 
@@ -262,20 +307,18 @@ export function QuestionEditor({ apiClient, eventId, event, onEventChange }: Que
 
           <fieldset>
             <legend className="text-sm font-medium text-slate-700">選択肢（正解を1つ選択）</legend>
-            <div className="mt-1 space-y-2">
-              {form.options.slice(0, optionCountForFormat(form.format)).map((option, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <input type="radio" name="correct-option" checked={option.isCorrect} onChange={() => selectCorrectOption(index)} />
-                  <input
-                    type="text"
-                    value={option.label}
-                    onChange={(e) => changeOptionLabel(index, e.target.value)}
-                    placeholder={`選択肢${index + 1}`}
-                    className={`${inputClass} mt-0 flex-1`}
-                  />
-                </div>
-              ))}
-            </div>
+            <QuestionOptionFields
+              eventId={eventId}
+              options={form.options.slice(0, optionCountForFormat(form.format))}
+              errors={optionImageErrors}
+              uploadingIndexes={uploadingOptionIndexes}
+              emptyLabelIndexes={errors.includes("optionLabel") ? findEmptyOptionIndexes(form.options.slice(0, optionCountForFormat(form.format))) : []}
+              disabled={readOnly}
+              onLabelChange={changeOptionLabel}
+              onSelectCorrect={selectCorrectOption}
+              onPickImage={handleOptionImagePick}
+              onRemoveImage={handleOptionImageRemove}
+            />
           </fieldset>
           {errors.includes("options") && <p role="alert" className={fieldErrorClass}>{FIELD_LABELS.options}</p>}
           {errors.includes("correctOption") && <p role="alert" className={fieldErrorClass}>{FIELD_LABELS.correctOption}</p>}
@@ -305,9 +348,19 @@ export function QuestionEditor({ apiClient, eventId, event, onEventChange }: Que
             <button type="submit" className="rounded-md bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700">
               保存する
             </button>
-            <button type="button" onClick={() => setEditingId(null)} className={secondaryButtonClass}>
+            <button
+              type="button"
+              onClick={() => {
+                setPreviewSessionKey(null);
+                setEditingId(null);
+              }}
+              className={secondaryButtonClass}
+            >
               キャンセル
             </button>
+            {previewSessionKey !== null && (
+              <QuestionPreviewLauncher eventId={eventId} sessionKey={previewSessionKey} supported={isPreviewChannelSupported()} />
+            )}
           </div>
         </form>
       )}

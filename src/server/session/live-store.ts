@@ -5,6 +5,7 @@ import type {
   EventMeta,
   JoinRejection,
   LivePhase,
+  OptionSnapshot,
   Participant,
   ParticipantId,
   QuestionId,
@@ -80,6 +81,20 @@ CREATE TABLE IF NOT EXISTS answer (
 );
 `;
 
+/**
+ * 凍結済みスナップショットのJSONを読み出す。選択肢画像(imageAssetId)の追加前に凍結された
+ * 開催中の古いスナップショットには選択肢の imageAssetId が存在しないため、null(画像なし)へ正規化する。
+ */
+function parseQuestionSnapshot(json: string): QuestionSnapshot[] {
+  const raw = JSON.parse(json) as (Omit<QuestionSnapshot, "options"> & {
+    options: (Omit<OptionSnapshot, "imageAssetId"> & { imageAssetId?: OptionSnapshot["imageAssetId"] })[];
+  })[];
+  return raw.map((question) => ({
+    ...question,
+    options: question.options.map((option) => ({ ...option, imageAssetId: option.imageAssetId ?? null })),
+  }));
+}
+
 export function createLiveStore(sql: SqlStorage): LiveStore {
   sql.exec(SCHEMA);
 
@@ -90,7 +105,7 @@ export function createLiveStore(sql: SqlStorage): LiveStore {
       return {
         phase: JSON.parse(row.phase_json) as LivePhase,
         eventMeta: JSON.parse(row.event_meta_json) as EventMeta,
-        questions: row.question_snapshot_json ? (JSON.parse(row.question_snapshot_json) as QuestionSnapshot[]) : null,
+        questions: row.question_snapshot_json ? parseQuestionSnapshot(row.question_snapshot_json) : null,
         startedAt: row.started_at,
         finalRevealStep: row.final_reveal_step,
       };

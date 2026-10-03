@@ -19,8 +19,8 @@ function question(id: string, orderIndex: number, correctOptionId: string): Ques
     timeLimitSec: 30,
     explanation: "",
     options: [
-      { id: "a" as OptionId, label: "A", orderIndex: 0 },
-      { id: "b" as OptionId, label: "B", orderIndex: 1 },
+      { id: "a" as OptionId, label: "A", orderIndex: 0, imageAssetId: null },
+      { id: "b" as OptionId, label: "B", orderIndex: 1, imageAssetId: null },
     ],
     correctOptionId: correctOptionId as OptionId,
   };

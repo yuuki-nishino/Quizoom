@@ -6,7 +6,8 @@ export type HostRoute =
   | { readonly view: "preflight"; readonly eventId: EventId }
   | { readonly view: "live"; readonly eventId: EventId }
   | { readonly view: "invite"; readonly token: string }
-  | { readonly view: "theme-preview"; readonly eventId: EventId };
+  | { readonly view: "theme-preview"; readonly eventId: EventId }
+  | { readonly view: "question-preview"; readonly eventId: EventId; readonly sessionKey: string };
 
 /** `/host` 以下のパス名をホストコンソールの画面状態へ変換する純粋関数 */
 export function parseHostRoute(pathname: string): HostRoute {
@@ -27,6 +28,7 @@ export function parseHostRoute(pathname: string): HostRoute {
   if (sub === "live") return { view: "live", eventId };
   if (sub === "preflight") return { view: "preflight", eventId };
   if (sub === "theme-preview") return { view: "theme-preview", eventId };
+  if (sub === "question-preview" && segments[4]) return { view: "question-preview", eventId, sessionKey: segments[4] };
   if (sub === "theme" || sub === "publish" || sub === "results" || sub === "collaborators") return { view: "editor", eventId, tab: sub };
   return { view: "editor", eventId, tab: "questions" };
 }
@@ -45,5 +47,7 @@ export function hostRoutePath(route: HostRoute): string {
       return `/host/invite/${route.token}`;
     case "theme-preview":
       return `/host/events/${route.eventId}/theme-preview`;
+    case "question-preview":
+      return `/host/events/${route.eventId}/question-preview/${route.sessionKey}`;
   }
 }

@@ -62,6 +62,8 @@ export interface OptionSnapshot {
   readonly id: OptionId;
   readonly label: string;
   readonly orderIndex: number;
+  /** 選択肢に添付された画像。画像のない選択肢は null */
+  readonly imageAssetId: AssetId | null;
 }
 
 export interface QuestionSnapshot {

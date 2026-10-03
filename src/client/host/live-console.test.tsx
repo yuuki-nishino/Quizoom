@@ -10,8 +10,8 @@ const question: QuestionPublicView = {
   body: "日本の首都は？",
   imageAssetId: null,
   options: [
-    { id: "3f2b0c1e-9a44-4d3e-8b7a-1c2d3e4f5a6b" as OptionId, label: "東京", orderIndex: 0 },
-    { id: "7c9d8e5a-2b31-4f60-9c8d-0a1b2c3d4e5f" as OptionId, label: "大阪", orderIndex: 1 },
+    { id: "3f2b0c1e-9a44-4d3e-8b7a-1c2d3e4f5a6b" as OptionId, label: "東京", orderIndex: 0, imageAssetId: null },
+    { id: "7c9d8e5a-2b31-4f60-9c8d-0a1b2c3d4e5f" as OptionId, label: "大阪", orderIndex: 1, imageAssetId: null },
   ],
 };
 

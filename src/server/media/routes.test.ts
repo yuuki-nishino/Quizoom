@@ -285,3 +285,121 @@ describe("GET /api/events/:id/media/:assetId", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("option image delivery (Issue #36)", () => {
+  function jpegFile(bytes = 2048): File {
+    return new File([new Uint8Array(bytes)], "option.jpg", { type: "image/jpeg" });
+  }
+
+  async function upload(cookie: string, eventId: string, file: File): Promise<Response> {
+    const form = new FormData();
+    form.set("file", file);
+    return SELF.fetch(`https://example.com/api/events/${eventId}/media`, { method: "POST", headers: { Cookie: cookie }, body: form });
+  }
+
+  async function saveQuestionWithOptionImages(cookie: string, eventId: string, imageIds: readonly (string | null)[]) {
+    const res = await SELF.fetch(`https://example.com/api/events/${eventId}/questions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({
+        body: "どれ？",
+        timeLimitSec: 30,
+        options: imageIds.map((imageAssetId, i) => ({ label: `選択肢${i + 1}`, isCorrect: i === 0, imageAssetId })),
+      }),
+    });
+    expect(res.status).toBe(201);
+    return res.json<{ id: string; options: { imageAssetId: string | null }[] }>();
+  }
+
+  async function publish(cookie: string, eventId: string): Promise<string> {
+    const res = await SELF.fetch(`https://example.com/api/events/${eventId}/publish`, { method: "POST", headers: { Cookie: cookie } });
+    return (await res.json<{ stageToken: string }>()).stageToken;
+  }
+
+  it("accepts a processed JPEG option image through the existing upload validation", async () => {
+    const cookie = await hostCookie();
+    const created = await createEventAs(cookie);
+    const res = await upload(cookie, created.id, jpegFile());
+    expect(res.status).toBe(201);
+  });
+
+  it("rejects an option image over the existing size limit with 413 and an unsupported type with 413", async () => {
+    const cookie = await hostCookie();
+    const created = await createEventAs(cookie);
+    expect((await upload(cookie, created.id, jpegFile(6 * 1024 * 1024))).status).toBe(413);
+    const gif = new File([new Uint8Array(16)], "a.gif", { type: "image/gif" });
+    expect((await upload(cookie, created.id, gif)).status).toBe(413);
+  });
+
+  it("serves a saved option image to the owning host, the stage token and a participant token, and denies others", async () => {
+    const cookie = await hostCookie();
+    const created = await createEventAs(cookie);
+    const a = (await (await upload(cookie, created.id, jpegFile())).json<{ assetId: string }>()).assetId;
+    const b = (await (await upload(cookie, created.id, jpegFile())).json<{ assetId: string }>()).assetId;
+    const question = await saveQuestionWithOptionImages(cookie, created.id, [a, b]);
+    expect(question.options.map((o) => o.imageAssetId)).toEqual([a, b]);
+    const stageToken = await publish(cookie, created.id);
+
+    const hostRes = await SELF.fetch(`https://example.com/api/events/${created.id}/media/${a}`, { headers: { Cookie: cookie } });
+    expect(hostRes.status).toBe(200);
+    expect(hostRes.headers.get("Content-Type")).toBe("image/jpeg");
+    await hostRes.arrayBuffer();
+
+    const stageRes = await SELF.fetch(`https://example.com/api/events/${created.id}/media/${b}?token=${stageToken}`);
+    expect(stageRes.status).toBe(200);
+    await stageRes.arrayBuffer();
+
+    const participantToken = await createParticipantTokenService(env).issue({
+      eventId: created.id as EventId,
+      participantId: "p1" as ParticipantId,
+      issuedAt: Date.now(),
+    });
+    const participantRes = await SELF.fetch(`https://example.com/api/events/${created.id}/media/${a}?token=${participantToken}`);
+    expect(participantRes.status).toBe(200);
+    await participantRes.arrayBuffer();
+
+    expect((await SELF.fetch(`https://example.com/api/events/${created.id}/media/${a}`)).status).toBe(401);
+    expect((await SELF.fetch(`https://example.com/api/events/${created.id}/media/${a}?token=wrong`)).status).toBe(403);
+  });
+
+  it("does not serve an option image of one event to another event's stage token", async () => {
+    const cookie = await hostCookie();
+    const first = await createEventAs(cookie);
+    const second = await createEventAs(cookie);
+    const assetId = (await (await upload(cookie, first.id, jpegFile())).json<{ assetId: string }>()).assetId;
+    await saveQuestionWithOptionImages(cookie, first.id, [assetId, null]);
+    await saveQuestionWithOptionImages(cookie, second.id, [null, null]);
+    const secondStageToken = await publish(cookie, second.id);
+
+    const res = await SELF.fetch(`https://example.com/api/events/${second.id}/media/${assetId}?token=${secondStageToken}`);
+    expect(res.status).toBe(404);
+    await res.arrayBuffer();
+    const crossRes = await SELF.fetch(`https://example.com/api/events/${first.id}/media/${assetId}?token=${secondStageToken}`);
+    expect(crossRes.status).toBe(403);
+  });
+
+  it("stops referencing a replaced or removed option image after the question is re-saved", async () => {
+    const cookie = await hostCookie();
+    const created = await createEventAs(cookie);
+    const a = (await (await upload(cookie, created.id, jpegFile())).json<{ assetId: string }>()).assetId;
+    const b = (await (await upload(cookie, created.id, jpegFile())).json<{ assetId: string }>()).assetId;
+    const question = await saveQuestionWithOptionImages(cookie, created.id, [a, b]);
+
+    const put = await SELF.fetch(`https://example.com/api/events/${created.id}/questions/${question.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({
+        body: "どれ？",
+        timeLimitSec: 30,
+        options: [
+          { label: "選択肢1", isCorrect: true, imageAssetId: b },
+          { label: "選択肢2", isCorrect: false, imageAssetId: null },
+        ],
+      }),
+    });
+    expect(put.status).toBe(200);
+    const updated = await put.json<{ options: { imageAssetId: string | null }[] }>();
+    expect(updated.options.map((o) => o.imageAssetId)).toEqual([b, null]);
+    expect(updated.options.some((o) => o.imageAssetId === a)).toBe(false);
+  });
+});

@@ -12,8 +12,8 @@ const question: QuestionPublicView = {
   body: "日本の首都は？",
   imageAssetId: null,
   options: [
-    { id: "o1" as OptionId, label: "大阪", orderIndex: 0 },
-    { id: "o2" as OptionId, label: "東京", orderIndex: 1 },
+    { id: "o1" as OptionId, label: "大阪", orderIndex: 0, imageAssetId: null },
+    { id: "o2" as OptionId, label: "東京", orderIndex: 1, imageAssetId: null },
   ],
 };
 
