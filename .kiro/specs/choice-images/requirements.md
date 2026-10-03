@@ -23,5 +23,112 @@
 - 選択肢画像の保存方法(D1のマイグレーション、`OptionSnapshot`の拡張)と、メディア配信の認可の再利用
 - プレビューへの未保存内容の受け渡し方式(タブ間通信)と、編集中の変更の反映方法
 
+## Introduction
+
+本仕様は、既存のライブクイズアプリ(`live-quiz-app`)の設問に「選択肢ごとの画像」を追加する。主催者は各選択肢に画像を添付でき、投影画面では選択肢の数だけ画像を表示し、正解発表画面では正解の画像が分かるようにする。画像はアップロード時に自動で寸法・縮尺が揃えられ、主催者は設問単位のプレビューで、未保存の編集内容を含めた見え方を実際の投影画面と同じ表示で確認できる。
+
+## Boundary Context
+
+- **In scope**:
+  - 選択肢ごとの画像の添付・差し替え・削除(画像とテキストの併用、テキスト任意)
+  - アップロード時の自動リサイズと中央トリミングによる画像の統一
+  - 投影画面の設問表示・正解発表画面での選択肢画像の表示と、スクロールなしで画面に収まること
+  - 設問単位の投影画面プレビュー(新しいタブ、未保存の編集内容の反映、実際の投影画面と同じ表示)
+  - 文言のみの既存設問の後方互換
+  - 選択肢画像の配信に対するアクセス制御
+- **Out of scope**:
+  - 参加者画面(スマホ)への選択肢画像の表示と、そのプレビュー(投影画面のデザインを確認したうえで別途判断し、判断結果をIssue #36にコメントで残す。表示すると決まった場合は本仕様の拡張または別仕様で扱う)
+  - トリミング位置を手動で調整するUI
+  - 画像のほか動画・音声など他のメディアの添付
+  - 2択・4択以外の選択肢数への対応
+  - 結果共有ページへの選択肢画像の表示
+- **Adjacent expectations**:
+  - 既存の設問画像(1枚添付)の仕様と動作は変更せず、選択肢画像と併用できる
+  - 既存のメディア保存(R2)・配信(主催者セッション/参加者トークン/投影トークンによる認可)・形式とサイズ上限の検証を再利用する
+  - 既存のテーマプレビュー(全設問を通しで確認)は引き続き動作し、本仕様の設問単位プレビューとは別の入口として共存する
+  - 既存の採点・フェーズ遷移・3画面同期の仕様には影響を与えない
+
 ## Requirements
-<!-- Will be generated in /kiro-spec-requirements phase -->
+
+### Requirement 1: 選択肢への画像添付
+**Objective:** As a 主催者, I want 各選択肢に画像を添付したい, so that 文言だけでは伝わりにくい選択肢を視覚的に出題できる
+
+#### Acceptance Criteria
+1. The Quiz Management Service shall 設問の各選択肢に対して、画像を1枚添付できるようにする。
+2. Where 選択肢に画像が添付されている, the Quiz Management Service shall その選択肢のテキストを任意とし、画像のみの選択肢を許可する。
+3. Where 選択肢に画像が添付されている, the Quiz Management Service shall 画像とテキストの併用を許可する。
+4. If 選択肢に画像もテキストも設定されていない, then the Quiz Management Service shall 当該設問を保存せず、どの選択肢が未設定かを主催者に示す。
+5. When 主催者が選択肢の添付画像を差し替えた, the Quiz Management Service shall 当該選択肢の画像を新しい画像へ置き換える。
+6. When 主催者が選択肢の添付画像を削除した, the Quiz Management Service shall 当該選択肢を画像なしの状態にする。
+7. The Quiz Management Service shall 設問画像と選択肢画像を同じ設問に併用できるようにする。
+8. The Quiz Management Service shall 2択・4択のいずれの設問形式でも、選択肢画像を添付できるようにする。
+9. While 設問に選択肢画像が添付されている, the Quiz Management Service shall 設問の選択肢数の変更(2択と4択の切替)を行った後も、残る選択肢の画像を保持する。
+
+### Requirement 2: 画像の自動リサイズと統一
+**Objective:** As a 主催者, I want 添付した画像の寸法や縮尺が自動で揃ってほしい, so that 画像のサイズを意識せずに、見た目の揃った選択肢を作れる
+
+#### Acceptance Criteria
+1. When 主催者が選択肢の画像を選択した, the Host Console shall 画像を固定のアスペクト比へ中央トリミングし、長辺を定められた上限寸法以下に縮小したうえでアップロードする。
+2. The Host Console shall 元画像の縦横比やサイズにかかわらず、すべての選択肢画像を同一のアスペクト比に統一する。
+3. The Host Console shall トリミング位置を主催者が手動で調整することを要求しない。
+4. When 主催者が選択肢の画像を選択した, the Host Console shall アップロード前に、加工後の画像を選択した選択肢の位置で確認できるようにする。
+5. If 選択された画像が許可された形式(jpeg・png・webp)でない, then the Host Console shall 画像を取り込まず、許可される形式を主催者に示す。
+6. If 選択された画像を読み込めない、または加工に失敗した, then the Host Console shall その旨を主催者に示し、当該選択肢の画像を変更しない。
+7. If 加工後の画像が既存のサイズ上限を超える, then the Quiz Management Service shall アップロードを拒否し、その旨を主催者に示す。
+8. The Quiz Management Service shall 選択肢画像の保存・配信に、設問画像と同じ形式とサイズ上限の検証を適用する。
+
+### Requirement 3: 投影画面での選択肢画像の表示
+**Objective:** As a 会場の参加者全員, I want 投影画面で選択肢の画像を一目で見たい, so that 画像を見比べながら回答を選べる
+
+#### Acceptance Criteria
+1. While 選択肢画像を持つ設問が出題中である, the Presentation Screen shall 選択肢の数と同じ数の画像を、各選択肢に対応づけて表示する。
+2. While 選択肢画像を持つ設問が出題中である, the Presentation Screen shall 設問文・設問画像・選択肢画像・カウントダウン・回答状況を、スクロールなしで画面内にすべて表示する。
+3. The Presentation Screen shall 2択・4択のいずれの設問形式でも、2.の表示が画面からはみ出さないようにする。
+4. Where 設問に設問画像と選択肢画像の両方がある, the Presentation Screen shall 両方を同時に、画面からはみ出さずに表示する。
+5. Where 選択肢にテキストと画像の両方がある, the Presentation Screen shall 画像とテキストを同じ選択肢として対応づけて表示する。
+6. Where 選択肢に画像がなくテキストのみである, the Presentation Screen shall 従来と同じ文言のみの表示で選択肢を表示する。
+7. Where 設問内に画像のある選択肢と画像のない選択肢が混在する, the Presentation Screen shall すべての選択肢を、画面からはみ出さずに表示する。
+8. While 選択肢画像の読み込み中である, the Presentation Screen shall 表示レイアウトを崩さないように、画像の領域を確保する。
+9. If 選択肢画像の読み込みに失敗した, then the Presentation Screen shall 当該選択肢のテキストがあればそれを表示し、表示全体のレイアウトを維持する。
+
+### Requirement 4: 正解発表画面での選択肢画像の表示
+**Objective:** As a 会場の参加者全員, I want 正解発表で正解の画像を見たい, so that どの選択肢が正解だったかを視覚的に確認できる
+
+#### Acceptance Criteria
+1. When 正解が発表された, the Presentation Screen shall 正解の選択肢を画像とともに、他の選択肢と区別できる形で表示する。
+2. Where 正解の選択肢に画像が添付されている, the Presentation Screen shall 正解の画像を表示する。
+3. When 正解が発表された, the Presentation Screen shall 各選択肢の回答数・割合の内訳を、選択肢画像の表示と両立させて表示する。
+4. The Presentation Screen shall 正解発表の表示を、スクロールなしで画面内に収める。
+5. Where 正解の選択肢に画像がなくテキストのみである, the Presentation Screen shall 従来と同じ正解発表の表示を行う。
+
+### Requirement 5: 設問単位のプレビュー
+**Objective:** As a 主催者, I want 編集中の設問だけを実際の投影画面と同じ見た目で確認したい, so that 保存や開催前の通し確認をしなくても、画像が収まるかを確かめられる
+
+#### Acceptance Criteria
+1. When 主催者が設問編集画面でプレビューを開く操作を行った, the Host Console shall その設問だけの投影画面プレビューを新しいタブで開く。
+2. When プレビューが開かれた, the Host Console shall 保存済みでない編集内容(設問文・選択肢のテキストと画像・正解・設問画像)をプレビューに反映する。
+3. While プレビューのタブが開いている, when 主催者が編集画面で内容を変更した, the Host Console shall 変更をプレビューに反映し、プレビューを開き直す操作を要求しない。
+4. The Host Console shall プレビューで、出題中の表示と正解発表の表示の両方を切り替えて確認できるようにする。
+5. The Host Console shall プレビューを、実際の投影画面と同じ表示コンポーネントとイベントの外観(配色・ロゴ・背景)で表示する。
+6. The Host Console shall プレビューを、実際の投影画面と同じ縦横比の表示領域で表示し、ブラウザのウィンドウサイズによって画面への収まり具合の見え方が変わらないようにする。
+7. The Host Console shall プレビューの内容を保存済みの設問データとして保存しない。
+8. If 編集画面のタブが閉じられた、またはプレビューが編集内容を取得できない, then the Host Console shall プレビューにその旨を示し、誤った内容を表示しない。
+9. The Host Console shall 既存のテーマプレビュー(全設問の通し確認)を従来どおり利用できるようにする。
+
+### Requirement 6: 後方互換性
+**Objective:** As a 主催者, I want 既に作成した設問や進行中の運用が影響を受けないようにしたい, so that この機能の追加後も既存のイベントを安心して使える
+
+#### Acceptance Criteria
+1. The Quiz Management Service shall 選択肢画像を持たない既存の設問を、変更なしで編集・出題・正解発表できるようにする。
+2. The Quiz Management Service shall 既存のイベントのデータを、データ移行後も欠損なく保持する。
+3. The Quiz Management Service shall 選択肢画像の有無にかかわらず、採点・フェーズ遷移・ランキングの結果が変わらないようにする。
+4. The Quiz Management Service shall 選択肢画像を持つ設問を含むイベントを、結果アーカイブ・開催中の設問スナップショットで欠損なく扱う。
+
+### Requirement 7: 選択肢画像の配信とアクセス制御
+**Objective:** As a 主催者, I want 選択肢画像を既存の画像と同じ安全性で配信したい, so that 画像が権限のない第三者に公開されない
+
+#### Acceptance Criteria
+1. The Media Service shall 選択肢画像を公開バケットとして配信せず、既存の設問画像と同じ認可(主催者のセッション、参加者トークン、投影トークン)を経由して配信する。
+2. If 認可を持たない要求が選択肢画像の取得を試みた, then the Media Service shall 画像を返さず、既存のメディア配信と同じエラーで応答する。
+3. The Media Service shall 選択肢画像を、当該イベントに属する要求に対してのみ配信する。
+4. When 選択肢画像が差し替えまたは削除された, the Quiz Management Service shall 参照されなくなった画像が以後の出題・配信で使われないようにする。
