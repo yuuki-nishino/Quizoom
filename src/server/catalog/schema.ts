@@ -23,9 +23,11 @@ export const updateEventRequestSchema = z.object({
 });
 export type UpdateEventRequest = z.infer<typeof updateEventRequestSchema>;
 
+// 選択肢のテキストは画像の有無にかかわらず必須(画像のみの選択肢は許可しない)
 export const questionOptionInputSchema = z.object({
   label: z.string().min(1),
   isCorrect: z.boolean(),
+  imageAssetId: assetId().nullable().optional(),
 });
 
 export const questionRequestSchema = z.object({

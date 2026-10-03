@@ -40,8 +40,8 @@ function question(id: string): QuestionSnapshot {
     timeLimitSec: 30,
     explanation: "explanation",
     options: [
-      { id: "a" as OptionId, label: "A", orderIndex: 0 },
-      { id: "b" as OptionId, label: "B", orderIndex: 1 },
+      { id: "a" as OptionId, label: "A", orderIndex: 0, imageAssetId: null },
+      { id: "b" as OptionId, label: "B", orderIndex: 1, imageAssetId: null },
     ],
     correctOptionId: "a" as OptionId,
   };
@@ -246,5 +246,57 @@ describe("LiveStore.recordAnswer / listAnswers / listAllAnswers / discardAnswers
     });
 
     expect(result).toHaveLength(0);
+  });
+});
+
+describe("LiveStore.load: option images in the frozen snapshot (Issue #36)", () => {
+  it("normalizes a legacy frozen snapshot without option imageAssetId to null", async () => {
+    const stub = newStub();
+    const legacy = [
+      {
+        id: "q1",
+        orderIndex: 0,
+        body: "legacy",
+        imageAssetId: null,
+        timeLimitSec: 30,
+        explanation: "",
+        // デプロイ前に凍結された古い形式: 選択肢に imageAssetId が存在しない
+        options: [
+          { id: "a", label: "A", orderIndex: 0 },
+          { id: "b", label: "B", orderIndex: 1 },
+        ],
+        correctOptionId: "a",
+      },
+    ];
+
+    const loaded = await runInDurableObject(stub, (_instance, state) => {
+      const store = createLiveStore(state.storage.sql);
+      store.initialize(meta);
+      state.storage.sql.exec("UPDATE session_state SET question_snapshot_json = ?, started_at = ? WHERE id = 1", JSON.stringify(legacy), 1000);
+      return store.load();
+    });
+
+    expect(loaded?.questions?.[0]?.options.map((o) => o.imageAssetId)).toEqual([null, null]);
+    expect(loaded?.questions?.[0]?.options.map((o) => o.label)).toEqual(["A", "B"]);
+  });
+
+  it("keeps option images of a snapshot frozen in the new format", async () => {
+    const stub = newStub();
+    const withImages: QuestionSnapshot = {
+      ...question("q-img"),
+      options: [
+        { id: "a" as OptionId, label: "A", orderIndex: 0, imageAssetId: "img-a" as AssetId },
+        { id: "b" as OptionId, label: "B", orderIndex: 1, imageAssetId: null },
+      ],
+    };
+
+    const loaded = await runInDurableObject(stub, (_instance, state) => {
+      const store = createLiveStore(state.storage.sql);
+      store.initialize(meta);
+      store.freezeQuestionSnapshot([withImages], 1000);
+      return store.load();
+    });
+
+    expect(loaded?.questions).toEqual([withImages]);
   });
 });

@@ -20,12 +20,16 @@ function mapQuestionToPreview(eventId: EventId, question: Question): PreviewQues
     orderIndex: question.orderIndex,
     body: question.body,
     imageAssetId: question.imageAssetId,
-    options: question.options.map(({ id, label, orderIndex }) => ({ id, label, orderIndex })),
+    options: question.options.map(({ id, label, orderIndex, imageAssetId }) => ({ id, label, orderIndex, imageAssetId })),
   };
   const correctOptionId: OptionId = question.options.find((o) => o.isCorrect)?.id ?? question.options[0]!.id;
   const imageUrl = question.imageAssetId ? hostMediaUrl(eventId, question.imageAssetId) : null;
 
-  return { question: publicView, correctOptionId, imageUrl };
+  const optionImageUrls = Object.fromEntries(
+    question.options.flatMap((option) => (option.imageAssetId ? [[option.id, hostMediaUrl(eventId, option.imageAssetId)] as const] : [])),
+  );
+
+  return { question: publicView, correctOptionId, imageUrl, optionImageUrls };
 }
 
 export function toPreviewQuestion(eventId: EventId, event: EventDetail): PreviewQuestion | null {

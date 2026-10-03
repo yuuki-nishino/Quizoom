@@ -41,6 +41,14 @@ describe("parseHostRoute", () => {
     expect(parseHostRoute("/host/invite")).toEqual({ view: "list" });
   });
 
+  it("parses /host/events/:id/question-preview/:sessionKey as the question-preview view (Issue #36)", () => {
+    expect(parseHostRoute("/host/events/e1/question-preview/s-123")).toEqual({ view: "question-preview", eventId: "e1", sessionKey: "s-123" });
+  });
+
+  it("falls back to the editor when the question-preview path has no session key", () => {
+    expect(parseHostRoute("/host/events/e1/question-preview")).toEqual({ view: "editor", eventId: "e1", tab: "questions" });
+  });
+
   it("parses /host/events/:id/theme-preview as the theme-preview view", () => {
     expect(parseHostRoute("/host/events/e1/theme-preview")).toEqual({ view: "theme-preview", eventId: "e1" });
   });
@@ -59,6 +67,7 @@ describe("hostRoutePath", () => {
       { view: "preflight", eventId: "e1" as EventId },
       { view: "invite", token: "tok-123" },
       { view: "theme-preview", eventId: "e1" as EventId },
+      { view: "question-preview", eventId: "e1" as EventId, sessionKey: "s-123" },
     ];
 
     for (const route of routes) {

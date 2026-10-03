@@ -38,6 +38,8 @@ export interface QuestionOption {
   readonly label: string;
   readonly isCorrect: boolean;
   readonly orderIndex: number;
+  /** 選択肢に添付された画像。画像のない選択肢は null */
+  readonly imageAssetId: AssetId | null;
 }
 
 export interface Question {
@@ -80,6 +82,7 @@ export interface UpdateEventInput {
 export interface QuestionOptionInput {
   readonly label: string;
   readonly isCorrect: boolean;
+  readonly imageAssetId?: AssetId | null;
 }
 
 export interface QuestionInput {
@@ -134,6 +137,7 @@ interface OptionRow {
   readonly label: string;
   readonly is_correct: number;
   readonly order_index: number;
+  readonly image_asset_id: string | null;
 }
 
 interface ThemeRow {
@@ -167,7 +171,7 @@ async function loadQuestions(env: Env, eventId: EventId): Promise<readonly Quest
     .all<QuestionRow>();
 
   const { results: optionRows } = await env.DB.prepare(
-    "SELECT o.id, o.question_id, o.label, o.is_correct, o.order_index FROM option o JOIN question q ON q.id = o.question_id WHERE q.event_id = ? ORDER BY o.order_index",
+    "SELECT o.id, o.question_id, o.label, o.is_correct, o.order_index, o.image_asset_id FROM option o JOIN question q ON q.id = o.question_id WHERE q.event_id = ? ORDER BY o.order_index",
   )
     .bind(eventId)
     .all<OptionRow>();
@@ -186,6 +190,7 @@ async function loadQuestions(env: Env, eventId: EventId): Promise<readonly Quest
         label: o.label,
         isCorrect: o.is_correct === 1,
         orderIndex: o.order_index,
+        imageAssetId: (o.image_asset_id as AssetId | null) ?? null,
       })),
   }));
 }
@@ -201,7 +206,12 @@ export async function loadQuestionSnapshot(env: Env, eventId: EventId): Promise<
       imageAssetId: question.imageAssetId,
       timeLimitSec: question.timeLimitSec,
       explanation: question.explanation,
-      options: question.options.map((option) => ({ id: option.id, label: option.label, orderIndex: option.orderIndex })),
+      options: question.options.map((option) => ({
+        id: option.id,
+        label: option.label,
+        orderIndex: option.orderIndex,
+        imageAssetId: option.imageAssetId,
+      })),
       correctOptionId: correctOption.id,
     };
   });
@@ -378,8 +388,8 @@ export async function duplicateEvent(env: Env, eventId: EventId, ownerId: string
     for (const option of question.options) {
       statements.push(
         env.DB.prepare(
-          "INSERT INTO option (id, question_id, label, is_correct, order_index) VALUES (?, ?, ?, ?, ?)",
-        ).bind(newId(), newQuestionId, option.label, option.isCorrect ? 1 : 0, option.orderIndex),
+          "INSERT INTO option (id, question_id, label, is_correct, order_index, image_asset_id) VALUES (?, ?, ?, ?, ?, ?)",
+        ).bind(newId(), newQuestionId, option.label, option.isCorrect ? 1 : 0, option.orderIndex, option.imageAssetId),
       );
     }
   }
@@ -472,13 +482,9 @@ export async function upsertQuestion(
   ];
   input.options.forEach((option, index) => {
     statements.push(
-      env.DB.prepare("INSERT INTO option (id, question_id, label, is_correct, order_index) VALUES (?, ?, ?, ?, ?)").bind(
-        newId(),
-        questionId,
-        option.label,
-        option.isCorrect ? 1 : 0,
-        index,
-      ),
+      env.DB.prepare(
+        "INSERT INTO option (id, question_id, label, is_correct, order_index, image_asset_id) VALUES (?, ?, ?, ?, ?, ?)",
+      ).bind(newId(), questionId, option.label, option.isCorrect ? 1 : 0, index, option.imageAssetId ?? null),
     );
   });
 

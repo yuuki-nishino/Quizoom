@@ -1,10 +1,12 @@
-import type { OptionId } from "../../shared/domain-types";
+import type { AssetId, OptionId } from "../../shared/domain-types";
 import type { QuestionClosedPayload, QuestionPublicView } from "../../shared/protocol";
 
 export interface OptionBreakdownRow {
   readonly optionId: OptionId;
   /** 選択肢の文言。question が null のときは「選択肢N」の代替ラベル */
   readonly label: string;
+  /** 選択肢に添付された画像。画像のない選択肢、または question が null のときは null */
+  readonly imageAssetId: AssetId | null;
   readonly count: number;
   /** 回答総数に対する整数パーセント。回答総数が0のときは0 */
   readonly pct: number;
@@ -33,6 +35,7 @@ export function buildOptionBreakdown(question: QuestionPublicView | null, closed
     return closed.distribution.map((d, index) => ({
       optionId: d.optionId,
       label: `選択肢${index + 1}`,
+      imageAssetId: null,
       count: d.count,
       pct: toPct(d.count),
       isCorrect: isCorrect(d.optionId),
@@ -47,6 +50,7 @@ export function buildOptionBreakdown(question: QuestionPublicView | null, closed
       return {
         optionId: option.id,
         label: option.label,
+        imageAssetId: option.imageAssetId,
         count,
         pct: toPct(count),
         isCorrect: isCorrect(option.id),

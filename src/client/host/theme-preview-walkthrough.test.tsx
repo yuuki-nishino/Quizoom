@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ThemePreviewWalkthrough, previewFrameConfig, resolveActiveQuestion } from "./theme-preview-walkthrough";
+import { ThemePreviewWalkthrough, buildWalkthroughSteps, previewFrameConfig, resolveActiveQuestion } from "./theme-preview-walkthrough";
 import type { OptionId, QuestionId, ThemeSettings } from "../../shared/domain-types";
 
 function theme(overrides: Partial<ThemeSettings> = {}): ThemeSettings {
@@ -95,8 +95,8 @@ describe("ThemePreviewWalkthrough", () => {
               body: "自作の設問",
               imageAssetId: null,
               options: [
-                { id: "o1" as OptionId, label: "A", orderIndex: 0 },
-                { id: "o2" as OptionId, label: "B", orderIndex: 1 },
+                { id: "o1" as OptionId, label: "A", orderIndex: 0, imageAssetId: null },
+                { id: "o2" as OptionId, label: "B", orderIndex: 1, imageAssetId: null },
               ],
             },
             correctOptionId: "o2" as OptionId,
@@ -185,3 +185,39 @@ describe("ThemePreviewWalkthrough question picker", () => {
     expect(markup).not.toContain("プレビューする設問");
   });
 });
+
+describe("walkthrough steps with option images (Issue #36)", () => {
+  const options = [
+    { id: "o1" as OptionId, label: "りんご", orderIndex: 0, imageAssetId: "img-1" as never },
+    { id: "o2" as OptionId, label: "みかん", orderIndex: 1, imageAssetId: "img-2" as never },
+  ];
+  const preview = {
+    question: { id: "q1" as QuestionId, orderIndex: 0, body: "どっち？", imageAssetId: null, options },
+    correctOptionId: "o1" as OptionId,
+    imageUrl: null,
+    optionImageUrls: { o1: "/api/events/e1/media/img-1", o2: "/api/events/e1/media/img-2" },
+  };
+  const step = (label: string, group = "投影画面") => buildWalkthroughSteps("Quiz", preview).find((s) => s.group === group && s.label === label)!;
+
+  it("shows the option images on the 出題 step with the real fit layout", () => {
+    const markup = renderToStaticMarkup(step("出題").render());
+    expect(markup).toContain('src="/api/events/e1/media/img-1"');
+    expect(markup).toContain('src="/api/events/e1/media/img-2"');
+    expect(markup).toContain("stage-question-fit");
+  });
+
+  it("shows the option images, the correct highlight and the distribution on the 正解発表 step", () => {
+    const markup = renderToStaticMarkup(step("正解発表").render());
+    expect(markup).toContain('src="/api/events/e1/media/img-1"');
+    expect(markup).toContain("stage-reveal-fit");
+    expect(markup).toContain('data-correct="true"');
+  });
+
+  it("marks only the image-based projector steps as needing the viewport-bound frame", () => {
+    const steps = buildWalkthroughSteps("Quiz", preview);
+    expect(steps.filter((s) => s.fitViewport).map((s) => `${s.group}:${s.label}`)).toEqual(["投影画面:出題", "投影画面:正解発表"]);
+    const textOnly = buildWalkthroughSteps("Quiz", { ...preview, question: { ...preview.question, options: options.map((o) => ({ ...o, imageAssetId: null })) } });
+    expect(textOnly.some((s) => s.fitViewport)).toBe(false);
+  });
+});
+

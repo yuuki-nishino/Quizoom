@@ -7,6 +7,7 @@ import { PreflightPanel } from "./preflight-panel";
 import { LiveConsole } from "./live-console";
 import { InviteAccept } from "./invite-accept";
 import { ThemePreviewPage } from "./theme-preview-page";
+import { QuestionPreviewPage } from "./question-preview-page";
 
 /** ホストコンソールのルート。主催者認証の確認と `/host` 以下の画面分岐を担う */
 export function HostApp() {
@@ -51,5 +52,6 @@ export function HostApp() {
   if (route.view === "preflight") return <PreflightPanel apiClient={apiClient} eventId={route.eventId} />;
   if (route.view === "invite") return <InviteAccept apiClient={apiClient} token={route.token} onNavigate={navigate} />;
   if (route.view === "theme-preview") return <ThemePreviewPage apiClient={apiClient} eventId={route.eventId} />;
+  if (route.view === "question-preview") return <QuestionPreviewPage apiClient={apiClient} eventId={route.eventId} sessionKey={route.sessionKey} />;
   return <LiveConsole apiClient={apiClient} eventId={route.eventId} />;
 }

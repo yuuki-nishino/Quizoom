@@ -3,14 +3,24 @@ import { Confetti } from "../shared/confetti";
 import { CheckCircleIcon } from "../shared/icons";
 import { PRACTICE_QUESTION_ID } from "../../shared/practice-question";
 import { buildOptionBreakdown } from "../shared/option-breakdown";
+import { hasChoiceImages } from "../../shared/choice-image-spec";
+import { OptionTile } from "./option-tile";
 
 export interface RevealViewProps {
   readonly question: QuestionPublicView;
   readonly closed: QuestionClosedPayload;
+  /** 選択肢IDごとの画像URL。画像のない選択肢、またはURL未解決の選択肢は含めない(省略時は全て画像なし) */
+  readonly optionImageUrls?: Readonly<Record<string, string | null>>;
 }
 
+/** 選択肢の数に対応する列数(横1列)。Tailwind が静的に検出できるよう完全なクラス名で持つ */
+const OPTION_COLUMNS_CLASS: Readonly<Record<number, string>> = { 2: "grid-cols-2", 3: "grid-cols-3", 4: "grid-cols-4" };
+
 /** 正解発表: 正解のハイライト・選択肢別回答分布・解説文を表示する（要件6.4, 6.7, 6.8） */
-export function RevealView({ question, closed }: RevealViewProps) {
+export function RevealView({ question, closed, optionImageUrls = {} }: RevealViewProps) {
+  if (hasChoiceImages(question.options)) {
+    return <ChoiceImageRevealView question={question} closed={closed} optionImageUrls={optionImageUrls} />;
+  }
   // 進行画面（LiveConsole）と変換ロジックが乖離しないよう、表示行の組み立ては共通の純粋関数に寄せる（Issue #29）
   const breakdown = buildOptionBreakdown(question, closed);
   const isPractice = question.id === PRACTICE_QUESTION_ID;
@@ -54,6 +64,39 @@ export function RevealView({ question, closed }: RevealViewProps) {
         })}
       </ul>
       {closed.explanation && <p className="stage-explanation max-w-3xl text-xl text-brand-text/80">{closed.explanation}</p>}
+    </div>
+  );
+}
+
+/**
+ * 選択肢画像を持つ設問の正解発表(要件4)。出題表示と同じく、スクロールを発生させず画面内に収まる
+ * フィットレイアウトにする。正解の画像は既存と同じ強調で示し、各選択肢の回答数・割合も常に表示する。
+ */
+function ChoiceImageRevealView({ question, closed, optionImageUrls }: Required<RevealViewProps>) {
+  const breakdown = buildOptionBreakdown(question, closed);
+  const isPractice = question.id === PRACTICE_QUESTION_ID;
+  const columns = OPTION_COLUMNS_CLASS[breakdown.length] ?? "grid-cols-4";
+
+  return (
+    <div
+      aria-label="正解発表"
+      className="stage-reveal-view stage-reveal-fit quiz-phase-enter relative flex min-h-0 flex-1 flex-col items-center gap-[1.1cqh] overflow-hidden px-[2.5cqw] py-[1.4cqh] text-center"
+    >
+      <Confetti active={true} />
+      {isPractice && (
+        <p className="inline-block shrink-0 rounded-full bg-brand-accent/15 px-3 py-0.5 text-[max(12px,1.9cqh)] font-bold text-brand-accent">テスト問題</p>
+      )}
+      <h1 className="line-clamp-3 max-w-5xl shrink-0 text-[max(16px,2.8cqh)] font-extrabold leading-snug">{question.body}</h1>
+      <ul className={`stage-options grid min-h-0 w-full flex-1 grid-rows-1 gap-[1.1cqh] ${columns}`}>
+        {breakdown.map(({ optionId, label, count, pct, isCorrect }) => (
+          <li key={optionId} className="min-h-0 min-w-0">
+            <OptionTile label={label} imageUrl={optionImageUrls[optionId] ?? null} reveal={{ isCorrect, count, pct }} />
+          </li>
+        ))}
+      </ul>
+      {closed.explanation && (
+        <p className="stage-explanation line-clamp-2 max-w-3xl shrink-0 text-[max(12px,1.7cqh)] text-brand-text/80">{closed.explanation}</p>
+      )}
     </div>
   );
 }

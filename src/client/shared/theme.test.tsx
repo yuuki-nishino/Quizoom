@@ -154,4 +154,24 @@ describe("ThemeProvider", () => {
     // 二重参照(--color-brand-primary: var(--quizoom-color-primary, ...))を再度持ち込んでいないことを保証する
     expect(markup).not.toContain("var(--quizoom-color");
   });
+
+  it("grows with its content by default (min-h-full), so existing screens are unchanged", () => {
+    const markup = renderToStaticMarkup(
+      <ThemeProvider theme={theme()}>
+        <p>content</p>
+      </ThemeProvider>,
+    );
+    expect(markup).toContain("min-h-full");
+    expect(markup).not.toMatch(/class="(?:[^"]* )?h-full[ "]/);
+  });
+
+  it("is bound to the viewport height when fitViewport is set, so a fit layout inside cannot grow the page (Issue #36)", () => {
+    const markup = renderToStaticMarkup(
+      <ThemeProvider theme={theme()} fitViewport>
+        <p>content</p>
+      </ThemeProvider>,
+    );
+    expect(markup).toMatch(/class="(?:[^"]* )?h-full [^"]*overflow-hidden/);
+    expect(markup).not.toContain("min-h-full");
+  });
 });

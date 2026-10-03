@@ -22,10 +22,10 @@ export const PRACTICE_QUESTION: QuestionSnapshot = {
   timeLimitSec: 15,
   explanation: "これはテスト問題です。この回答は正解数・回答時間・順位には反映されません。",
   options: [
-    { id: OPTION_A, label: "A", orderIndex: 0 },
-    { id: OPTION_B, label: "B", orderIndex: 1 },
-    { id: OPTION_C, label: "C", orderIndex: 2 },
-    { id: OPTION_D, label: "D", orderIndex: 3 },
+    { id: OPTION_A, label: "A", orderIndex: 0, imageAssetId: null },
+    { id: OPTION_B, label: "B", orderIndex: 1, imageAssetId: null },
+    { id: OPTION_C, label: "C", orderIndex: 2, imageAssetId: null },
+    { id: OPTION_D, label: "D", orderIndex: 3, imageAssetId: null },
   ],
   correctOptionId: OPTION_B,
 };

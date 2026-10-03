@@ -30,6 +30,8 @@ export interface QuestionOption {
   readonly label: string;
   readonly isCorrect: boolean;
   readonly orderIndex: number;
+  /** 選択肢に添付された画像。画像のない選択肢は null */
+  readonly imageAssetId: AssetId | null;
 }
 
 export interface Question {
@@ -71,6 +73,7 @@ export interface UpdateEventInput {
 export interface QuestionOptionInput {
   readonly label: string;
   readonly isCorrect: boolean;
+  readonly imageAssetId?: AssetId | null;
 }
 
 export interface QuestionInput {
