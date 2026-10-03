@@ -1,4 +1,6 @@
+import { useState } from "react";
 import type { OptionId } from "../../shared/domain-types";
+import { hasChoiceImages } from "../../shared/choice-image-spec";
 import type { QuestionPublicView } from "../../shared/protocol";
 import { formatRemainingSeconds } from "../shared/format";
 import type { AnswerSubmissionState } from "./answer-submission";
@@ -8,6 +10,8 @@ import { PRACTICE_QUESTION_ID } from "../../shared/practice-question";
 export interface AnswerScreenProps {
   readonly question: QuestionPublicView;
   readonly imageUrl: string | null;
+  /** 選択肢IDごとの画像URL(画像のある選択肢のみ)。省略時は全て画像なし。暫定実装(Issue #36) */
+  readonly optionImageUrls?: Readonly<Record<string, string | null>>;
   readonly remainingMs: number;
   readonly paused: boolean;
   readonly alreadyAnswered: boolean;
@@ -22,12 +26,13 @@ const REJECTION_MESSAGES: Record<string, string> = {
 };
 
 /** 出題表示と回答送信（要件7.2, 7.3, 7.4, 7.5, 7.8, 11.1） */
-export function AnswerScreen({ question, imageUrl, remainingMs, paused, alreadyAnswered, submission, onSelect, onRetry }: AnswerScreenProps) {
+export function AnswerScreen({ question, imageUrl, optionImageUrls = {}, remainingMs, paused, alreadyAnswered, submission, onSelect, onRetry }: AnswerScreenProps) {
   const accepted = submission.status === "accepted" || (alreadyAnswered && submission.status === "idle");
   const locked = accepted || submission.status === "pending" || submission.status === "rejected";
   const selectedOptionId = submission.status !== "idle" ? submission.optionId : null;
   const selectedLabel = selectedOptionId ? question.options.find((o) => o.id === selectedOptionId)?.label : undefined;
   const isPractice = question.id === PRACTICE_QUESTION_ID;
+  const withImages = hasChoiceImages(question.options);
 
   return (
     <section aria-label="出題中" className="player-answer-screen quiz-phase-enter flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-6">
@@ -43,7 +48,7 @@ export function AnswerScreen({ question, imageUrl, remainingMs, paused, alreadyA
         {formatRemainingSeconds(remainingMs)}秒{paused && <span className="ml-2 text-base font-normal text-amber-500">（一時停止中）</span>}
       </p>
 
-      <div className="player-options grid grid-cols-1 gap-3" role="group" aria-label="選択肢">
+      <div className={`player-options grid gap-3 ${withImages ? "grid-cols-2" : "grid-cols-1"}`} role="group" aria-label="選択肢">
         {question.options.map((option) => (
           <button
             key={option.id}
@@ -51,13 +56,16 @@ export function AnswerScreen({ question, imageUrl, remainingMs, paused, alreadyA
             disabled={locked || submission.status === "failed"}
             aria-pressed={option.id === selectedOptionId}
             onClick={() => onSelect(option.id)}
-            className={`min-h-16 rounded-2xl border-2 px-4 py-4 text-lg font-semibold shadow-md transition-[background-color,border-color,transform] active:scale-95 disabled:opacity-60 ${
+            className={`flex min-h-16 flex-col items-center justify-center gap-2 rounded-2xl border-2 text-lg font-semibold shadow-md ${
+              withImages ? "p-2" : "px-4 py-4"
+            } transition-[background-color,border-color,transform] active:scale-95 disabled:opacity-60 ${
               option.id === selectedOptionId
                 ? "border-brand-primary bg-brand-primary text-white"
                 : "border-slate-300 bg-white text-slate-800 active:bg-slate-100"
             }`}
           >
-            {option.label}
+            <OptionImage url={optionImageUrls[option.id] ?? null} />
+            <span className="w-full break-words">{option.label}</span>
           </button>
         ))}
       </div>
@@ -90,4 +98,11 @@ export function AnswerScreen({ question, imageUrl, remainingMs, paused, alreadyA
       )}
     </section>
   );
+}
+
+/** 選択肢ボタン内の画像(4:3)。読み込みに失敗した場合は画像のみを隠し、テキストのボタンとして使えるようにする */
+function OptionImage({ url }: { readonly url: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (url === null || failed) return null;
+  return <img src={url} alt="" onError={() => setFailed(true)} className="aspect-[4/3] w-full rounded-lg object-contain" />;
 }

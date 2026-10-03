@@ -147,6 +147,7 @@ export function buildWalkthroughSteps(eventTitle: string, preview: PreviewQuesti
         <AnswerScreen
           question={question}
           imageUrl={imageUrl}
+          optionImageUrls={optionImageUrls}
           remainingMs={18000}
           paused={false}
           alreadyAnswered={false}

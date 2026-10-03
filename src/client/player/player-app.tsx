@@ -129,6 +129,11 @@ export function PlayerApp() {
       ) : state.currentQuestion !== null && (state.phase.kind === "questionOpen" || state.phase.kind === "paused") ? (
         <AnswerScreen
           question={state.currentQuestion}
+          optionImageUrls={Object.fromEntries(
+            state.currentQuestion.options.flatMap((option) =>
+              option.imageAssetId ? [[option.id, buildPlayerMediaUrl(joinInfo.eventId, option.imageAssetId, token)] as const] : [],
+            ),
+          )}
           imageUrl={
             state.currentQuestion.imageAssetId ? buildPlayerMediaUrl(joinInfo.eventId, state.currentQuestion.imageAssetId, token) : null
           }
