@@ -9,6 +9,7 @@ import { RecoveryBanner } from "../shared/recovery-banner";
 import { ConfirmDialog } from "./confirm-dialog";
 import { formatElapsedMs, formatRemainingSeconds } from "../shared/format";
 import { buildOptionBreakdown } from "../shared/option-breakdown";
+import { hostRoutePath } from "./route";
 import { CheckCircleIcon } from "../shared/icons";
 import {
   canStartSession,
@@ -27,6 +28,7 @@ import {
   isPracticeReady,
   isPracticeRevealed,
   canAdvanceFinalReveal,
+  isEventFinished,
 } from "./live-console-state";
 
 export interface LiveConsoleProps {
@@ -99,6 +101,7 @@ export function LiveConsole({ apiClient, eventId }: LiveConsoleProps) {
   const remainingMs = useRemainingMs(clock, deadlineAt);
   const frozenRemainingMs = pausedRemainingMs(state.phase);
 
+  const finished = isEventFinished(state.phase, state.revealStep);
   const revealed = state.closedQuestion !== null;
   const rankingShown = state.ranking !== null;
   const lastQuestion = isLastQuestion(state.currentQuestion?.orderIndex ?? null, totalQuestions ?? Number.POSITIVE_INFINITY);
@@ -246,19 +249,13 @@ export function LiveConsole({ apiClient, eventId }: LiveConsoleProps) {
         </div>
       )}
 
-      {finalized && (
-        <div aria-label="結果確定済み" className="mt-6 rounded-lg border border-emerald-300 bg-emerald-50 p-6 text-center shadow-sm">
-          <p className="font-medium text-emerald-800">結果を確定しました。</p>
-          {canAdvanceFinalReveal(state.ranking, state.revealStep) && (
-            <button
-              type="button"
-              onClick={() => send({ type: "advanceFinalReveal" })}
-              className={`mt-4 ${primaryButtonClass}`}
-            >
-              次のグループを発表する
-            </button>
-          )}
-        </div>
+      {(finalized || finished) && (
+        <FinalizedPanel
+          eventId={eventId}
+          finished={finished}
+          canAdvance={canAdvanceFinalReveal(state.ranking, state.revealStep)}
+          onAdvance={() => send({ type: "advanceFinalReveal" })}
+        />
       )}
 
       {confirmingFinalize && (
@@ -271,5 +268,48 @@ export function LiveConsole({ apiClient, eventId }: LiveConsoleProps) {
         />
       )}
     </section>
+  );
+}
+
+/**
+ * 結果確定後の表示。一覧・結果への導線は、サーバーが確定を配信した(finished)後にだけ表示し、進行中や確定操作の直後には出さない(要件5.16, 5.17)。
+ * 導線から離れても進行は止まらず、進行画面を開き直せば発表の操作を続けられる(要件5.19)
+ */
+export function FinalizedPanel({
+  eventId,
+  finished,
+  canAdvance,
+  onAdvance,
+}: {
+  readonly eventId: EventId;
+  readonly finished: boolean;
+  readonly canAdvance: boolean;
+  readonly onAdvance: () => void;
+}) {
+  const linkClass =
+    "rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50";
+  return (
+    <div aria-label="結果確定済み" className="mt-6 rounded-lg border border-emerald-300 bg-emerald-50 p-6 text-center shadow-sm">
+      <p className="font-medium text-emerald-800">結果を確定しました。</p>
+      {canAdvance && (
+        <button
+          type="button"
+          onClick={onAdvance}
+          className="mt-4 rounded-md bg-indigo-600 px-5 py-2.5 font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+        >
+          次のグループを発表する
+        </button>
+      )}
+      {finished && (
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+          <a href={hostRoutePath({ view: "list" })} className={linkClass}>
+            イベント一覧へ戻る
+          </a>
+          <a href={hostRoutePath({ view: "editor", eventId, tab: "results" })} className={linkClass}>
+            結果を見る
+          </a>
+        </div>
+      )}
+    </div>
   );
 }

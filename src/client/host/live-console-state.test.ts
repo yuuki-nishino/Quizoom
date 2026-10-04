@@ -18,6 +18,7 @@ import {
   isPracticeReady,
   isPracticeRevealed,
   canAdvanceFinalReveal,
+  isEventFinished,
 } from "./live-console-state";
 import type { HostConsoleState } from "./live-console-state";
 import type { LivePhase, OptionId, QuestionId, ThemeSettings } from "../../shared/domain-types";
@@ -273,5 +274,34 @@ describe("canAdvanceFinalReveal（要件15.8, Issue #16フォローアップ）"
     expect(canAdvanceFinalReveal(ranking(3), 0)).toBe(true);
     expect(canAdvanceFinalReveal(ranking(3), 1)).toBe(true);
     expect(canAdvanceFinalReveal(ranking(3), 2)).toBe(false);
+  });
+});
+
+describe("isEventFinished（要件5.16〜5.18, Issue #37）", () => {
+  const phases: readonly (readonly [string, LivePhase])[] = [
+    ["lobby", { kind: "lobby" }],
+    ["ready", { kind: "ready", nextQuestionId: null }],
+    ["questionClosed", { kind: "questionClosed", questionId: "q1" as QuestionId, openedAt: 0 }],
+    ["revealed", { kind: "revealed", questionId: "q1" as QuestionId }],
+    ["interimRanking", { kind: "interimRanking", nextQuestionId: null }],
+  ];
+
+  it("is false while the event is in progress and no final reveal step has been received", () => {
+    expect(isEventFinished(null, null)).toBe(false);
+    for (const [, phase] of phases) expect(isEventFinished(phase, null)).toBe(false);
+  });
+
+  it("is false while paused", () => {
+    const paused: LivePhase = { kind: "paused", resumeTo: { kind: "lobby" }, remainingMs: 1000 };
+    expect(isEventFinished(paused, null)).toBe(false);
+  });
+
+  it("is true once the server reports the finalRanking phase (reload / another tab)", () => {
+    expect(isEventFinished({ kind: "finalRanking" }, null)).toBe(true);
+  });
+
+  it("is true once a final reveal step arrives even though the phase was not updated (the tab that finalized)", () => {
+    expect(isEventFinished({ kind: "questionClosed", questionId: "q1" as QuestionId, openedAt: 0 }, 0)).toBe(true);
+    expect(isEventFinished(null, 0)).toBe(true);
   });
 });
