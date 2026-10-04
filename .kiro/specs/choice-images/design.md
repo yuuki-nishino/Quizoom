@@ -2,20 +2,22 @@
 
 ## Overview
 
-本機能は、既存のライブクイズアプリの設問に「選択肢ごとの画像」を追加する。主催者は各選択肢に画像(任意)を添付でき、画像はアップロード時にブラウザ側で4:3へ中央トリミング・縮小される。投影画面は選択肢の数だけ画像を表示し、正解発表では正解の画像を強調する。主催者は、編集中の設問だけを、未保存の内容を含めて実際の投影画面と同じ見た目で新しいタブに確認できる。
+本機能は、既存のライブクイズアプリの設問に「選択肢ごとの画像」を追加する。主催者は各選択肢に画像(任意)を添付でき、画像はアップロード時にブラウザ側で4:3へ中央トリミング・縮小される。投影画面は選択肢の数だけ画像を表示し、正解発表では正解の画像を強調する。参加者のスマートフォンの回答画面でも、選択肢ボタンの中に画像を表示する。主催者は、編集中の設問だけを、未保存の内容を含めて実際の投影画面と同じ見た目で新しいタブに確認できる。
 
 **Purpose**: 文言だけでは伝わりにくい選択肢を視覚的に出題でき、事前に投影画面での収まりを確認できる。
-**Users**: 主催者(設問の作成・プレビュー)、会場の参加者(投影画面の閲覧)。
+**Users**: 主催者(設問の作成・プレビュー)、会場の参加者(投影画面の閲覧、スマートフォンでの回答)。
 **Impact**: `option` テーブルに画像列を追加し、選択肢の型・WebSocketの設問ペイロード・投影画面・主催者の設問エディタを拡張する。既存の設問画像、メディア配信、採点、フェーズ遷移は変更しない。
 
 ### Goals
 - 選択肢への画像添付(テキストは必須、画像を併用)と、アップロード時の自動統一
 - 画像付き設問を、2択・4択ともスクロールなしで投影画面に収める
+- 参加者画面の回答画面に、選択肢画像をボタン内で表示する
 - 設問単位のプレビュー(新しいタブ・未保存内容の反映・実投影画面と同じコンポーネント)
 - 文言のみの既存設問・既存データ・開催中のスナップショットへの後方互換
 
 ### Non-Goals
-- 参加者画面(スマホ)への画像表示とそのプレビュー(別途判断。Issue #36にコメントで残す)
+- 設問単位プレビューへの参加者画面の追加(設問単位プレビューは投影画面のみ。参加者画面は既存のテーマプレビューの回答画面で確認できる)
+- 参加者画面の回答画面以外(待機・結果など)への画像表示、参加者画面でのスクロールなしの収まり保証
 - トリミング位置の手動調整、画像以外のメディア、結果共有ページへの表示
 - 孤立したR2オブジェクトの回収(既存の設問画像と同じ挙動)
 - イベント複製でのテーマ(ロゴ・背景画像)のR2コピー(別Issueで扱う)
@@ -27,13 +29,14 @@
 - `option.image_asset_id` の列と、選択肢画像の参照関係(各選択肢は画像を0または1枚持つ)
 - 選択肢画像の自動統一(寸法・縮尺・形式)の仕様値と処理
 - 画像付き設問の投影画面レイアウト(出題・正解発表)
+- 参加者画面の回答画面での選択肢画像の表示(2列グリッドとボタン内の画像)
 - 設問単位プレビューの入口・下書きの受け渡しプロトコル
 
 ### Out of Boundary
 - 設問画像・ロゴ・背景画像の仕様(変更しない)
 - メディアの保存先・認可方式(再利用のみ)
 - 採点・フェーズ遷移・ランキング・結果アーカイブ(設問画像を保持しないため影響なし)
-- 参加者画面への画像表示(別途判断)
+- 参加者画面の回答画面以外への画像表示
 - 既存のテーマプレビュー(全設問の通し確認)の機能変更
 
 ### Allowed Dependencies
@@ -132,6 +135,8 @@ migrations/
 - `src/client/host/theme-preview-walkthrough.tsx` — 枠の部分を `preview-stage-frame.tsx` へ切り出し、`PreviewQuestion` に選択肢画像のURLを追加
 - `src/client/stage/question-view.tsx`、`reveal-view.tsx`、`stage-app.tsx` — フィットレイアウトと選択肢画像URLの解決
 - `src/client/shared/option-breakdown.ts` — `imageAssetId` を行に含める
+- `src/client/player/answer-screen.tsx` — `optionImageUrls` を受け取り、画像付き設問では2列グリッドで、選択肢ボタン内に画像とテキストを表示する
+- `src/client/player/player-app.tsx` — 画像のある選択肢についてのみ、参加者トークン付きの画像URL(既存の `buildPlayerMediaUrl`)を組み立てて `AnswerScreen` へ渡す
 
 ## System Flows
 
@@ -169,6 +174,8 @@ sequenceDiagram
 | 4.1-4.5 | 正解発表での画像・内訳・収まり | OptionTile, RevealView, option-breakdown | OptionBreakdownRow | — |
 | 5.1-5.8 | 設問単位プレビュー | QuestionPreviewPage, question-preview-channel, PreviewStageFrame | PreviewDraftMessage | プレビュー受け渡しフロー |
 | 5.9 | 既存テーマプレビューの維持 | ThemePreviewWalkthrough | — | — |
+| 8.1-8.8 | 参加者画面での表示・2列・混在・回答動作・読込・失敗 | AnswerScreen, choice-image-spec | AnswerScreenProps | — |
+| 8.9 | 参加者トークンでの画像取得 | PlayerApp, MediaApi(既存) | GET /api/events/:id/media/:assetId | — |
 | 6.1-6.4 | 後方互換(イベント複製での画像の引き継ぎを含む) | migration 0007, live-store, CatalogRepository(duplicateEvent) | OptionSnapshot | — |
 | 7.1-7.4 | 配信・アクセス制御 | MediaApi(既存) | GET /api/events/:id/media/:assetId | — |
 
@@ -183,6 +190,7 @@ sequenceDiagram
 | QuestionPreviewPage | client/host | 設問単位プレビュー | 5.1-5.8 | PreviewStageFrame (P0), QuestionView (P0), RevealView (P0) | State |
 | PreviewStageFrame | client/host | 基準サイズ描画+縮小 | 5.5, 5.6, 5.9 | ThemeProvider (P0) | — |
 | OptionTile / QuestionView / RevealView | client/stage | フィットレイアウトでの表示 | 3.1-3.9, 4.1-4.5 | OptionTile (P0) | — |
+| AnswerScreen(拡張) | client/player | 選択肢ボタン内に画像を表示 | 8.1-8.9 | choice-image-spec (P0), buildPlayerMediaUrl (P0) | State |
 | CatalogRepository(拡張) | server/catalog | 画像の読み書き・検証 | 1.4, 6.1, 6.2, 6.4 | D1 (P0) | Service |
 | live-store(拡張) | server/session | 古いスナップショットの正規化 | 6.3, 6.4 | — | State |
 
@@ -336,7 +344,32 @@ export interface OptionTileProps {
 #### option-breakdown
 
 - `OptionBreakdownRow` に `imageAssetId: AssetId | null` を追加し、進行画面・投影画面の内訳行が選択肢画像を参照できるようにする。`label` の扱いは変更しない
-- 参加者画面(`AnswerScreen`)は変更しない。選択肢のテキストが必須のため、画像を表示しなくてもボタンの文言で選択肢を判別できる
+
+### client/player
+
+#### AnswerScreen(拡張)
+
+| Field | Detail |
+|-------|--------|
+| Intent | 参加者の回答画面で、選択肢ボタンの中に画像を表示する |
+| Requirements | 8.1-8.9 |
+
+```typescript
+export interface AnswerScreenProps {
+  // 既存のprops(question, imageUrl, remainingMs, paused, alreadyAnswered, submission, onSelect, onRetry)は変更しない
+  /** 選択肢IDごとの画像URL(画像のある選択肢のみ)。省略時は全て画像なし */
+  readonly optionImageUrls?: Readonly<Record<string, string | null>>;
+}
+```
+- 適用条件: `hasChoiceImages(question.options)` が真のとき。偽のときは現行の1列・画像なしの表示を変更しない(8.3)
+- レイアウト: 画像付き設問では選択肢を2列グリッドにし、ボタンは縦flexで「画像(4:3、`w-full`、`object-contain`)→テキスト」の順に並べる。ボタンの余白は画像付きでは小さくする。2択・4択のどちらも2列(4択は2×2)となる(8.1, 8.2)
+- 混在: 画像のない選択肢は、テキストのみのボタンとして同じグリッドに並ぶ(8.4)
+- 回答動作: 画像はボタンの子要素であり、画像を押してもボタンの `onClick` が働く。送信・受付表示・選択状態・ロック・再送信は従来のまま変更しない(8.5, 8.6)
+- 画像の領域: 画像は `aspect-[4/3] w-full` で、読み込み前から領域を確保する(8.7)。読み込みに失敗した選択肢は、`onError` で当該画像のみを描画しない(テキストのボタンとして残る)(8.8)
+- 画像の `alt` は空(装飾)。選択肢の名前はテキストが担い、テキストが必須のためスクリーンリーダーでも選択肢を判別できる
+- スクロール: 参加者画面は従来どおり縦スクロールを許容する(投影画面のようなフィットレイアウトは行わない)
+- URL の解決: `PlayerApp` が、画像のある選択肢にだけ `buildPlayerMediaUrl`(設問画像と同じ関数)で参加者トークン付きURLを組み立てて渡す。画像のない選択肢のキーは渡さない。認可は既存のメディア配信に従う(8.9)
+- 既存のテーマプレビューの回答画面(出題)も、`PreviewQuestion.optionImageUrls` を `AnswerScreen` に渡すため、選択肢画像付きの見え方を確認できる
 
 ### server/catalog
 
@@ -401,6 +434,7 @@ ALTER TABLE option ADD COLUMN image_asset_id TEXT;
 ### Error Strategy
 - **ユーザー入力(エディタ)**: 非対応形式・加工失敗は選択肢の位置にインラインで表示し、画像は変更しない(2.5, 2.6)。5MB超過はサーバーが `PAYLOAD_TOO_LARGE` で拒否し、同じ位置に表示する(2.7)。テキストが空の選択肢は `optionLabel` として該当位置に表示する(1.4)
 - **投影画面**: 画像の読み込み失敗は、当該タイルの画像のみを非表示にし、テキストを表示する。レイアウトは維持する(3.9)
+- **参加者画面**: 画像の読み込み失敗は、当該選択肢ボタンの画像のみを非表示にし、テキストのボタンとして回答できる状態を保つ(8.8)
 - **プレビュー**: 下書きを取得できない・編集タブが閉じられた場合は理由を表示し、誤った内容を出さない(5.8)。`BroadcastChannel` 非対応時はボタンを無効にして理由を表示する
 - **イベント複製**: 画像のR2コピーが1件でも失敗した場合は、D1へ書き込まずに複製を失敗として返す(部分的に画像が欠けた複製を作らない)。複製元に実体のない画像は参照を `null` にして継続する
 - **収まりの検知(開発・確認用)**: プレビューの基準サイズ枠は `overflow-hidden` とするため、フィットレイアウトの不具合(溢れ)は枠外へのクリップとして目視で確認できる。自動検証は、jsdomにレイアウト計算がなく `scrollHeight` が常に0になるため、jsdomでは行わない。収まりは実ブラウザ(Playwright等)で基準サイズ(1920×1080)に描画して `scrollHeight <= clientHeight` と要素の境界が画面内に収まることを検査する(Testing Strategy参照)
@@ -427,6 +461,8 @@ ALTER TABLE option ADD COLUMN image_asset_id TEXT;
 
 ### UI Tests(Vitest + Testing Library)
 - `QuestionView`/`RevealView`: 画像付き2択・4択、設問画像併用、混在、読み込み失敗で、タイルの構成(画像の領域・テキスト・`line-clamp`・`overflow-hidden`の付与)と読み込み失敗時のフォールバックを検証する。**レイアウトの収まりそのものはjsdomでは検証しない**(下記の実ブラウザ検証で行う)
+
+- `AnswerScreen`: 画像なしの設問は1列で従来どおり、画像付きは2列グリッドでボタン内に画像とテキストが並ぶこと、画像のある選択肢にのみ画像が描画される混在、選択状態と受付表示が画像付きでも変わらないこと(`renderToStaticMarkup`)
 
 ### 実ブラウザでのレイアウト検証(Playwright等)
 - 基準サイズ(1920×1080)で `QuestionView`/`RevealView` を描画し、`scrollHeight <= clientHeight` と、主要要素(問題文・設問画像・選択肢・カウントダウン・回答状況)の境界が画面内に収まることを検査する
