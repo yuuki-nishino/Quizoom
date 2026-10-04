@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ThemePreviewPage, toPreviewQuestion, toPreviewQuestions } from "./theme-preview-page";
 import { unimplementedApiClient, sampleEvent, sampleQuestion } from "./test-fixtures";
-import type { AssetId, QuestionId } from "../../shared/domain-types";
+import type { AssetId, OptionId, QuestionId } from "../../shared/domain-types";
 
 describe("ThemePreviewPage", () => {
   it("shows a loading state before the event fetch resolves", () => {
@@ -63,8 +63,8 @@ describe("toPreviewQuestions", () => {
         sampleQuestion({
           id: "q2" as QuestionId,
           options: [
-            { id: "o1" as never, label: "A", isCorrect: true, orderIndex: 0 },
-            { id: "o2" as never, label: "B", isCorrect: false, orderIndex: 1 },
+            { id: "o1" as never, label: "A", isCorrect: true, orderIndex: 0, imageAssetId: null },
+            { id: "o2" as never, label: "B", isCorrect: false, orderIndex: 1, imageAssetId: null },
           ],
         }),
       ],
@@ -76,3 +76,27 @@ describe("toPreviewQuestions", () => {
     expect(second?.correctOptionId).toBe("o1");
   });
 });
+
+describe("option images in the preview mapping (Issue #36)", () => {
+  it("carries each option's image reference and resolves its host-authenticated media URL", () => {
+    const event = sampleEvent({
+      questions: [
+        sampleQuestion({
+          options: [
+            { id: "o1" as OptionId, label: "りんご", isCorrect: true, orderIndex: 0, imageAssetId: "img-1" as AssetId },
+            { id: "o2" as OptionId, label: "みかん", isCorrect: false, orderIndex: 1, imageAssetId: null },
+          ],
+        }),
+      ],
+    });
+    const preview = toPreviewQuestion(event.id, event);
+    expect(preview?.question.options.map((o) => o.imageAssetId)).toEqual(["img-1", null]);
+    expect(preview?.optionImageUrls).toEqual({ o1: `/api/events/${event.id}/media/img-1` });
+  });
+
+  it("has no option image URLs for a text-only question", () => {
+    const event = sampleEvent();
+    expect(toPreviewQuestion(event.id, event)?.optionImageUrls).toEqual({});
+  });
+});
+

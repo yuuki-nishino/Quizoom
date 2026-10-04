@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { env } from "cloudflare:test";
-import type { EventId, QuestionId } from "../../shared/domain-types";
+import type { AssetId, EventId, QuestionId } from "../../shared/domain-types";
 import {
   listEvents,
   findEvent,
@@ -603,5 +603,121 @@ describe("collaborator access", () => {
 
     const result = await duplicateEvent(env, created.id, collaboratorId);
     expect(result).toEqual({ ok: false, error: { code: "FORBIDDEN" } });
+  });
+});
+
+describe("option.image_asset_id migration (Issue #36)", () => {
+  it("adds a nullable image_asset_id column and leaves existing options without an image", async () => {
+    const created = await createEvent(env, OWNER, { title: "Migration" });
+    await upsertQuestion(env, created.id, OWNER, {
+      body: "Q?",
+      timeLimitSec: 30,
+      options: [
+        { label: "A", isCorrect: true },
+        { label: "B", isCorrect: false },
+      ],
+    });
+
+    const { results } = await env.DB.prepare("SELECT image_asset_id FROM option").all<{ image_asset_id: string | null }>();
+    expect(results).toHaveLength(2);
+    expect(results.every((row) => row.image_asset_id === null)).toBe(true);
+  });
+});
+
+describe("option images (Issue #36)", () => {
+  const IMG_A = "asset-a" as AssetId;
+  const IMG_B = "asset-b" as AssetId;
+
+  async function createQuestion(eventId: EventId, options: { label: string; isCorrect: boolean; imageAssetId?: AssetId | null }[]) {
+    const result = await upsertQuestion(env, eventId, OWNER, { body: "Q?", timeLimitSec: 30, options });
+    if (!result.ok) throw new Error(`upsert failed: ${result.error.code}`);
+    return result.value;
+  }
+
+  it("round-trips an image on each option, keeping the option text", async () => {
+    const created = await createEvent(env, OWNER, { title: "Images" });
+    const question = await createQuestion(created.id, [
+      { label: "りんご", isCorrect: true, imageAssetId: IMG_A },
+      { label: "みかん", isCorrect: false, imageAssetId: IMG_B },
+    ]);
+
+    expect(question.options.map((o) => [o.label, o.imageAssetId])).toEqual([
+      ["りんご", IMG_A],
+      ["みかん", IMG_B],
+    ]);
+    const found = await findEvent(env, created.id, OWNER);
+    expect(found.ok && found.value.questions[0]!.options.map((o) => o.imageAssetId)).toEqual([IMG_A, IMG_B]);
+  });
+
+  it("treats an option without imageAssetId as having no image, and keeps the question image alongside option images", async () => {
+    const created = await createEvent(env, OWNER, { title: "Mixed" });
+    const result = await upsertQuestion(env, created.id, OWNER, {
+      body: "Q?",
+      imageAssetId: "question-image" as AssetId,
+      timeLimitSec: 30,
+      options: [
+        { label: "A", isCorrect: true, imageAssetId: IMG_A },
+        { label: "B", isCorrect: false },
+      ],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.imageAssetId).toBe("question-image");
+    expect(result.value.options.map((o) => o.imageAssetId)).toEqual([IMG_A, null]);
+  });
+
+  it("replaces and removes an option image on re-save", async () => {
+    const created = await createEvent(env, OWNER, { title: "Replace" });
+    const first = await createQuestion(created.id, [
+      { label: "A", isCorrect: true, imageAssetId: IMG_A },
+      { label: "B", isCorrect: false, imageAssetId: IMG_B },
+    ]);
+
+    const replaced = await upsertQuestion(env, created.id, OWNER, {
+      id: first.id,
+      body: "Q?",
+      timeLimitSec: 30,
+      options: [
+        { label: "A", isCorrect: true, imageAssetId: IMG_B },
+        { label: "B", isCorrect: false, imageAssetId: null },
+      ],
+    });
+    expect(replaced.ok && replaced.value.options.map((o) => o.imageAssetId)).toEqual([IMG_B, null]);
+  });
+
+  it("includes option images in the question snapshot used when the event goes live", async () => {
+    const created = await createEvent(env, OWNER, { title: "Snapshot" });
+    await createQuestion(created.id, [
+      { label: "A", isCorrect: true, imageAssetId: IMG_A },
+      { label: "B", isCorrect: false },
+    ]);
+
+    const snapshot = await loadQuestionSnapshot(env, created.id);
+    expect(snapshot[0]!.options.map((o) => o.imageAssetId)).toEqual([IMG_A, null]);
+  });
+
+  it("keeps existing text-only questions working unchanged", async () => {
+    const created = await createEvent(env, OWNER, { title: "Legacy" });
+    const question = await createQuestion(created.id, [
+      { label: "A", isCorrect: true },
+      { label: "B", isCorrect: false },
+    ]);
+    expect(question.options.every((o) => o.imageAssetId === null)).toBe(true);
+    const snapshot = await loadQuestionSnapshot(env, created.id);
+    expect(snapshot[0]!.options.map((o) => o.label)).toEqual(["A", "B"]);
+  });
+
+  it("copies option image references when an event is duplicated", async () => {
+    const created = await createEvent(env, OWNER, { title: "Dup" });
+    await createQuestion(created.id, [
+      { label: "A", isCorrect: true, imageAssetId: IMG_A },
+      { label: "B", isCorrect: false },
+    ]);
+
+    const copy = await duplicateEvent(env, created.id, OWNER);
+    expect(copy.ok).toBe(true);
+    if (!copy.ok) return;
+    const snapshot = await loadQuestionSnapshot(env, copy.value.id);
+    expect(snapshot[0]!.options.map((o) => o.imageAssetId)).toEqual([IMG_A, null]);
   });
 });

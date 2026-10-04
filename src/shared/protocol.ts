@@ -53,7 +53,12 @@ export interface QuestionPublicView {
   readonly orderIndex: number;
   readonly body: string;
   readonly imageAssetId: AssetId | null;
-  readonly options: readonly { readonly id: OptionId; readonly label: string; readonly orderIndex: number }[];
+  readonly options: readonly {
+    readonly id: OptionId;
+    readonly label: string;
+    readonly orderIndex: number;
+    readonly imageAssetId: AssetId | null;
+  }[];
 }
 
 export type SelfState =

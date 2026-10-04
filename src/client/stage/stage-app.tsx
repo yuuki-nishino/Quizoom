@@ -3,7 +3,7 @@ import { parseStageRoute } from "./route";
 import { fetchStageInfo } from "./stage-api-client";
 import type { StageInfo } from "./stage-api-client";
 import { useStageConsole } from "./use-stage-console";
-import { buildStageMediaUrl } from "./media-url";
+import { buildOptionImageUrls, buildStageMediaUrl, isChoiceImageScreen } from "./media-url";
 import { ThemeProvider } from "../shared/theme";
 import { ConnectionBadge } from "../shared/connection-badge";
 import { RecoveryBanner } from "../shared/recovery-banner";
@@ -70,7 +70,13 @@ export function StageApp() {
   const backgroundUrl = theme.backgroundAssetId ? buildStageMediaUrl(route.eventId, theme.backgroundAssetId, route.token) : null;
 
   return (
-    <ThemeProvider theme={theme} templateId={theme.templateId} logoImageUrl={logoUrl} backgroundImageUrl={backgroundUrl}>
+    <ThemeProvider
+      theme={theme}
+      templateId={theme.templateId}
+      logoImageUrl={logoUrl}
+      backgroundImageUrl={backgroundUrl}
+      fitViewport={isChoiceImageScreen(state)}
+    >
       <div className="fixed top-4 right-4 z-10">
         <ConnectionBadge status={status} />
       </div>
@@ -82,13 +88,18 @@ export function StageApp() {
         {state.ranking !== null ? (
           <RankingView entries={state.ranking} isFinal={state.isFinalRanking} revealStep={state.revealStep} />
         ) : state.closedQuestion !== null && state.currentQuestion !== null ? (
-          <RevealView question={state.currentQuestion} closed={state.closedQuestion} />
+          <RevealView
+            question={state.currentQuestion}
+            closed={state.closedQuestion}
+            optionImageUrls={buildOptionImageUrls(route.eventId, state.currentQuestion, route.token)}
+          />
         ) : state.currentQuestion !== null ? (
           <QuestionView
             question={state.currentQuestion}
             imageUrl={
               state.currentQuestion.imageAssetId ? buildStageMediaUrl(route.eventId, state.currentQuestion.imageAssetId, route.token) : null
             }
+            optionImageUrls={buildOptionImageUrls(route.eventId, state.currentQuestion, route.token)}
             remainingMs={state.phase?.kind === "paused" ? (frozenRemainingMs ?? 0) : (remainingMs ?? 0)}
             paused={state.phase?.kind === "paused"}
             answeredCount={state.answeredCount}

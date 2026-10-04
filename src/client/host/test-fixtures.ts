@@ -46,8 +46,8 @@ export function sampleQuestion(overrides: Partial<Question> = {}): Question {
     timeLimitSec: 30,
     explanation: "",
     options: [
-      { id: "o1" as OptionId, label: "1", isCorrect: false, orderIndex: 0 },
-      { id: "o2" as OptionId, label: "2", isCorrect: true, orderIndex: 1 },
+      { id: "o1" as OptionId, label: "1", isCorrect: false, orderIndex: 0, imageAssetId: null },
+      { id: "o2" as OptionId, label: "2", isCorrect: true, orderIndex: 1, imageAssetId: null },
     ],
     ...overrides,
   };
