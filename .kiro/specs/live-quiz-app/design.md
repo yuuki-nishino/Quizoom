@@ -304,7 +304,7 @@ flowchart TD
 | 4.1, 4.2 | 参加用 URL と QR コード発行 | CatalogRoutes, HostConsole | `EventCatalogService` | — |
 | 4.3–4.8 | 参加登録・重複名・定員・復元 | JoinRoutes, ParticipantToken, QuizSessionDO | HTTP `/api/join/:joinCode` | — |
 | 4.9, 4.10 | 途中参加と不利の通知 | QuizSessionDO, AnswerScreen | `stateSnapshot` | 接続復帰フロー |
-| 5.1–5.13 | 進行操作全般・再開の制限 | QuizSessionDO, PhaseMachine, HostConsole | `ClientCommand`, `Transition` | 進行フロー / 状態機械 |
+| 5.1–5.19 | 進行操作全般・再開の制限・新しいタブでの起動・終了後の導線 | QuizSessionDO, PhaseMachine, HostConsole | `ClientCommand`, `Transition` | 進行フロー / 状態機械 |
 | 6.1–6.9 | 投影画面の表示 | PresentationScreen, QuizSessionDO | `ServerEvent` | 進行フロー |
 | 7.1–7.9 | 回答画面の表示と送信 | AnswerScreen, QuizSessionDO | `submitAnswer` | 進行フロー |
 | 8.1–8.10 | 採点とランキング | ScoringModule, QuizSessionDO, ResultArchive | `RankingEntry` | 進行フロー |
@@ -377,7 +377,7 @@ interface PublicResult {
 | ShareView | UI | 共有結果ページの描画と画像化 | 8.12, 8.14, 10.8 | — | State |
 | LiveChannel | UI | WebSocket 接続・再接続・状態復元 | 9.2–9.6 | protocol (P0) | State |
 | ServerClock | UI | サーバー基準の残り時間算出 | 9.8, 6.2, 7.2 | なし | Service |
-| HostConsole | UI | 準備画面（イベント一覧・作成・編集、設問エディタ、外観エディタ、公開・QR/参加URL取得、結果閲覧・共有設定）と進行画面（出題操作・正解発表・結果発表）の描画 | 1.3–1.8, 2.1–2.10, 3.1–3.14, 4.1, 4.2, 5.1–5.13, 8.11, 8.13, 10.2, 10.3, 11.6, 12.3, 12.4 | CatalogRoutes (P0), LiveChannel (P0), ThemeProvider (P1), PresentationScreen (P2), AnswerScreen (P2) | State |
+| HostConsole | UI | 準備画面（イベント一覧・作成・編集、設問エディタ、外観エディタ、公開・QR/参加URL取得、結果閲覧・共有設定）と進行画面（出題操作・正解発表・結果発表）の描画 | 1.3–1.8, 2.1–2.10, 3.1–3.14, 4.1, 4.2, 5.1–5.19, 8.11, 8.13, 10.2, 10.3, 11.6, 12.3, 12.4 | CatalogRoutes (P0), LiveChannel (P0), ThemeProvider (P1), PresentationScreen (P2), AnswerScreen (P2) | State |
 | PresentationScreen / AnswerScreen | UI | 投影画面・回答画面の描画 | 6, 7 | LiveChannel (P0), ThemeProvider (P1) | State |
 
 ### Domain 層
@@ -1119,6 +1119,13 @@ interface ServerClock {
 - **（Issue #28）** `ResultScreen`の正解発表時（`personalResult`あり・`personalRank?.isFinal`が偽）の表示から、途中順位（「現在の順位: N位」）の行を削除する。要件15の最終結果発表は下位から1位へ順に発表する演出であり、途中順位が毎問表示されると自分の到達順位が事前に推測できてしまいネタバレになるため（要件7.6改訂）。最終結果（`personalRank.isFinal`が真）の「あなたの順位: N位」は要件7.9のとおり維持し、テスト問題の分岐（要件3.3, 3.6）も元から順位を表示しないため変更しない
   - `PersonalResult.rank`（`shared/protocol.ts`）と`QuizSessionDO`側の算出・配信は**残す**。最小変更の方針であり、`rank`はサーバー側で既に`rank(aggregate(...))`の結果から取得している値のため、配信を止めても採点処理は簡素化されない。配信は残るため、参加者がDevToolsでWebSocketフレームを直接読めば途中順位は観測可能だが、通常の利用における画面上のネタバレを防ぐという要件7.6の目的は満たす
   - `personalRank`イベントのうち`isFinal=false`（中間ランキング表示時）のものは、改訂前から`ResultScreen`が描画に用いていない（`isFinal`が真のときのみ最終結果ブロックへ分岐する）ため、この改訂による挙動変更はない。Event Contract表の`personalRank`行の要件参照を`7.6, 7.9`から`7.9`へ修正する
+- **（Issue #37）** 進行画面を新しいタブで開き、イベント終了後にだけ一覧・結果へ戻る導線を出す（要件5.14〜5.19）
+  - **新しいタブで開く**: `event-editor.tsx`の「進行画面を開く」を、`onNavigate`によるタブ内遷移から、`hostRoutePath({ view: "live", eventId })`を`href`に持つ`<a target="_blank" rel="noopener">`へ変更する。設問プレビューの起動ボタン（`question-preview-launcher.tsx`）と同じ形で、見た目（緑のボタン）は変えない。進行画面へのほかの遷移導線は存在しない（事前確認画面`PreflightPanel`は進行画面へ遷移しない）ため、揃える対象はない。新しいタブでの直接アクセス・再読み込みは、既存の`/host/events/:id/live`のルーティング（`route.ts`）と主催者の認証でそのまま動作する（要件5.15）
+  - **「イベント終了」の判定元**: 進行画面の`finalized`（確定ボタンを押した直後に立つローカル状態。再読み込みで失われ、サーバーの確認も待たない）は判定に使わない。サーバーが確定したことを示す信号は2つあり、いずれもサーバー由来である。(a)確定した直後のタブには、`finalize`が`stateSnapshot`を伴わないため`phase`は更新されず、最終ランキングの`rankingUpdated`（`revealStep`が非null）だけが届く。(b)再接続・再読み込み・別タブでは、`stateSnapshot`の`phase`が`finalRanking`で届く。よって、純粋関数`isEventFinished(phase, revealStep)`（`live-console-state.ts`）は「`phase?.kind === "finalRanking"` または `revealStep !== null`」を終了後と判定する（要件5.18）。D1の`event.status = "finished"`は参照しない（進行画面が既に購読している状態だけで判定でき、追加のAPI呼び出しが不要なため）
+  - **導線の表示**: 「結果確定済み」ブロック（`aria-label="結果確定済み"`）の中に、「イベント一覧へ戻る」（`/host`）と「結果を見る」（イベント編集の結果タブ）の2つのリンクを追加する。ブロック自体の表示条件は、従来の`finalized`（確定操作の直後に即時のフィードバックを出すため維持する）または`isEventFinished`とする。リンクの表示条件は`isEventFinished`のみで、確定ボタンを押した直後（サーバーの応答前）・確認ダイアログの表示中・進行中のフェーズ（要件5.17）では表示しない。再読み込み後は`finalized`が失われているため、`isEventFinished`でブロックが表示される。リンクは`hostRoutePath`で組み立てる`<a>`で、同じタブ内で遷移する（タブを閉じる案内にはしない。リンクのほうが確実に動作し、導線から離れた後に進行画面へ戻ることもできるため）
+  - **再接続した主催者への最終ランキングの再送（サーバー側の追加）**: 現状、`stateSnapshot`は`phase`（`finalRanking`）しか運ばず、最終ランキングと発表段階（`revealStep`）は確定時の`rankingUpdated`でしか届かない。そのため確定後に進行画面を再読み込みすると、`canAdvanceFinalReveal`が偽（ランキング未受信）となり、「次のグループを発表する」が出せず、要件5.19を満たせない。`#sendStateSnapshot`が主催者に送る場合に限り、`phase`が`finalRanking`かつ`finalRevealStep`が記録済みのとき、`stateSnapshot`に続けて、現在の発表段階の`rankingUpdated`（`isFinal: true`・`revealStep`）を送る。ペイロードは確定時の配信（`#broadcastRanking`）と同じ形（主催者向けは全順位）を用いる。投影画面（`stage`）の再読み込み時の同様の欠落は本改訂の範囲外とし、別Issueとして扱う
+  - **最終結果発表の途中でも表示する理由**: 導線を`finalRanking`になった時点で出しても、最終発表の段階（`finalRevealStep`）はDurable Objectが保持しており、進行画面への接続はイベントが`finished`でも拒否されない（拒否されるのは参加者の新規参加のみ）。一覧へ移動しても投影画面・参加者画面の発表は止まらず、進行画面を開き直せば「次のグループを発表する」の操作を再開できる（要件5.19）。「発表が最後まで進んだ後にだけ表示する」案は、誤離脱の防止にはより強いが、発表を最後まで進めないと戻れなくなるため採らない
+  - **複数タブ**: 同じイベントの進行画面を複数タブで開くことは、既存でも制限していない。コマンドは各タブから送れるが、フェーズ機械が不正な遷移を拒否し（`invalid`）、状態の変更はWebSocketのブロードキャストですべてのタブへ配信されるため、二重操作でも状態は壊れない。この改訂では制限を追加しない
 - **（Issue #34）** 最終結果発表の途中で参加者の手元に最終順位が先に表示されないよう、`isFinal=true`の`personalRank`は**投影画面で当該参加者の順位が発表済みになった時点でのみ**配信する（要件7.9改訂）
   - 発表済み判定は`src/shared/ranking-batches.ts`の純粋関数`revealedEntries(batches, step)`に置く。6位以下は`step`までに表示したグループの全員、上位5位以内は下位から`revealedTopCount`人を返す。投影画面の`RankingView`と同じ`buildRevealBatches`・`revealedTopCount`から導出するため、手元と投影画面の発表タイミングが構造的に一致する（同率順位がグループ境界をまたぐ場合も投影画面の表示順に従う）
   - `#broadcastRanking`は`isFinal`のとき、参加者への配信対象を`revealedEntries`の結果に絞る。発表段階が進むたびに発表済みの全員へ再送するが、内容は同一で冪等なため差分管理はしない。主催者・投影画面への`rankingUpdated`は従来どおり全員分を送る
