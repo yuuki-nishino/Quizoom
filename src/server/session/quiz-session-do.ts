@@ -559,6 +559,20 @@ export class QuizSessionDO extends DurableObject<Env> {
     };
     this.#sendTo(ws, { type: "stateSnapshot", payload });
     if (role.role === "participant") this.#sendRevealedFinalRank(ws, role.participantId, state);
+    if (role.role === "host") this.#sendFinalRankingToHost(ws, state);
+  }
+
+  /**
+   * 再接続・resync時、最終発表中の主催者へ現在の最終ランキングと発表段階を再送する(要件5.18, 5.19, Issue #37)。
+   * stateSnapshotはフェーズしか運ばないため、これがないと開き直した進行画面は「次のグループを発表する」を出せない。
+   * 内容は確定時の配信(#broadcastRanking)の主催者向けと同じ
+   */
+  #sendFinalRankingToHost(ws: WebSocket, state: SessionState): void {
+    if (state.phase.kind !== "finalRanking" || state.finalRevealStep === null || state.questions === null) return;
+
+    const ranked = rank(aggregate(this.#store.listParticipants(), this.#store.listAllAnswers(), state.questions));
+    const payload: RankingUpdatedPayload = { entries: ranked, isFinal: true, revealStep: state.finalRevealStep };
+    this.#sendTo(ws, { type: "rankingUpdated", payload });
   }
 
   /** 再接続・resync時、最終発表で既に発表済みの参加者へ最終順位を再送する（要件7.9, Issue #34） */

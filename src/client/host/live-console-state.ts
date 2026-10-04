@@ -177,3 +177,12 @@ export function canAdvanceFinalReveal(ranking: readonly RankingEntry[] | null, r
   const batches = buildRevealBatches(sorted);
   return revealStep < maxRevealStep(batches);
 }
+
+/**
+ * 最終ランキングが確定した(イベント終了後)かどうか。進行画面内の操作履歴ではなく、サーバーが配信した状態で判定する(要件5.18)。
+ * 確定した直後のタブには finalize が stateSnapshot を伴わないためフェーズが届かず、最終ランキングの発表段階(revealStep)だけが届く。
+ * 再接続・再読み込み・別タブでは、stateSnapshot のフェーズが finalRanking として届く
+ */
+export function isEventFinished(phase: LivePhase | null, revealStep: number | null): boolean {
+  return phase?.kind === "finalRanking" || revealStep !== null;
+}

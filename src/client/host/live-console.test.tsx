@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { RevealSummary } from "./live-console";
+import { RevealSummary, FinalizedPanel } from "./live-console";
 import type { QuestionPublicView, QuestionClosedPayload } from "../../shared/protocol";
-import type { OptionId, QuestionId } from "../../shared/domain-types";
+import type { EventId, OptionId, QuestionId } from "../../shared/domain-types";
 
 const question: QuestionPublicView = {
   id: "q1" as QuestionId,
@@ -59,5 +59,30 @@ describe("RevealSummary（進行画面の正解発表・要件5.6）", () => {
     expect(markup).toContain("選択肢1: 12人（71%）");
     expect(markup).toContain("選択肢2: 5人（29%）");
     expect(markup).not.toContain("3f2b0c1e");
+  });
+});
+
+describe("FinalizedPanel（結果確定後の導線・要件5.16, 5.17, Issue #37）", () => {
+  const render = (finished: boolean, canAdvance = false) =>
+    renderToStaticMarkup(<FinalizedPanel eventId={"ev1" as EventId} finished={finished} canAdvance={canAdvance} onAdvance={() => {}} />);
+
+  it("shows links back to the event list and to the results once the event is finished", () => {
+    const markup = render(true);
+    expect(markup).toContain("結果を確定しました。");
+    expect(markup).toMatch(/href="\/host"[^>]*>[^<]*イベント一覧へ戻る/);
+    expect(markup).toMatch(/href="\/host\/events\/ev1\/results"[^>]*>[^<]*結果を見る/);
+  });
+
+  it("does not show the links before the server has confirmed the finalization", () => {
+    const markup = render(false);
+    expect(markup).toContain("結果を確定しました。");
+    expect(markup).not.toContain("イベント一覧へ戻る");
+    expect(markup).not.toContain("結果を見る");
+  });
+
+  it("keeps the next-group button while the final reveal can advance, alongside the links", () => {
+    const markup = render(true, true);
+    expect(markup).toContain("次のグループを発表する");
+    expect(markup).toContain("イベント一覧へ戻る");
   });
 });

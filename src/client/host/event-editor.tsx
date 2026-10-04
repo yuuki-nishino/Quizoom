@@ -1,3 +1,4 @@
+import { LiveConsoleLink } from "./live-console-link";
 import { useEffect, useState } from "react";
 import type { EventId } from "../../shared/domain-types";
 import type { EventDetail, HostApiClient } from "./api-client";
@@ -100,13 +101,7 @@ export function EventEditor({ apiClient, eventId, tab, onNavigate }: EventEditor
         <button type="button" onClick={() => onNavigate({ view: "preflight", eventId })} className="ml-auto rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">
           事前確認
         </button>
-        <button
-          type="button"
-          onClick={() => onNavigate({ view: "live", eventId })}
-          className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
-        >
-          進行画面を開く
-        </button>
+        <LiveConsoleLink eventId={eventId} />
       </nav>
 
       <div className="mt-6">

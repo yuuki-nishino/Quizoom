@@ -1308,3 +1308,93 @@ describe("QuizSessionDO stateSnapshot on connect", () => {
     secondWs.close();
   });
 });
+
+describe("QuizSessionDO 再接続した主催者への最終ランキングの再送（要件5.18, 5.19, Issue #37）", () => {
+  async function setup(count: number) {
+    const stub = newStub();
+    await seedEvent("event-1", { status: "published", stageToken: "tok" });
+    await seedQuestion("event-1", "q1", 0, { timeLimitSec: 30, correctOptionId: "q1-a" });
+    await publish(stub, { ...meta, capacity: count + 1 });
+    await sendHostCommand(stub, "event-1", { type: "startSession" });
+    await sendHostCommand(stub, "event-1", { type: "openQuestion" });
+    const sockets: WebSocket[] = [];
+    for (let i = 0; i < count; i++) {
+      const participant = await joinParticipant(stub, "event-1", `player${i + 1}`);
+      const ws = await connectAndDrain(stub, { eventId: "event-1", role: "participant", token: participant.token });
+      await sendAndAwait(ws, { type: "submitAnswer", questionId: "q1", optionId: "q1-a" });
+      sockets.push(ws);
+    }
+    await sendHostCommand(stub, "event-1", { type: "closeQuestion" });
+    await sendHostCommand(stub, "event-1", { type: "revealAnswer" });
+    const cookie = await createHostCookie(env, "owner-1");
+    return { stub, sockets, cookie };
+  }
+
+  /** 主催者として(再)接続し、接続直後に届くメッセージをすべて集めて返す */
+  async function connectHostAndCollect(stub: DurableObjectStub<QuizSessionDO>, cookie: string) {
+    const ws = await connectReal(stub, { eventId: "event-1", role: "host" }, { Cookie: cookie });
+    const received = collectMessages(ws);
+    await flush(ws);
+    return { ws, received };
+  }
+
+  it("sends the current final ranking and reveal step right after the snapshot when a host connects after finalize", async () => {
+    const { stub, sockets, cookie } = await setup(7);
+    await sendHostCommand(stub, "event-1", { type: "finalize" });
+
+    const { ws, received } = await connectHostAndCollect(stub, cookie);
+
+    expect(received[0]).toMatchObject({ type: "stateSnapshot", payload: { phase: { kind: "finalRanking" } } });
+    expect(received[1]).toMatchObject({ type: "rankingUpdated", payload: { isFinal: true, revealStep: 0 } });
+    expect(received[1].payload.entries.map((e: { rank: number }) => e.rank).sort((a: number, b: number) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+
+    ws.close();
+    sockets.forEach((s) => s.close());
+  });
+
+  it("resends the latest reveal step after the host advanced the reveal, so a reopened console can continue", async () => {
+    const { stub, sockets, cookie } = await setup(7);
+    await sendHostCommand(stub, "event-1", { type: "finalize" });
+    await sendHostCommand(stub, "event-1", { type: "advanceFinalReveal" });
+    await sendHostCommand(stub, "event-1", { type: "advanceFinalReveal" });
+
+    const { ws, received } = await connectHostAndCollect(stub, cookie);
+    expect(received.find((m) => m.type === "rankingUpdated")?.payload.revealStep).toBe(2);
+
+    // 再接続した主催者の操作で、発表が次の段階へ進む
+    const next = nextMessage(ws);
+    ws.send(JSON.stringify({ type: "advanceFinalReveal" }));
+    const event = await next;
+    expect(event).toMatchObject({ type: "rankingUpdated", payload: { revealStep: 3 } });
+
+    ws.close();
+    sockets.forEach((s) => s.close());
+  });
+
+  it("also resends it when the host resyncs on an open connection", async () => {
+    const { stub, sockets, cookie } = await setup(3);
+    await sendHostCommand(stub, "event-1", { type: "finalize" });
+    const { ws, received } = await connectHostAndCollect(stub, cookie);
+    received.length = 0;
+
+    ws.send(JSON.stringify({ type: "resync" }));
+    await flush(ws);
+
+    expect(received[0]).toMatchObject({ type: "stateSnapshot" });
+    expect(received[1]).toMatchObject({ type: "rankingUpdated", payload: { isFinal: true, revealStep: 0 } });
+
+    ws.close();
+    sockets.forEach((s) => s.close());
+  });
+
+  it("does not send a ranking to a host who connects before finalize", async () => {
+    const { stub, sockets, cookie } = await setup(3);
+
+    const { ws, received } = await connectHostAndCollect(stub, cookie);
+
+    expect(received.map((m) => m.type)).toEqual(["stateSnapshot", "commandRejected"]);
+
+    ws.close();
+    sockets.forEach((s) => s.close());
+  });
+});
