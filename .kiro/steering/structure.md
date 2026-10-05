@@ -2,14 +2,14 @@
 
 ## Organization Philosophy
 
-サーバー側は**ドメイン境界ごと**(auth/catalog/session/media/results)、クライアント側は**役割ごと**(host/stage/player/share)に分割する。両者は`src/shared/`の型・プロトコル定義を介してのみ結合する。
+サーバー側は**ドメイン境界ごと**(auth/catalog/collaborators/session/media/results)、クライアント側は**役割ごと**(host/stage/player/share)に分割する。両者は`src/shared/`の型・プロトコル定義を介してのみ結合する。
 
 ## Directory Patterns
 
 ### サーバー: ドメインモジュール
 **Location**: `src/server/<domain>/`
 **Purpose**: 1ドメインにつき1ディレクトリ。典型的には `routes.ts`(HTTPハンドラ) + `repository.ts`または`archive.ts`(D1操作) + `schema.ts`(Zodスキーマ)を持つ
-**Example**: `src/server/catalog/`(イベント・設問CRUD)、`src/server/results/`(結果アーカイブ・共有)
+**Example**: `src/server/catalog/`(イベント・設問CRUD)、`src/server/collaborators/`(共同運営者の招待・管理)、`src/server/results/`(結果アーカイブ・共有)
 
 ### サーバー: ライブセッション
 **Location**: `src/server/session/`
@@ -26,6 +26,8 @@
 **Purpose**: `host`(主催者コンソール) / `stage`(投影画面) / `player`(回答画面) / `share`(結果共有ページ)。各ディレクトリは`<role>-app.tsx`をエントリに、その役割専用のAPIクライアント・WebSocketフック・画面コンポーネントを持つ
 **Example**: `src/client/stage/stage-app.tsx`が`WaitingRoom`/`QuestionView`/`RevealView`/`RankingView`をフェーズに応じて出し分ける
 
+**画面ロジックは描画から分離する**: 状態の導出や判定は、Reactに依存しない純粋関数のファイルへ切り出して単体テストする(`*-state.ts`、`*-controller.ts`、`*-validation.ts`。例: `host/live-console-state.ts`、`host/question-validation.ts`)。コンポーネントは、その結果を描画する薄い層に留める
+
 ### クライアント: 共通基盤
 **Location**: `src/client/shared/`
 **Purpose**: 役割を跨いで使う基盤(WebSocket接続管理`use-live-channel.ts`、サーバー時刻同期`use-server-clock.ts`、外観適用`theme.tsx`、接続状態表示`connection-badge.tsx`)
@@ -33,8 +35,12 @@
 
 ### 共有型・プロトコル
 **Location**: `src/shared/`
-**Purpose**: サーバー・クライアント双方からimportされる型定義のみを置く。`domain-types.ts`(ドメイン型・`Result<T,E>`)、`protocol.ts`(WebSocketコマンド/イベントのZodスキーマ)、`scoring.ts`(採点純粋ロジック)
+**Purpose**: サーバー・クライアント双方からimportされる、型定義と純粋ロジック・定数を置く。`domain-types.ts`(ドメイン型・`Result<T,E>`)、`protocol.ts`(WebSocketコマンド/イベントのZodスキーマ)、`scoring.ts`(採点純粋ロジック)、`ranking-batches.ts`(発表グループの分割)、`choice-image-spec.ts`(選択肢画像の仕様定数)など。サーバーとクライアントが同じ計算結果を必要とするものだけを置き、片側でしか使わないものは置かない
 **Example**: `ClientCommand`/`ServerEvent`の判別可能ユニオンをここで一元定義し、型の不一致をコンパイル時に検出する
+
+### その他のトップレベル
+- `migrations/`: D1のスキーマ変更。`NNNN_<内容>.sql`の連番(Wranglerが適用)
+- `docs/`: 運用ドキュメント(CI/CD、負荷試験の手順と実測結果、README用スクリーンショット)
 
 ## Naming Conventions
 
