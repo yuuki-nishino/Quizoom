@@ -63,12 +63,12 @@ export function QuestionView({ question, imageUrl, optionImageUrls = {}, remaini
       </h1>
       {imageUrl && <img src={imageUrl} alt="" className="stage-question-image max-h-56 rounded-2xl object-contain shadow-xl" />}
 
-      <ul className={`stage-options grid w-full max-w-3xl grid-cols-1 sm:grid-cols-2 ${hasImage ? "gap-2" : "gap-4"}`}>
+      <ul className={`stage-options grid w-full grid-cols-1 sm:grid-cols-2 ${hasImage ? "max-w-4xl gap-3" : "max-w-6xl gap-5"}`}>
         {question.options.map((option) => (
           <li
             key={option.id}
-            className={`rounded-2xl border-2 border-brand-primary/30 bg-white/95 font-semibold text-slate-800 shadow-lg ${
-              hasImage ? "px-4 py-2 text-lg" : "px-6 py-5 text-2xl"
+            className={`flex items-center justify-center rounded-2xl border-2 border-brand-primary/30 bg-white/95 text-center font-semibold leading-snug text-slate-800 shadow-lg ${
+              hasImage ? "min-h-16 px-5 py-3 text-xl" : "min-h-28 px-8 py-6 text-3xl"
             }`}
           >
             {option.label}
