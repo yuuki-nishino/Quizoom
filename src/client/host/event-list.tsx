@@ -3,6 +3,7 @@ import type { EventId } from "../../shared/domain-types";
 import type { EventSummary, HostApiClient } from "./api-client";
 import { eventStatusLabel } from "./format";
 import { ConfirmDialog } from "./confirm-dialog";
+import { EventRenameForm } from "./event-rename-form";
 
 export interface EventListProps {
   readonly apiClient: HostApiClient;
@@ -16,6 +17,7 @@ export function EventList({ apiClient, onOpenEvent }: EventListProps) {
   const [newTitle, setNewTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<EventSummary | null>(null);
+  const [renamingId, setRenamingId] = useState<EventId | null>(null);
 
   async function refresh() {
     const result = await apiClient.listEvents();
@@ -51,6 +53,14 @@ export function EventList({ apiClient, onOpenEvent }: EventListProps) {
     const result = await apiClient.duplicateEvent(id);
     if (result.ok) await refresh();
     else setError(result.code);
+  }
+
+  async function handleRename(id: EventId, title: string): Promise<boolean> {
+    const result = await apiClient.updateEvent(id, { title });
+    if (!result.ok) return false;
+    setRenamingId(null);
+    await refresh();
+    return true;
   }
 
   async function handleConfirmDelete() {
@@ -99,6 +109,10 @@ export function EventList({ apiClient, onOpenEvent }: EventListProps) {
         <ul className="mt-6 divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white shadow-sm">
           {events.map((event) => (
             <li key={event.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              {renamingId === event.id ? (
+                <EventRenameForm initialTitle={event.title} onSave={(title) => handleRename(event.id, title)} onCancel={() => setRenamingId(null)} />
+              ) : (
+                <>
               <button
                 type="button"
                 onClick={() => onOpenEvent(event.id)}
@@ -113,8 +127,16 @@ export function EventList({ apiClient, onOpenEvent }: EventListProps) {
                 {event.role === "owner" ? "主催" : "共同運営"}
               </span>
               <span className="text-sm text-slate-500">設問{event.questionCount}件</span>
-              {event.role === "owner" && (
-                <div className="ml-auto flex gap-2">
+              <div className="ml-auto flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRenamingId(event.id)}
+                  className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  名前変更
+                </button>
+                {event.role === "owner" && (
+                  <>
                   <button
                     type="button"
                     onClick={() => handleDuplicate(event.id)}
@@ -129,7 +151,10 @@ export function EventList({ apiClient, onOpenEvent }: EventListProps) {
                   >
                     削除
                   </button>
-                </div>
+                  </>
+                )}
+              </div>
+                </>
               )}
             </li>
           ))}

@@ -9,6 +9,7 @@ import { PublishPanel } from "./publish-panel";
 import { ResultsPanel } from "./results-panel";
 import { CollaboratorPanel } from "./collaborator-panel";
 import type { HostRoute } from "./route";
+import { EventRenameForm } from "./event-rename-form";
 
 export interface EventEditorProps {
   readonly apiClient: HostApiClient;
@@ -21,6 +22,7 @@ export interface EventEditorProps {
 export function EventEditor({ apiClient, eventId, tab, onNavigate }: EventEditorProps) {
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,12 +52,35 @@ export function EventEditor({ apiClient, eventId, tab, onNavigate }: EventEditor
       <button type="button" onClick={() => onNavigate({ view: "list" })} className="text-sm text-indigo-700 hover:underline">
         ← 一覧に戻る
       </button>
-      <h1 className="mt-2 text-2xl font-bold text-slate-900">
-        {event.title}{" "}
-        <small className="ml-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
-          {eventStatusLabel(event.status)}
-        </small>
-      </h1>
+      {renaming ? (
+        <div className="mt-2">
+          <EventRenameForm
+            initialTitle={event.title}
+            onCancel={() => setRenaming(false)}
+            onSave={async (title) => {
+              const result = await apiClient.updateEvent(eventId, { title });
+              if (!result.ok) return false;
+              setEvent(result.value);
+              setRenaming(false);
+              return true;
+            }}
+          />
+        </div>
+      ) : (
+        <h1 className="mt-2 text-2xl font-bold text-slate-900">
+          {event.title}{" "}
+          <small className="ml-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+            {eventStatusLabel(event.status)}
+          </small>
+          <button
+            type="button"
+            onClick={() => setRenaming(true)}
+            className="ml-3 rounded-md border border-slate-300 px-2.5 py-1 align-middle text-sm font-normal text-slate-700 hover:bg-slate-50"
+          >
+            名前を変更
+          </button>
+        </h1>
+      )}
 
       <nav aria-label="編集タブ" className="mt-4 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
         <button
