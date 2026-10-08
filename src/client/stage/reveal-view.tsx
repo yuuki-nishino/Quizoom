@@ -35,7 +35,7 @@ export function RevealView({ question, closed, optionImageUrls = {} }: RevealVie
         <p className="inline-block rounded-full bg-brand-accent/15 px-4 py-1 text-2xl font-bold text-brand-accent">テスト問題</p>
       )}
       <h1 className="max-w-5xl text-4xl font-extrabold leading-snug sm:text-5xl">{question.body}</h1>
-      <ul className="stage-options grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
+      <ul className="stage-options grid w-full max-w-6xl grid-cols-1 gap-5 sm:grid-cols-2">
         {breakdown.map(({ optionId, label, count, pct, isCorrect }) => {
           return (
             <li
@@ -43,27 +43,25 @@ export function RevealView({ question, closed, optionImageUrls = {} }: RevealVie
               data-correct={isCorrect}
               className={
                 isCorrect
-                  ? "stage-option-correct rounded-2xl border-2 border-emerald-500 bg-emerald-50 px-6 py-5 text-left text-2xl font-bold text-emerald-900 shadow-lg"
-                  : "rounded-2xl border-2 border-slate-200 bg-white/80 px-6 py-5 text-left text-2xl text-slate-500 shadow"
+                  ? "stage-option-correct flex min-h-28 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-emerald-500 bg-emerald-50 px-8 py-6 text-center text-3xl font-bold leading-snug text-emerald-900 shadow-lg"
+                  : "flex min-h-28 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-slate-200 bg-white/80 px-8 py-6 text-center text-3xl leading-snug text-slate-500 shadow"
               }
             >
-              <span className="inline-flex items-center gap-1.5">
-                {label}
-                {isCorrect && (
-                  <>
-                    <CheckCircleIcon className="h-6 w-6 text-emerald-600" />
-                    <span>正解</span>
-                  </>
-                )}
-              </span>
-              <span className="mt-1 block text-base font-normal">
+              {isCorrect && (
+                <span className="stage-correct-badge inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-600 px-4 py-1 text-xl font-bold text-white">
+                  <CheckCircleIcon className="h-6 w-6" />
+                  <span>正解</span>
+                </span>
+              )}
+              <span className="break-words">{label}</span>
+              <span className="block text-xl font-normal">
                 {count}人（{pct}%）
               </span>
             </li>
           );
         })}
       </ul>
-      {closed.explanation && <p className="stage-explanation max-w-3xl text-xl text-brand-text/80">{closed.explanation}</p>}
+      {closed.explanation && <p className="stage-explanation max-w-5xl text-3xl leading-relaxed text-brand-text/80">{closed.explanation}</p>}
     </div>
   );
 }

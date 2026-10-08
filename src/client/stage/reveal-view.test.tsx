@@ -38,6 +38,13 @@ describe("RevealView", () => {
     expect(markup).toContain("3人（75%）");
   });
 
+  it("puts the 正解 badge on its own line above the option label so a long label cannot squash it（Issue #42）", () => {
+    const markup = renderToStaticMarkup(<RevealView question={question} closed={closed} />);
+    const correctItem = markup.slice(markup.indexOf('data-correct="true"'));
+    expect(correctItem).toMatch(/stage-correct-badge[^>]*whitespace-nowrap/);
+    expect(correctItem.indexOf("stage-correct-badge")).toBeLessThan(correctItem.indexOf("break-words"));
+  });
+
   it("plays a one-shot celebratory effect when the correct answer is revealed", () => {
     const markup = renderToStaticMarkup(<RevealView question={question} closed={closed} />);
     expect(markup).toContain("quiz-confetti");
